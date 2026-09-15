@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const base='http://127.0.0.1:8787';
+let response=await fetch(base+'/api/health');assert.equal(response.status,200);
+response=await fetch(base+'/api/admin/dashboard');assert.equal(response.status,401);assert.match(response.headers.get('cache-control'),/no-store/);
+response=await fetch(base+'/api/session',{method:'POST',headers:{origin:'https://invalid.example','content-type':'application/json'},body:'{}'});assert.equal(response.status,403);
+response=await fetch(base+'/api/session',{method:'POST',headers:{'content-type':'application/json'},body:'{bad'});assert.equal(response.status,400);
+const password=(await readFile(new URL('../.local/.admin-password',import.meta.url),'utf8')).trim();
+response=await fetch(base+'/api/admin/session',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({user:'admin',password})});assert.equal(response.status,200);
+const cookie=response.headers.get('set-cookie').split(';')[0];
+response=await fetch(base+'/api/admin/dashboard',{headers:{cookie}});assert.equal(response.status,200);assert.ok((await response.json()).pagination);
+response=await fetch(base+'/admin');assert.equal(response.status,200);assert.equal(response.headers.get('x-frame-options'),'DENY');
+response=await fetch(base+'/api/admin/session',{method:'DELETE',headers:{cookie}});assert.equal(response.status,200);
+response=await fetch(base+'/api/admin/dashboard',{headers:{cookie}});assert.equal(response.status,401);
+console.log('PASS: real Next.js HTTP runtime, database health, authentication, revocable logout, origin, malformed JSON, headers and dashboard.');
