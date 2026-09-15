@@ -33,6 +33,11 @@ try {
  process.env.VERCEL='1';
  const geo={'x-vercel-forwarded-for':'203.0.113.42','x-vercel-ip-country':'BR','x-vercel-ip-country-region':'SP','x-vercel-ip-city':'S%C3%A3o%20Paulo','x-vercel-ip-latitude':'-23.55','x-vercel-ip-longitude':'-46.63','user-agent':'Mozilla/5.0 (Windows NT 10.0) Chrome/123.0 Safari/537.36','x-vercel-id':'fixture-only','x-vercel-ip-timezone':'America/Sao_Paulo'};
  assert.equal(requestContext(req('/',undefined,'',geo)).city,'São Paulo');
+ const {consentedLocation}=await import('../lib/request-context');
+ assert.equal(consentedLocation(req('/',undefined,'',geo),{}).city,'');
+ assert.equal(consentedLocation(req('/',undefined,'',geo),{consent:{location:false}}).timezone,'');
+ assert.equal(consentedLocation(req('/',undefined,'',geo),{consent:{location:true}}).city,'São Paulo');
+ assert.equal(consentedLocation(req('/',undefined,'',geo),{consent:{location:true}}).latitude,null);
  assert.equal(requestContext(req('/',undefined,'',geo)).browser,'Chrome');
  assert.equal(requestContext(req('/',undefined,'',{'x-vercel-ip-timezone':'Invalid/Zone'})).timezone,'');
  assert.equal((await dashboard.GET(req('/api/admin/dashboard'))).status,401);
@@ -41,7 +46,7 @@ try {
  assert.equal(auth.status,200);assert.match(auth.headers.get('set-cookie')!,/Secure/);const admin=cookie(auth);
  const rows=['88110001','88110002','88110003','88110004','88110005'].map(serial=>({serial,name:'Integration product',maker:'Test',lot:'QA',expiry:'2030',status:'authentic'}));
  assert.equal((await products.POST(req('/api/admin/products',{products:rows},admin,geo))).status,200);
- const login=await customerSession.POST(req('/api/session',{serial:rows[0].serial,metadata:{consent:{analytics:false}}},'',geo));
+ const login=await customerSession.POST(req('/api/session',{serial:rows[0].serial,metadata:{consent:{analytics:false,location:true}}},'',geo));
  assert.equal(login.status,200);const customer=cookie(login);
  const logged=await login.json();assert.equal(logged.profile.products[0].activationTimezone,'America/Sao_Paulo');assert.equal(logged.profile.points,100);assert.equal(logged.credited,true);
  const duplicate=await verifications.POST(req('/api/verifications',{serial:rows[0].serial,status:'invalid',profileId:'other',credited:true},customer,geo));
@@ -52,13 +57,13 @@ try {
  assert.equal((await forged.json()).profile.points,200);
  assert.equal((await profiles.GET(req('/api/profiles?id=other',undefined,customer))).status,403);
  assert.equal((await benefits.POST(req('/api/benefits',{threshold:3},customer))).status,409);
- await verifications.POST(req('/api/verifications',{serial:rows[2].serial,metadata:{consent:{analytics:true},timezone:'America/Sao_Paulo',page:'/index.html?secret=hidden'}},customer,geo));
+ await verifications.POST(req('/api/verifications',{serial:rows[2].serial,metadata:{consent:{analytics:true,location:true},timezone:'America/Sao_Paulo',page:'/index.html?secret=hidden'}},customer,geo));
  const reward=await benefits.POST(req('/api/benefits',{threshold:3},customer));assert.equal(reward.status,409);
  const wallet=await (await customerSession.GET(req('/api/session',undefined,customer))).json();assert.equal(wallet.profile.benefits.length,1);const code=wallet.profile.benefits[0].code;await verifications.POST(req('/api/verifications',{serial:rows[2].serial},customer));const again=await (await customerSession.GET(req('/api/session',undefined,customer))).json();assert.equal(again.profile.benefits[0].code,code);
  const otherLogin=await customerSession.POST(req('/api/session',{serial:rows[3].serial},'',geo));const otherCookie=cookie(otherLogin);
  const ownership=await verifications.POST(req('/api/verifications',{serial:rows[0].serial},otherCookie,geo));assert.equal((await ownership.json()).status,'already_claimed');
  const logs=await dashboard.GET(req('/api/admin/dashboard?q=S%C3%A3o%20Paulo',undefined,admin));const payload=await logs.json();
- assert.ok(payload.summary.total>5);assert.equal(payload.records[0].city,'São Paulo');
+ assert.equal(payload.summary.total,2);assert.equal(payload.records[0].city,'São Paulo');
  assert.equal(payload.records[0].geoSource,'vercel-ip');assert.equal(payload.records[0].ip,geo['x-vercel-forwarded-for']);
  const event=payload.records.find((e:Record<string,unknown>)=>e.serial===rows[0].serial && e.action==='login');assert.equal(event.metadata.timezone,undefined);
  process.env.SELLER_WHATSAPP='5511999999999';

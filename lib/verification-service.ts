@@ -2,13 +2,13 @@ import { rewardCatalog, rankStarts } from './reward-catalog';
 import { sessionReference } from './monitoring';
 import { randomBytes } from 'node:crypto';
 import { Database, getDatabase } from '../db/client';
-import { requestContext, clientMetadata } from './request-context';
+import { requestContext, clientMetadata, consentedLocation } from './request-context';
 export const serialPattern = /^(?:\d{5}|\d{6}|\d{8})$/;
 const levels = [{name:'Bronze',points:0},{name:'Prata',points:1000},{name:'Ouro',points:2000},{name:'Platina',points:3000},{name:'Diamante',points:5000}];
 export type Product = {serial:string;name:string;maker:string;lot:string;expiry:string;status:string;brand:string};
 type Event = {profileId:string;serial:string;action:string;source:string;status:string;credited?:boolean;product?:Product;metadata?:unknown;details?:unknown;sessionRef?:string};
 export async function logEvent(request: Request, event: Event, db=getDatabase()) {
- const c = requestContext(request);
+ const c = consentedLocation(request,event.metadata);
  const metadata = {...clientMetadata(event.metadata), sessionReference:event.sessionRef ?? await sessionReference(request), serverDetails:event.details || null, activationTimezone:c.timezone, timezoneSource:c.timezone ? 'vercel-ip' : 'unavailable'};
  const source = ['manual','qr-camera','qr-image','qr-link'].includes(event.source) ? event.source : 'manual';
  await db.prepare(`INSERT INTO verification_events(profile_id,serial,product,maker,lot,status,credited,action,source,ip,country,region,city,latitude,longitude,geo_source,user_agent,browser,os,device,request_id,host,request_path,referrer,metadata_json,activated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(event.profileId,event.serial,event.product?.name || '',event.product?.maker || '',event.product?.lot || '',event.status,event.credited ? 1:0,event.action,source,c.ip,c.country,c.region,c.city,c.latitude,c.longitude,c.geoSource,c.userAgent,c.browser,c.os,c.device,c.requestId,c.host,c.requestPath,c.referrer,JSON.stringify(metadata),new Date().toISOString()).run();
@@ -53,7 +53,7 @@ export async function activate(request:Request, id:string, serial:string, action
    const claimed = await db.prepare('SELECT profile_id FROM serial_claims WHERE serial=?').bind(serial).first();
    if (claimed && claimed.profile_id!==id) status='already_claimed';
    else if (!claimed) {
-    const location=requestContext(request);
+    const location=consentedLocation(request,metadata);
     await db.prepare('INSERT INTO serial_claims(serial,profile_id,activated_at,activation_timezone,activation_city) VALUES(?,?,?,?,?)').bind(serial,id,now,location.timezone,location.city).run();
     credited=true;
    }

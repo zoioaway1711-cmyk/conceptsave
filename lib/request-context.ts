@@ -32,7 +32,7 @@ export function requestContext(request: Request) {
 export function clientMetadata(value: unknown) {
  const input = value && typeof value === 'object' ? value as Record<string, unknown> : {};
  const consent = input.consent && typeof input.consent === 'object' ? input.consent as Record<string, unknown> : {};
- const result: Record<string, unknown> = { consent: { analytics: consent.analytics === true, personalization: consent.personalization === true, marketing: consent.marketing === true }, declaredByBrowser: true };
+ const result: Record<string, unknown> = { consent: { location: consent.location === true, version: 2, analytics: consent.analytics === true, personalization: consent.personalization === true, marketing: consent.marketing === true }, declaredByBrowser: true };
  if (consent.analytics === true) {
   for (const key of ['timezone','locale','platform','page']) result[key] = String(input[key] || '').split('?')[0].slice(0, 160);
   result.mobile = typeof input.mobile === 'boolean' ? input.mobile : null;
@@ -42,4 +42,12 @@ export function clientMetadata(value: unknown) {
   }
  }
  return result;
+}
+
+export function consentedLocation(request: Request, value: unknown) {
+ const metadata = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+ const consent = metadata.consent as Record<string, unknown> | undefined;
+ const context = requestContext(request);
+ if (consent?.location !== true) return {...context, country:'', region:'', city:'', latitude:null, longitude:null, timezone:'', geoSource:'consent-not-granted'};
+ return {...context, latitude:null, longitude:null};
 }

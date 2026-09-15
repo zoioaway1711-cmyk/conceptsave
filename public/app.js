@@ -11,19 +11,19 @@ function safeParse(raw, fallback) {
     return fallback;
   }
 }
-const CONSENT_KEY = "vf-consent-v1";
+const CONSENT_KEY = "vf-consent-v2";
 function loadConsent() {
   return safeParse(localStorage.getItem(CONSENT_KEY), {
     necessary: true,
-    analytics: false,
+    location: false, analytics: false,
     personalization: false,
     marketing: false,
     decidedAt: "",
-    version: 1,
+    version: 2,
   });
 }
 function saveConsent(next) {
-  const consent = { necessary: true, analytics: false, personalization: false, marketing: false, ...next, decidedAt: new Date().toISOString(), version: 1 };
+  const consent = { necessary: true, location: false, analytics: false, personalization: false, marketing: false, ...next, decidedAt: new Date().toISOString(), version: 2 };
   localStorage.setItem(CONSENT_KEY, JSON.stringify(consent));
   document.querySelector("#consent-banner")?.setAttribute("hidden", "");
   if(session) api('/api/profiles',{consent,preferredLanguage:language}).catch(() => {});
@@ -515,6 +515,7 @@ function auditMetadata() {
     navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   const essential = {
     consent: {
+      location: consent.location === true,
       analytics: Boolean(consent.analytics),
       personalization: Boolean(consent.personalization),
       marketing: Boolean(consent.marketing),
@@ -1000,17 +1001,21 @@ const consentDialog = document.querySelector("#consent-dialog");
 const currentConsent = loadConsent();
 if (!currentConsent.decidedAt) consentBanner?.removeAttribute("hidden");
 document.querySelector("#consent-essential")?.addEventListener("click", () => saveConsent({}));
-document.querySelector("#consent-all")?.addEventListener("click", () => saveConsent({ analytics: true, personalization: true, marketing: true }));
-document.querySelector("#consent-settings")?.addEventListener("click", () => {
+document.querySelector("#consent-all")?.addEventListener("click", () => saveConsent({ location: true, analytics: true, personalization: true, marketing: true }));
+function openPrivacyPreferences() {
   const consent = loadConsent();
+  document.querySelector("#consent-location").checked = consent.location === true;
   document.querySelector("#consent-analytics").checked = Boolean(consent.analytics);
   document.querySelector("#consent-personalization").checked = Boolean(consent.personalization);
   document.querySelector("#consent-marketing").checked = Boolean(consent.marketing);
   consentDialog?.showModal();
-});
+}
+document.querySelector("#consent-settings")?.addEventListener("click", openPrivacyPreferences);
+document.querySelector("#privacy-preferences")?.addEventListener("click", openPrivacyPreferences);
 document.querySelector("#close-consent")?.addEventListener("click", () => consentDialog?.close());
 document.querySelector("#save-consent")?.addEventListener("click", () => {
   saveConsent({
+    location: document.querySelector("#consent-location").checked,
     analytics: document.querySelector("#consent-analytics").checked,
     personalization: document.querySelector("#consent-personalization").checked,
     marketing: document.querySelector("#consent-marketing").checked,

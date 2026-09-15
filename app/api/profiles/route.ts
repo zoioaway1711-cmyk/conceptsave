@@ -22,7 +22,7 @@ export async function POST(request:Request) {
   if(!before || before.blocked) return false;
   const language=['pt','en','es'].includes(body.preferredLanguage)?body.preferredLanguage:'pt';
   await tx.prepare('UPDATE customer_profiles SET preferred_language=?,consent_json=? WHERE id=?').bind(language,JSON.stringify(consent),session.profileId).run();
-  if(before.preferred_language!==language || before.consent_json!==JSON.stringify(consent)) await logEvent(request,{profileId:session.profileId,serial:'',action:'preferences',source:'manual',status:'success',sessionRef,details:{before:{language:before.preferred_language,consent:JSON.parse(String(before.consent_json))},after:{language,consent}}},tx);
+  if(before.preferred_language!==language || before.consent_json!==JSON.stringify(consent)) await logEvent(request,{profileId:session.profileId,serial:'',action:'preferences',source:'manual',status:'success',sessionRef,metadata:{consent},details:{before:{language:before.preferred_language,consent:JSON.parse(String(before.consent_json))},after:{language,consent}}},tx);
   return true;
  });
  if(!updated) return Response.json({error:'blocked'},{status:403});

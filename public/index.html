@@ -433,7 +433,7 @@
         <h2 id="bonus-info-title"></h2><p id="bonus-info-text"></p>
       </dialog>
       <footer class="save-footer">
-        <div class="save-footer-brand"><img decoding="async" src="./save-concept-mark-v2.webp" alt="Save Concept" width="48" height="48" /><span><strong>Save Concept®</strong><small>Portal de autenticidade · © 2026</small></span></div>
+        <button type="button" id="privacy-preferences">Preferências de privacidade</button><div class="save-footer-brand"><img decoding="async" src="./save-concept-mark-v2.webp" alt="Save Concept" width="48" height="48" /><span><strong>Save Concept®</strong><small>Portal de autenticidade · © 2026</small></span></div>
         <div class="save-footer-notice"><strong>Originalidade começa na verificação.</strong><p>Confira o serial, o selo e os dados do produto neste portal. Um serial válido confirma o cadastro no sistema, mas não garante, por si só, a integridade física da ampola. Em caso de divergência ou sinais de violação, não utilize e contate a Save Concept.</p></div>
         <a class="admin-footer-link" href="./admin.html" aria-label="Acesso administrativo">Admin</a>
       </footer>
@@ -525,12 +525,13 @@
       <button class="primary support-scan icon-action" id="support-open-scanner" type="button"><span class="qr-icon" aria-hidden="true"></span><span class="visually-hidden" data-i18n="supportScan">Abrir leitor de QR Code</span></button>
     </dialog>
     <aside class="consent-banner" id="consent-banner" aria-labelledby="consent-title" hidden>
-      <div><small>PRIVACIDADE E PREFERÊNCIAS</small><h2 id="consent-title">Controle os seus dados</h2><p>Os cookies necessários mantêm o login e os benefícios. Dados de utilização e marketing são opcionais e só serão usados com a sua autorização.</p></div>
+      <div><small>PRIVACIDADE E PREFERÊNCIAS</small><h2 id="consent-title">Controle os seus dados</h2><p>Os cookies necessários mantêm seu login. Com sua autorização, registramos cidade, estado e país aproximados pelo IP público para entender as regiões atendidas. Não acessamos GPS ou endereço exato; a região da conexão não confirma o endereço de entrega. O IP também é registrado para segurança e prevenção de fraude.</p></div>
       <div class="consent-actions"><button id="consent-essential" type="button">Apenas necessários</button><button id="consent-settings" type="button">Configurar</button><button class="primary" id="consent-all" type="button">Aceitar opcionais</button></div>
     </aside>
     <dialog class="consent-dialog" id="consent-dialog" aria-labelledby="consent-settings-title">
       <div class="scanner-head"><div><small>CENTRO DE PRIVACIDADE</small><h2 id="consent-settings-title">Preferências de dados</h2></div><button id="close-consent" type="button" aria-label="Fechar">×</button></div>
       <div class="consent-options">
+        <label><span><strong>Localização aproximada pelo IP</strong><small>Autoriza usar a região da conexão para acompanhar ativações e regiões atendidas. Pode refletir VPN ou operadora. Não identifica seu endereço de entrega.</small></span><input id="consent-location" type="checkbox" /></label>
         <label><span><strong>Cookies necessários</strong><small>Login, segurança, validação e benefícios.</small></span><input type="checkbox" checked disabled /></label>
         <label><span><strong>Dados de utilização</strong><small>Dispositivo, idioma, origem e métricas técnicas para melhorar o portal.</small></span><input id="consent-analytics" type="checkbox" /></label>
         <label><span><strong>Personalização</strong><small>Nível, pontos e preferências declaradas para adaptar a experiência.</small></span><input id="consent-personalization" type="checkbox" /></label>

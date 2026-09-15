@@ -455,3 +455,5 @@ body::after {content:'SAVE CONCEPT® · ORIGINAL';position:fixed;right:14px;bott
  .showcase-product img {animation:none;}
 }
 @media(prefers-reduced-motion:reduce) {:root .primary{transform:none!important;}}
+
+#privacy-preferences {grid-column:1/-1;justify-self:start;padding:8px 0;border:0;background:transparent;color:var(--ui-muted);font-size:12px;text-decoration:underline;cursor:pointer;}
