@@ -4,6 +4,7 @@ function unlockAdmin() {
   document.querySelector("#admin-user").value = "";
   document.querySelector("#admin-password").value = "";
   document.body.dataset.adminMode = "central";
+  document.dispatchEvent(new Event("admin-authenticated"));
 }
 function lockAdmin(message = "A sessão expirou. Entre novamente para continuar.") {
   document.body.classList.add("admin-locked");
