@@ -465,3 +465,13 @@ body::after {content:'SAVE CONCEPT® · ORIGINAL';position:fixed;right:14px;bott
 body::after {content:none;}
 :root .save-footer {display:flex;align-items:center;justify-content:center;gap:24px;}
 :root .save-footer #privacy-preferences,:root .save-footer .admin-footer-link {display:grid;place-items:center;min-width:44px;min-height:44px;padding:8px;border:0;background:transparent;color:var(--ui-muted);}
+
+/* One centered row, with equal columns for the brand and utility icons. */
+:root .save-footer {display:grid;grid-template-columns:repeat(3,48px);justify-content:center;align-items:center;gap:20px;}
+:root .save-footer > .save-footer-brand,
+:root .save-footer > #privacy-preferences,
+:root .save-footer > .admin-footer-link {grid-column:auto;justify-self:center;display:grid;place-items:center;box-sizing:border-box;width:48px;height:48px;min-width:48px;min-height:48px;margin:0;padding:0;border-radius:12px;}
+:root .save-footer .save-footer-brand img {display:block;width:40px;height:40px;object-fit:contain;}
+:root .save-footer svg {display:block;width:22px;height:22px;}
+:root .save-footer :is(#privacy-preferences,.admin-footer-link):hover {background:var(--ui-soft);color:var(--ui-accent);}
+@media(max-width:600px){:root .save-footer{gap:16px;}}
