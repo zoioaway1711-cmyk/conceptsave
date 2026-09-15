@@ -28,3 +28,15 @@ export async function PATCH(request:Request) {
   await audit(request,'operator_access_changed','operator',body.id,{active:body.active},db);
  });return Response.json({saved:true});
 }
+
+export async function DELETE(request:Request) {
+ if(!await isAdmin(request))return Response.json({error:'forbidden'},{status:403});
+ const body=await request.json();if(typeof body.id!=='string')return Response.json({error:'invalid_input'},{status:400});
+ const removed=await getDatabase().transaction(async db=>{
+  const row=await db.prepare('DELETE FROM operators WHERE id=? RETURNING username').bind(body.id).first<{username:string}>();
+  if(!row)return false;
+  await db.prepare("DELETE FROM sessions WHERE role='admin' AND profile_id=?").bind(body.id).run();
+  await audit(request,'operator_removed','operator',body.id,{username:row.username},db);
+  return true;
+ });return Response.json(removed?{removed:true}:{error:'not_found'},{status:removed?200:404});
+}
