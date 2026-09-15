@@ -122,6 +122,11 @@ try {
  assert.equal(JSON.stringify(operatorRows).includes('password_hash'),false);
  await operatorAdmin.PATCH(req('/api/admin/operators',{id:operatorRows.operators[0].id,active:false},admin));
  assert.equal((await operatorProducts.POST(req('/api/operator/products',{serial:'99999997',name:'Blocked fixture'},operatorCookie))).status,403);
+ assert.equal((await operatorAdmin.DELETE(req('/api/admin/operators',{id:operatorRows.operators[0].id},customer))).status,403);
+ assert.equal((await operatorAdmin.DELETE(req('/api/admin/operators',{id:operatorRows.operators[0].id},admin))).status,200);
+ assert.equal((await (await operatorAdmin.GET(req('/api/admin/operators',undefined,admin))).json()).operators.length,0);
+ assert.equal((await adminSession.POST(req('/api/admin/session',{user:'worker',password:'test-password-long'}))).status,401);
+ assert.ok(await getDatabase().prepare('SELECT serial FROM product_serials WHERE serial=?').bind('99999998').first());
  const logout=await adminSession.DELETE(new Request(base+'/api/admin/session',{method:'DELETE',headers:{cookie:admin}}));assert.equal(logout.status,200);
  assert.equal((await dashboard.GET(req('/api/admin/dashboard',undefined,admin))).status,401);
  for(let i=0;i<11;i++) {
