@@ -358,7 +358,7 @@
       <p class="admin-security" id="admin-security">
         As alterações salvas no servidor são aplicadas às próximas verificações dos clientes.
       </p>
-    </main>
+    <section class="operator-management"><h2>Operadores</h2><p>Acesso apenas para criar produtos novos. Não podem editar, invalidar seriais ou acessar clientes.</p><form id="operator-create"><label>Usuário<input name="username" pattern="[a-z0-9._\-]{3,60}" minlength="3" maxlength="60" autocomplete="off" required></label><label>Senha inicial<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><button class="primary" type="submit">Criar operador</button></form><button id="refresh-operators" type="button">Listar operadores</button><p id="operator-message" role="status"></p><div id="operator-list"></div></section></main>
     <dialog id="qr-dialog" class="qr-dialog">
       <div class="scanner-head">
         <div>
@@ -383,6 +383,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <dialog id="activity-detail-dialog" class="customer-detail-dialog"><div class="customer-detail-head"><div><small>AUDITORIA DE ACESSO</small><h2>Detalhes do acesso</h2></div><button type="button" id="activity-close" aria-label="Fechar detalhes">×</button></div><div id="activity-detail-content"></div></dialog>
     <script src="./activity.js?v=1"></script>
-    <script src="./admin.js?v=30"></script><script src="./admin-tabs.js?v=1"></script>
-  </body>
+    <script src="./admin.js?v=31"></script><script src="./admin-tabs.js?v=1"></script>
+  <script src="/operators.js"></script></body>
 </html>

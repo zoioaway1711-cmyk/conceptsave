@@ -1,0 +1,10 @@
+const operatorForm=document.querySelector('#operator-create');
+const operatorMessage=document.querySelector('#operator-message');
+async function refreshOperators(){
+ const r=await fetch('/api/admin/operators',{cache:'no-store'});if(!r.ok)return;
+ const {operators}=await r.json();const list=document.querySelector('#operator-list');list.replaceChildren();
+ for(const op of operators){const row=document.createElement('div');row.className='operator-row';const label=document.createElement('span');label.textContent=`${op.username} · ${op.active?'Ativo':'Desativado'} · Apenas criar produtos`;const button=document.createElement('button');button.type='button';button.textContent=op.active?'Desativar':'Ativar';button.onclick=async()=>{button.disabled=true;try{const response=await fetch('/api/admin/operators',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({id:op.id,active:!op.active})});if(!response.ok)throw Error();await refreshOperators();}catch{operatorMessage.textContent='Não foi possível alterar o acesso.';button.disabled=false;}};row.append(label,button);list.append(row);}
+ if(!operators.length)list.textContent='Nenhum operador cadastrado.';
+}
+document.querySelector('#refresh-operators').onclick=()=>refreshOperators().catch(()=>{operatorMessage.textContent='Não foi possível carregar operadores.';});
+operatorForm.onsubmit=async event=>{event.preventDefault();const button=operatorForm.querySelector('button[type=submit]');button.disabled=true;try{const r=await fetch('/api/admin/operators',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:operatorForm.elements.username.value,password:operatorForm.elements.password.value})});if(!r.ok)throw Error(r.status===409?'Esse usuário já existe.':'Confira o usuário e a senha (mínimo 12 caracteres).');operatorForm.reset();operatorMessage.textContent='Operador criado. Acesso somente para cadastrar produtos novos.';await refreshOperators();}catch(e){operatorMessage.textContent=e.message;}finally{button.disabled=false;}};

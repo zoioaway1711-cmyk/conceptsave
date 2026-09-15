@@ -105,6 +105,23 @@ try {
  assert.match(out.metadata.sessionReference,/^[a-f0-9]{24}$/);
  assert.ok(!JSON.stringify(events).includes(otherCookie.split('=')[1]));
 
+ const operatorAdmin=await import('../app/api/admin/operators/route');
+ const operatorProducts=await import('../app/api/operator/products/route');
+ assert.equal((await operatorAdmin.POST(req('/api/admin/operators',{username:'worker',password:'test-password-long'},customer))).status,403);
+ assert.equal((await operatorAdmin.POST(req('/api/admin/operators',{username:'worker',password:'test-password-long'},admin))).status,201);
+ const operatorResponse=await adminSession.POST(req('/api/admin/session',{user:'worker',password:'test-password-long'}));
+ assert.equal(operatorResponse.status,200);assert.equal((await operatorResponse.json()).role,'operator');const operatorCookie=cookie(operatorResponse);
+ assert.equal((await products.POST(req('/api/admin/products',{serial:rows[0].serial,name:'Tampered',status:'invalid'},operatorCookie))).status,401);
+ assert.equal((await dashboard.GET(req('/api/admin/dashboard',undefined,operatorCookie))).status,401);
+ assert.equal((await operatorAdmin.GET(req('/api/admin/operators',undefined,operatorCookie))).status,403);
+ assert.equal((await operatorProducts.POST(req('/api/operator/products',{serial:'99999998',name:'Operator fixture',status:'invalid'},operatorCookie))).status,400);
+ const createPayload={serial:'99999998',name:'Operator fixture'};
+ const creates=await Promise.all([operatorProducts.POST(req('/api/operator/products',createPayload,operatorCookie)),operatorProducts.POST(req('/api/operator/products',createPayload,operatorCookie))]);
+ assert.deepEqual(creates.map(r=>r.status).sort(),[201,409]);
+ const operatorRows=await (await operatorAdmin.GET(req('/api/admin/operators',undefined,admin))).json();
+ assert.equal(JSON.stringify(operatorRows).includes('password_hash'),false);
+ await operatorAdmin.PATCH(req('/api/admin/operators',{id:operatorRows.operators[0].id,active:false},admin));
+ assert.equal((await operatorProducts.POST(req('/api/operator/products',{serial:'99999997',name:'Blocked fixture'},operatorCookie))).status,403);
  const logout=await adminSession.DELETE(new Request(base+'/api/admin/session',{method:'DELETE',headers:{cookie:admin}}));assert.equal(logout.status,200);
  assert.equal((await dashboard.GET(req('/api/admin/dashboard',undefined,admin))).status,401);
  for(let i=0;i<11;i++) {

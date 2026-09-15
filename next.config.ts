@@ -13,7 +13,7 @@ const nextConfig:NextConfig={
   {source:'/:path*',headers:securityHeaders},
   {source:'/api/:path*',headers:[{key:'Cache-Control',value:'no-store'}]},
   {source:'/admin/:path*',headers:[{key:'Cache-Control',value:'no-store'}]},
-  ...['/index.html','/admin.html','/admin'].map(source=>({source,headers:[{key:'Cache-Control',value:'no-store'},{key:'Content-Security-Policy',value:"default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"}]})),
+  ...['/index.html','/admin.html','/admin','/operator.html'].map(source=>({source,headers:[{key:'Cache-Control',value:'no-store'},{key:'Content-Security-Policy',value:"default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"}]})),
   {source:'/sw.js',headers:[{key:'Cache-Control',value:'no-cache'}]},
  ];},
 };

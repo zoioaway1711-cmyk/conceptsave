@@ -17,6 +17,7 @@ async function checkAdminSession() {
       credentials: "same-origin",
     });
     if (!response.ok) return false;
+    if((await response.json()).role==='operator'){location.href='/operator.html';return true;}
     unlockAdmin();
     await loadRemoteProducts();
     await loadRemoteVerifications();
@@ -46,6 +47,7 @@ document
         return;
       }
       if (response.ok) {
+        if((await response.json()).role==='operator'){location.href='/operator.html';return;}
         error.textContent = "";
         unlockAdmin();
         await loadRemoteProducts();
@@ -490,7 +492,7 @@ async function openCustomerDetail(profileId) {
       <dl class="customer-metadata-grid consent-status-grid">
         <div><dt>Dados necessários</dt><dd>Ativos</dd></div>
         <div><dt>Dados de utilização</dt><dd>${analyticsAllowed ? "Autorizados" : "Não autorizados"}</dd></div>
-        <div><dt>Personalização</dt><dd>${consent.personalization === true ? "Autorizada" : "Não autorizada"}</dd></div>
+        <div><dt>Localização aproximada pelo IP</dt><dd>${consent.location === true ? "Autorizada · região da conexão, não endereço de entrega" : "Não autorizada"}</dd></div><div><dt>Personalização</dt><dd>${consent.personalization === true ? "Autorizada" : "Não autorizada"}</dd></div>
         <div><dt>Marketing</dt><dd>${marketingAllowed ? "Autorizado" : "Não autorizado"}</dd></div>
         <div><dt>Data da decisão</dt><dd>${consent.decidedAt ? new Date(consent.decidedAt).toLocaleString("pt-PT") : "Sem decisão registada"}</dd></div>
         <div><dt>Elegibilidade</dt><dd>${marketingAllowed ? "Ofertas por pontos e benefícios" : "Sem comunicações promocionais"}</dd></div>
