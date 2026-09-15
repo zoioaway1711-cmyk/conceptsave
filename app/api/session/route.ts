@@ -10,6 +10,7 @@ export async function GET(request: Request) {
  return Response.json({profile});
 }
 export async function POST(request: Request) {
+ try {
  const limited = await rateLimit(request,'customer-login',20); if (limited) return limited;
  const body=await request.json(); const serial=typeof body.serial==='string' ? body.serial.trim() : '';
  if (!serialPattern.test(serial)) {
@@ -20,6 +21,9 @@ export async function POST(request: Request) {
  if (result.status!=='authentic') return Response.json({error:'login_denied'},{status:401});
  await deleteSession(request,'customer');
  return Response.json(result,{headers:{'set-cookie':await createSession('customer',serial)}});
+ } catch {
+  return Response.json({error:'authentication_unavailable'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':'30'}});
+ }
 }
 export async function DELETE(request:Request) {
  const session=await getSession(request,'customer');

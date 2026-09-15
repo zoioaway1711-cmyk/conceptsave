@@ -350,9 +350,14 @@ function applyRemoteProfile(profile) {
  if(profile) session=profile.id;
 }
 async function api(path, body) {
- const response=await fetch(path,{method:body ? 'POST':'GET',credentials:'same-origin',headers:body ? {'content-type':'application/json'}:{},body:body ? JSON.stringify(body):undefined,cache:'no-store'});
- const payload=await response.json();
- if(!response.ok) throw new Error(response.status===429 ? 'Muitas tentativas. Aguarde antes de tentar novamente.' : response.status===401 ? 'Acesso não autorizado. Confira o serial ou entre novamente.' : 'Não foi possível concluir. Verifique os dados e tente novamente.');
+ let response;
+ try {
+  response=await fetch(path,{method:body ? 'POST':'GET',credentials:'same-origin',headers:body ? {'content-type':'application/json','accept':'application/json'}:{accept:'application/json'},body:body ? JSON.stringify(body):undefined,cache:'no-store'});
+ } catch { throw new Error('Não foi possível conectar ao servidor. Verifique a conexão e tente novamente.'); }
+ let payload;
+ try { payload=await response.json(); }
+ catch { throw new Error(response.status>=500 ? 'O serviço de autenticação está indisponível. O administrador deve verificar o banco de dados e a configuração da publicação.' : 'O servidor não retornou uma resposta válida. Verifique se o site foi publicado como Next.js com as rotas /api disponíveis.'); }
+ if(!response.ok) throw new Error(response.status===429 ? 'Muitas tentativas. Aguarde antes de tentar novamente.' : response.status===401 ? 'Serial não encontrado ou acesso não autorizado. Confira o serial cadastrado.' : response.status>=500 ? 'Serviço temporariamente indisponível. Tente novamente mais tarde.' : 'Não foi possível concluir. Verifique os dados e tente novamente.');
  return payload;
 }
 function showApp(serial) {
@@ -367,12 +372,15 @@ async function loginWith(serial, source = "manual") {
  const button=document.querySelector('#login-form button[type="submit"]');
  if(button.disabled) return false;
  button.disabled=true;
- const error=document.querySelector('#login-error'); error.textContent='A verificar…';
+ const error=document.querySelector('#login-error');
+ if(!validSerial(serial)){error.textContent='Digite um serial de 5, 6 ou 8 números.';button.disabled=false;return false;}
+ error.textContent='A verificar…';
  try {
   const payload=await api('/api/session',{serial,source,metadata:auditMetadata()});
+  if(!payload?.profile?.id) throw new Error('Resposta de autenticação incompleta. Tente novamente.');
   applyRemoteProfile(payload.profile); error.textContent=''; showApp(payload.profile.id); return true;
  } catch(e) {error.textContent=e.message || 'Servidor indisponível. Tente novamente.';return false;}
- finally {renderRewards();}
+ finally {button.disabled=false;}
 }
 document.querySelector("#login-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -499,7 +507,7 @@ async function verify(serial, source = "manual") {
    result.textContent=payload.status==='already_claimed' ? 'Este serial já está associado a outro perfil.' : payload.status==='not_found' ? t[language].missing : 'Produto ou perfil bloqueado. Contacte o suporte.';
   }
  } catch(e) {result.className='result show invalid';result.textContent=e.message || 'Servidor indisponível. A consulta não foi confirmada.';}
- finally {renderRewards();}
+ finally {button.disabled=false;}
 }
 function auditMetadata() {
   const consent = loadConsent();
