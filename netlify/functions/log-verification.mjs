@@ -50,9 +50,24 @@ const safeMetadata = (value) => {
   };
 };
 
+const rateLimitBuckets = new Map();
+function rateLimited(key, limit, windowMs) {
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > limit;
+}
+
 export default async (request, context) => {
   if (request.method !== "POST")
     return json(405, { error: "method_not_allowed" });
+  const rateIp = request.headers.get("x-nf-client-connection-ip") || context?.ip || "unknown";
+  if (rateLimited(`log-verification:${rateIp}`, 30, 60 * 1000))
+    return json(429, { error: "rate_limited" });
   let input;
   try {
     input = await request.json();

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { HeroScrollDemo } from "@/components/demo";
 
 export default function Home() {
-  redirect("/index.html");
+  return <HeroScrollDemo />;
 }

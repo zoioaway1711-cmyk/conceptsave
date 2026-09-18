@@ -15,23 +15,6 @@
       name="description"
       content="Verifique a autenticidade e liberação de produtos Save Concept pelo número serial."
     />
-    <link rel="icon" type="image/png" sizes="96x96" href="/save-concept-favicon.png" />
-    <link rel="canonical" href="https://conceptsave.vercel.app/index.html" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Save Concept" />
-    <meta property="og:locale" content="pt_PT" />
-    <meta property="og:title" content="Save Concept — Portal de Autenticidade" />
-    <meta property="og:description" content="Verifique o serial e acompanhe seus produtos Save Concept." />
-    <meta property="og:url" content="https://conceptsave.vercel.app/index.html" />
-    <meta property="og:image" content="https://conceptsave.vercel.app/save-concept-share.png" />
-    <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Save Concept — Portal de Autenticidade, com logo da marca" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Save Concept — Portal de Autenticidade" />
-    <meta name="twitter:description" content="Verifique o serial e acompanhe seus produtos Save Concept." />
-    <meta name="twitter:image" content="https://conceptsave.vercel.app/save-concept-share.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
     <title>Save Concept — Verificação de produto</title>
@@ -42,25 +25,28 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css?v=25" />
-    <script src="./theme.js?v=1"></script>
-    <link rel="stylesheet" href="./theme.css?v=54" />
+    <link rel="stylesheet" href="./modern.css?v=2" />
   </head>
   <body>
     <div class="scroll-signature" id="scroll-signature" aria-hidden="true"><i></i></div>
-    <button class="theme-toggle" type="button" aria-label="Alternar tema" aria-pressed="false"><span aria-hidden="true">◐</span><span data-theme-label>Tema</span></button>
     <section class="login-gate" id="login-gate" aria-labelledby="login-title">
       <div class="login-brand">
-        <img decoding="async" src="./save-concept-mark-v2.webp" alt="Save Concept" width="48" height="48" />
+        <img src="./save-concept-mark-v2.png" alt="Save Concept" />
       </div>
-      <div class="login-language language-switcher"><select class="language-select" aria-label="Idioma / Language"><option value="pt">🇵🇹 Português</option><option value="en">🇬🇧 English (UK)</option><option value="es">🇵🇾 Español (PY)</option></select></div>
+      <div class="login-language language-switcher" aria-label="Idioma">
+        <button type="button" data-lang="pt" aria-label="Português de Portugal">
+          🇵🇹</button
+        ><button
+          type="button"
+          data-lang="en"
+          aria-label="English (United Kingdom)"
+        >
+          🇬🇧</button
+        ><button type="button" data-lang="es" aria-label="Español (Paraguay)">
+          🇵🇾
+        </button>
+      </div>
       <div class="login-layout">
-        <aside class="login-showcase" aria-label="Save Concept">
-          <span class="showcase-eyebrow"><i></i> SAVE CONCEPT · ORIGINALIDADE</span>
-          <h2>A confiança começa<br />nos <em>detalhes.</em></h2>
-          <p>Um código exclusivo. A origem do seu produto, ao seu alcance.</p>
-          <div class="showcase-product"><div class="showcase-orbit"></div><img decoding="async" src="./save-concept-vial-signature-v1.webp" width="1024" height="1536" alt="Frasco Save Concept com selo de autenticidade" /></div>
-          <div class="showcase-footer"><span>01 / AUTENTICIDADE</span><span>SAVE CONCEPT®</span></div>
-        </aside>
         <div class="login-card">
           <span class="login-kicker" id="login-kicker">ACESSO DO CLIENTE</span>
           <h1 id="login-title">Entre com um produto validado</h1>
@@ -74,24 +60,24 @@
           </div>
           <p class="verification-privacy">
             Ao consultar um serial, o sistema regista o ID do produto, data,
-            hora, IP público, localização aproximada por IP e navegador para prevenção de
+            hora, endereço IP e dados técnicos do navegador para prevenção de
             fraude e auditoria de autenticidade.
           </p>
           <form id="login-form" novalidate>
             <label for="login-serial" id="login-serial-label"
-              >Serial do produto</label
+              >Código de licença</label
             >
             <div class="input-wrap">
               <input
                 id="login-serial"
-                aria-describedby="login-help login-error"
-                inputmode="numeric"
+                inputmode="text"
+                autocapitalize="characters"
                 autocomplete="off"
-                maxlength="8"
-                placeholder="Ex.: 35172"
-              /><span id="login-count">0 / 8</span>
+                maxlength="30"
+                placeholder="Ex.: CURA-7K9N-4QPV-8RTW-3HZQ"
+              /><span id="login-count">0</span>
             </div>
-            <small id="login-help">Aceita seriais de 5, 6 ou 8 dígitos.</small
+            <small id="login-help">Aceita o código de licença completo, incluindo os traços.</small
             ><button class="primary" type="submit">
               <span id="login-button-label">Entrar com serial</span><b>→</b>
             </button>
@@ -113,8 +99,8 @@
               aria-label="Ajuda para encontrar e validar o serial"
             >
               <figure class="login-product-visual">
-                <img decoding="async"
-                  src="./login-product-back-v2.webp"
+                <img
+                  src="./login-product-back-v2.png"
                   alt="Parte traseira do produto Save Concept com a localização do QR Code e do serial"
                 />
                 <div class="live-auth-label">
@@ -181,32 +167,65 @@
           class="brand save-brand brand-icon-only"
           href="#"
           aria-label="Save Concept, início"
-          ><img decoding="async" src="./save-concept-mark-v2.webp" alt=""
+          ><img src="./save-concept-mark-v2.png" alt=""
         /></a>
         <nav aria-label="Navegação principal">
           <a class="active" href="#verificar" data-i18n="navVerify"
             >Verificar</a
           >
           <a href="#historico" data-i18n="navHistory">Histórico</a>
-          <a href="#bonus">Premiações</a>
+          <a href="#bonus">Bónus</a>
         </nav>
-        <div class="language-switcher"><select class="language-select" aria-label="Idioma / Language"><option value="pt">🇵🇹 Português</option><option value="en">🇬🇧 English (UK)</option><option value="es">🇵🇾 Español (PY)</option></select></div>
-        <div class="account-controls">
-<a id="seller-whatsapp" class="seller-whatsapp" hidden target="_blank" rel="noopener noreferrer" aria-label="Entrar em contato com o vendedor pelo WhatsApp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.4-4.1A8 8 0 1 1 20 11.5Z"/><path d="M9 7.5c-2 3 2.5 7.5 5.5 6l.5-1.5-2-1-.8 1c-1.2-.5-2-1.3-2.5-2.5l1-.7-1-2Z"/></svg><span>WhatsApp</span></a>
-          <details class="user-account-summary" id="account-menu">
-            <summary class="account-id" aria-label="Abrir opções do perfil">
-              <span id="profile-insignia"></span><span class="profile-identity"><strong id="user-serial"></strong><small id="profile-rank-name">Bronze</small></span><span aria-hidden="true">⌄</span>
-            </summary>
-            <div class="account-dropdown">
-              <div class="profile-menu-title">SAVE CONCEPT <span>Perfil do cliente</span></div>
-              <div class="profile-stats"><div><strong id="profile-points">0</strong><small>Pontos</small></div><div><strong id="profile-products">0</strong><small>Produtos ativos</small></div></div>
-              <div class="profile-progression"><progress id="profile-progress" max="100" value="0" aria-label="Progresso para o próximo rank"></progress><small id="profile-next"></small></div>
-              <span class="header-level"><small data-i18n="levelShort">Nível</small><b id="header-level">Bronze</b></span>
-              <span class="header-benefits"><b id="header-benefits-count">0</b><small data-i18n="benefitsShort">benefícios</small></span>
-              <button class="user-session" id="logout" type="button"><small data-i18n="logout">Sair</small></button>
-            </div>
-          </details>
-          <button class="help-button install-button" id="install-app" type="button" data-i18n="install">Instalar app</button>
+        <div class="language-switcher" aria-label="Idioma">
+          <button
+            type="button"
+            data-lang="pt"
+            aria-label="Português de Portugal"
+            title="Português de Portugal"
+          >
+            🇵🇹
+          </button>
+          <button
+            type="button"
+            data-lang="en"
+            aria-label="English (United Kingdom)"
+            title="English (United Kingdom)"
+          >
+            🇬🇧
+          </button>
+          <button
+            type="button"
+            data-lang="es"
+            aria-label="Español (Paraguay)"
+            title="Español (Paraguay)"
+          >
+            🇵🇾
+          </button>
+        </div>
+        <button
+          class="help-button install-button"
+          id="install-app"
+          type="button"
+          data-i18n="install"
+        >
+          Instalar app
+        </button>
+        <div class="user-account-summary">
+          <div class="account-id">
+            <small>ID</small><strong id="user-serial"></strong>
+          </div>
+          <div class="account-status">
+            <span class="header-level"
+              ><small data-i18n="levelShort">Nível</small
+              ><b id="header-level">Essencial</b></span
+            ><a class="header-benefits" href="#bonus"
+              ><b id="header-benefits-count">0</b
+              ><small data-i18n="benefitsShort">benefícios</small></a
+            >
+          </div>
+          <button class="user-session" id="logout" type="button">
+            <small data-i18n="logout">Sair</small>
+          </button>
         </div>
       </header>
 
@@ -235,16 +254,16 @@
               >
                 <span class="vial-flip-inner">
                   <span class="vial-face vial-front">
-                    <img decoding="async"
-                      src="./save-concept-vial-signature-v1.webp"
+                    <img
+                      src="./save-concept-vial-signature-v1.png"
                       alt="Frasco Save Concept Tirzepatide 20 mg"
                       width="1024"
                       height="1536"
                     />
                   </span>
                   <span class="vial-face vial-back">
-                    <img decoding="async"
-                      loading="lazy" src="./save-concept-vial-back-v1.webp"
+                    <img
+                      src="./save-concept-vial-back-v1.png"
                       alt="Parte traseira do frasco com QR Code e serial"
                       width="1024"
                       height="1536"
@@ -270,28 +289,29 @@
               </div>
             </div>
             <p class="hint" data-i18n="verifyHint">
-              Introduza o serial de 5, 6 ou 8 números indicado no selo de
-              segurança da embalagem Save Concept.
+              Introduza o código de licença indicado no selo de segurança da
+              embalagem Save Concept (ex.: CURA-XXXX-XXXX-XXXX-XXXX).
             </p>
             <form id="verify-form" novalidate>
               <label for="serial" data-i18n="serialLabel"
-                >Número de série</label
+                >Código de licença</label
               >
               <div class="input-wrap">
                 <input
                   id="serial"
                   name="serial"
                   type="text"
-                  inputmode="numeric"
+                  inputmode="text"
+                  autocapitalize="characters"
                   autocomplete="off"
-                  maxlength="8"
-                  placeholder="Ex.: 731942"
+                  maxlength="30"
+                  placeholder="Ex.: CURA-7K9N-4QPV-8RTW-3HZQ"
                   aria-describedby="serial-help"
                 />
-                <span id="digit-count">0 / 8</span>
+                <span id="digit-count">0</span>
               </div>
               <small id="serial-help" data-i18n="serialHelp"
-                >Apenas números: exatamente 5, 6 ou 8 dígitos.</small
+                >Letras e números, no formato XXXX-XXXX-XXXX-XXXX-XXXX.</small
               >
               <div class="verify-actions">
                 <button class="primary" type="submit">
@@ -339,25 +359,39 @@
               ><span data-i18n="historyCountLabel">verificados</span>
             </div>
           </div>
-          <div class="product-dashboard-summary"><article><span>Produtos ativos</span><strong id="products-active-total">0</strong></article><article><span>Última ativação</span><strong id="products-last-activation">—</strong></article><article><span>Acompanhamento por produto</span><strong>2 anos</strong></article></div>
-          <p class="product-validity-note">O período de 2 anos abaixo é contado da ativação no portal e serve para acompanhamento. A validade do produto é a informada no lote e na embalagem; a ativação não altera essa data.</p>
-          <div id="history-body" class="user-products-dashboard" aria-live="polite"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Serial</th>
+                  <th data-i18n="productColumn">Produto Save Concept</th>
+                  <th data-i18n="batch">Lote</th>
+                  <th data-i18n="verifiedDate">Data da verificação</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="history-body">
+                <tr class="empty-row">
+                  <td colspan="5">Suas consultas aparecerão aqui.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="bonus-section" id="bonus" aria-labelledby="bonus-title">
           <div class="bonus-heading">
             <div>
-              <span>SAVE CONCEPT · CLUB</span>
-              <h2 id="bonus-title" data-i18n="bonusTitle">Suas premiações</h2>
-              <p class="bonus-description" data-i18n="bonusIntro">
+              <span>CLUBE SAVE</span>
+              <h2 id="bonus-title" data-i18n="bonusTitle">Os seus bónus</h2>
+              <p data-i18n="bonusIntro">
                 Cada produto original soma 100 pontos e aproxima-o do próximo
                 nível.
               </p>
             </div>
-            <button type="button" class="bonus-info club-info" data-bonus-info="club" aria-label="Como funcionam as premiações">i</button>
             <div class="level-badge">
               <small data-i18n="currentLevel">NÍVEL ATUAL</small
-              ><strong id="level-name">Bronze</strong
+              ><strong id="level-name">Essencial</strong
               ><span><b id="points-total">0</b> pts</span>
             </div>
           </div>
@@ -374,30 +408,24 @@
             <span id="bonus-progress"></span>
           </div>
           <p class="progress-message" id="progress-message"></p>
-          <div
-            class="level-journey"
-            id="level-journey"
-            aria-label="Níveis do Clube Save"
-          ></div>
-          <div class="rewards-label">SEUS PRÊMIOS <span>Pequenas conquistas. Mais Save.</span></div>
           <div class="rewards-grid">
             <article data-reward="3">
-              <div class="reward-top"><span class="reward-symbol" aria-hidden="true">↗</span><button type="button" class="bonus-info" data-bonus-info="3" aria-label="Informações sobre este prêmio">i</button></div><span>3 FRASCOS</span>
+              <span>3 FRASCOS</span>
               <h3>Envio grátis</h3>
               <p>Envio gratuito no próximo pedido.</p>
-              <button type="button" class="reward-redeem" disabled>Bloqueado</button>
+              <button type="button">Bloqueado</button>
             </article>
             <article data-reward="5">
-              <div class="reward-top"><span class="reward-symbol" aria-hidden="true">%</span><button type="button" class="bonus-info" data-bonus-info="5" aria-label="Informações sobre este prêmio">i</button></div><span>5 FRASCOS</span>
+              <span>5 FRASCOS</span>
               <h3>50% OFF</h3>
               <p>Metade do preço no próximo pedido.</p>
-              <button type="button" class="reward-redeem" disabled>Bloqueado</button>
+              <button type="button">Bloqueado</button>
             </article>
             <article class="featured" data-reward="10">
-              <div class="reward-top"><span class="reward-symbol" aria-hidden="true">✦</span><button type="button" class="bonus-info" data-bonus-info="10" aria-label="Informações sobre este prêmio">i</button></div><span>10 FRASCOS</span>
+              <span>10 FRASCOS</span>
               <h3>Pague 1, leve 2</h3>
               <p>Receba 1 frasco grátis do mesmo produto.</p>
-              <button type="button" class="reward-redeem" disabled>Bloqueado</button>
+              <button type="button">Bloqueado</button>
             </article>
           </div>
           <div
@@ -405,7 +433,7 @@
             class="coupon-output"
             aria-live="polite"
           ></div>
-<p class="seller-instruction">A cada nível, um novo ciclo de premiações é liberado. Ative novos produtos para receber códigos exclusivos; códigos utilizados ficam no histórico. Apresente-o ao vendedor responsável pela sua compra. Solicitações e atendimento são feitos diretamente com ele.</p><div id="rank-code-wallet"></div>          <section class="benefits-wallet" aria-labelledby="wallet-title">
+          <section class="benefits-wallet" aria-labelledby="wallet-title">
             <div class="wallet-head">
               <div>
                 <span data-i18n="walletEyebrow">NA SUA CONTA</span>
@@ -424,18 +452,20 @@
             </div>
             <div class="active-benefits" id="active-benefits"></div>
           </section>
-
+          <div
+            class="level-journey"
+            id="level-journey"
+            aria-label="Níveis do Clube Save"
+          ></div>
         </section>
       </main>
 
-      <dialog id="bonus-info-dialog" class="bonus-info-dialog" aria-labelledby="bonus-info-title">
-        <div class="bonus-dialog-head"><span>SAVE CONCEPT · CLUB</span><button type="button" id="bonus-info-close" aria-label="Fechar informações">×</button></div>
-        <h2 id="bonus-info-title"></h2><p id="bonus-info-text"></p>
-      </dialog>
-      <footer class="save-footer">
-        <div class="save-footer-brand"><img src="./save-concept-mark-v2.webp" alt="Save Concept" width="48" height="48" /></div>
-        <button type="button" id="privacy-preferences" aria-label="Preferências de privacidade" title="Preferências de privacidade"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z"/><path d="m8 12 3 3 5-6"/></svg></button>
-        <a class="admin-footer-link" href="./admin.html" aria-label="Acesso administrativo" title="Acesso administrativo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></a>
+      <footer>
+        <span>© 2026 Save Concept · Portal de autenticidade</span
+        ><span
+          >Produto da imagem destinado exclusivamente à pesquisa. Em caso de
+          divergência, não utilize e contate a Save Concept.</span
+        >
       </footer>
     </div>
     <nav class="mobile-nav" aria-label="Navegação mobile">
@@ -443,14 +473,13 @@
         ><span aria-hidden="true">✓</span><small>Validar</small></a
       >
       <button type="button" id="mobile-scanner">
-        <span class="qr-icon qr-icon--small" aria-hidden="true"></span><small>Escanear</small>
+        <span aria-hidden="true">▦</span><small>Escanear</small>
       </button>
       <a href="#historico"
         ><span aria-hidden="true">◷</span><small>Histórico</small></a
       >
-      <a href="#bonus"><span aria-hidden="true">★</span><small>Premiações</small></a>
+      <a href="#bonus"><span aria-hidden="true">★</span><small>Bónus</small></a>
     </nav>
-<div class="contact-dock" aria-label="Ajuda e contato">
     <button
       class="support-fab"
       id="open-support"
@@ -458,18 +487,17 @@
       aria-haspopup="dialog"
       aria-controls="support-dialog"
     ><span aria-hidden="true">?</span><strong data-i18n="supportButton">Ajuda</strong></button>
-</div>
     <dialog id="scanner-dialog" class="scanner-dialog">
       <div class="scanner-head">
         <div>
           <small>LEITOR SAVE CONCEPT</small>
-          <h2 class="qr-labelled"><span class="qr-icon" aria-hidden="true"></span><span>Escanear QR Code</span></h2>
+          <h2>Escanear QR Code</h2>
         </div>
         <button id="close-scanner" type="button" aria-label="Fechar leitor">
           ×
         </button>
       </div>
-      <p class="qr-labelled"><span class="qr-icon qr-icon--small" aria-hidden="true"></span><span>Aponte a câmera para o QR Code do selo traseiro.</span></p>
+      <p>Aponte a câmera para o QR Code do selo traseiro.</p>
       <div class="camera-frame">
         <div id="qr-reader" aria-label="Pré-visualização da câmara"></div>
         <video id="scanner-video" playsinline muted hidden></video>
@@ -481,8 +509,8 @@
       <button id="start-camera" class="primary" type="button">
         <span>Iniciar câmera</span><b>◉</b>
       </button>
-      <label class="upload-qr qr-labelled"
-        ><span class="qr-icon qr-icon--small" aria-hidden="true"></span><span>Ou escolher uma imagem do QR Code</span><input
+      <label class="upload-qr"
+        >Ou escolher uma imagem do QR Code<input
           id="qr-file"
           type="file"
           accept="image/*"
@@ -493,7 +521,7 @@
       <div class="scanner-head">
         <div>
           <small>SELO DE AUTENTICAÇÃO</small>
-          <h2 class="qr-labelled"><span class="qr-icon" aria-hidden="true"></span><span>QR Code do serial</span></h2>
+          <h2>QR Code do serial</h2>
         </div>
         <button id="close-qr" type="button" aria-label="Fechar QR Code">
           ×
@@ -509,7 +537,7 @@
         ><small>Produto autêntico · código de uso individual</small>
       </div>
       <button id="download-qr" class="primary" type="button">
-        <span class="qr-icon qr-icon--small" aria-hidden="true"></span><span>Baixar QR Code</span><b>↓</b>
+        <span>Baixar QR Code</span><b>↓</b>
       </button>
     </dialog>
     <dialog id="support-dialog" class="support-dialog" aria-labelledby="support-title">
@@ -525,13 +553,12 @@
       <button class="primary support-scan icon-action" id="support-open-scanner" type="button"><span class="qr-icon" aria-hidden="true"></span><span class="visually-hidden" data-i18n="supportScan">Abrir leitor de QR Code</span></button>
     </dialog>
     <aside class="consent-banner" id="consent-banner" aria-labelledby="consent-title" hidden>
-      <div><small>PRIVACIDADE E PREFERÊNCIAS</small><h2 id="consent-title">Controle os seus dados</h2><p>Os cookies necessários mantêm seu login. Com sua autorização, registramos cidade, estado e país aproximados pelo IP público para entender as regiões atendidas. Não acessamos GPS ou endereço exato; a região da conexão não confirma o endereço de entrega. O IP também é registrado para segurança e prevenção de fraude.</p></div>
+      <div><small>PRIVACIDADE E PREFERÊNCIAS</small><h2 id="consent-title">Controle os seus dados</h2><p>Os cookies necessários mantêm o login e os benefícios. Dados de utilização e marketing são opcionais e só serão usados com a sua autorização.</p></div>
       <div class="consent-actions"><button id="consent-essential" type="button">Apenas necessários</button><button id="consent-settings" type="button">Configurar</button><button class="primary" id="consent-all" type="button">Aceitar opcionais</button></div>
     </aside>
     <dialog class="consent-dialog" id="consent-dialog" aria-labelledby="consent-settings-title">
       <div class="scanner-head"><div><small>CENTRO DE PRIVACIDADE</small><h2 id="consent-settings-title">Preferências de dados</h2></div><button id="close-consent" type="button" aria-label="Fechar">×</button></div>
       <div class="consent-options">
-        <label><span><strong>Localização aproximada pelo IP</strong><small>Autoriza usar a região da conexão para acompanhar ativações e regiões atendidas. Pode refletir VPN ou operadora. Não identifica seu endereço de entrega.</small></span><input id="consent-location" type="checkbox" /></label>
         <label><span><strong>Cookies necessários</strong><small>Login, segurança, validação e benefícios.</small></span><input type="checkbox" checked disabled /></label>
         <label><span><strong>Dados de utilização</strong><small>Dispositivo, idioma, origem e métricas técnicas para melhorar o portal.</small></span><input id="consent-analytics" type="checkbox" /></label>
         <label><span><strong>Personalização</strong><small>Nível, pontos e preferências declaradas para adaptar a experiência.</small></span><input id="consent-personalization" type="checkbox" /></label>
@@ -539,8 +566,9 @@
       </div>
       <button class="primary" id="save-consent" type="button">Guardar preferências</button>
     </dialog>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script defer src="./app.js?v=50"></script>
+    <script src="./catalog-data.js?v=23"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="./app.js?v=29"></script>
   </body>
 </html>

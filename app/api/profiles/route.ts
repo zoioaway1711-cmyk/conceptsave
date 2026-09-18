@@ -1,30 +1,36 @@
-import { getSession } from '@/lib/sessions';
-import { sessionReference } from '@/lib/monitoring';
-import { refreshProfile, logEvent } from '@/lib/verification-service';
-import { getDatabase } from '@/db/client';
-import { clientMetadata } from '@/lib/request-context';
-export async function GET(request:Request) {
- const session=await getSession(request,'customer');
- if(!session) return Response.json({error:'unauthorized'},{status:401});
- const requested=new URL(request.url).searchParams.get('id');
- if(requested && requested!==session.profileId) return Response.json({error:'forbidden'},{status:403});
- return Response.json({profile:await refreshProfile(getDatabase(),session.profileId)});
+import { isSameOrigin, profileSchema, readBody } from "@/lib/api-validation";
+import { customerId } from "@/lib/customer-auth";
+import { database, getProfile, getProfileWithLicenses } from "@/lib/customer-profile";
+import { countActiveLicensesForOwner } from "@/lib/licenses";
+import { touchPresence } from "@/lib/presence";
+
+export async function GET(request: Request) {
+  const id = await customerId(request);
+  if (!id) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const requested = new URL(request.url).searchParams.get("id");
+  if (requested && requested !== id) return Response.json({ error: "forbidden" }, { status: 403 });
+  const profile = await getProfile(id);
+  if (profile?.blocked) return Response.json({ error: "profile_blocked" }, { status: 403 });
+  await touchPresence(database(), id);
+  return Response.json({ profile: await getProfileWithLicenses(id) }, { headers: { "cache-control": "no-store" } });
 }
-export async function POST(request:Request) {
- const session=await getSession(request,'customer');
- if(!session) return Response.json({error:'unauthorized'},{status:401});
- const body=await request.json();
- const consent=clientMetadata({consent:body.consent}).consent;
- const db=getDatabase();
- const sessionRef=await sessionReference(request);
- const updated=await db.transaction(async tx=>{
-  const before=await tx.prepare('SELECT preferred_language,consent_json,blocked FROM customer_profiles WHERE id=? FOR UPDATE').bind(session.profileId).first();
-  if(!before || before.blocked) return false;
-  const language=['pt','en','es'].includes(body.preferredLanguage)?body.preferredLanguage:'pt';
-  await tx.prepare('UPDATE customer_profiles SET preferred_language=?,consent_json=? WHERE id=?').bind(language,JSON.stringify(consent),session.profileId).run();
-  if(before.preferred_language!==language || before.consent_json!==JSON.stringify(consent)) await logEvent(request,{profileId:session.profileId,serial:'',action:'preferences',source:'manual',status:'success',sessionRef,metadata:{consent},details:{before:{language:before.preferred_language,consent:JSON.parse(String(before.consent_json))},after:{language,consent}}},tx);
-  return true;
- });
- if(!updated) return Response.json({error:'blocked'},{status:403});
- return Response.json({profile:await refreshProfile(db,session.profileId)});
+export async function POST(request: Request) {
+  if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
+  const id = await customerId(request);
+  if (!id) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const body = await readBody(request, profileSchema);
+  if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
+  if (body.id !== id) return Response.json({ error: "forbidden" }, { status: 403 });
+  const profile = await getProfile(id);
+  if (!profile || profile.blocked) return Response.json({ error: "profile_blocked" }, { status: 403 });
+  const db = database();
+  const count = await countActiveLicensesForOwner(db, id);
+  const benefits = [...profile.benefits];
+  for (const benefit of body.benefits) {
+    const threshold = Number((benefit as { threshold?: unknown }).threshold);
+    if (![3, 5, 10].includes(threshold) || count < threshold || benefits.some((entry) => (entry as { threshold?: unknown }).threshold === threshold)) continue;
+    benefits.push({ threshold, code: `SAVE${threshold === 10 ? "FRASCO" : threshold === 5 ? "50" : "FRETE"}-${id.slice(-4)}`, title: threshold === 10 ? "1 frasco grátis" : threshold === 5 ? "50% OFF" : "Envio grátis", activatedAt: new Date().toISOString() });
+  }
+  await db.prepare("UPDATE customer_profiles SET last_active=?, preferred_language=?, consent_json=?, benefits_json=? WHERE id=? AND blocked=0").bind(new Date().toISOString(), body.preferredLanguage, JSON.stringify(body.consent), JSON.stringify(benefits), id).run();
+  return Response.json({ saved: true, profile: await getProfileWithLicenses(id) }, { headers: { "cache-control": "no-store" } });
 }

@@ -1,0 +1,29 @@
+name: verifica-farma
+region: nyc
+services:
+  - name: web
+    github:
+      repo: zoioaway1711-cmyk/verifica-farma
+      branch: main
+      deploy_on_push: true
+    environment_slug: node-js
+    build_command: npm ci
+    run_command: npm start
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /health
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+      - key: DATABASE_URL
+        value: ${verifica-db.DATABASE_URL}
+        scope: RUN_TIME
+        type: SECRET
+databases:
+  - name: verifica-db
+    engine: PG
+    version: "16"
+    production: false

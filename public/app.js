@@ -1,38 +1,82 @@
-let sellerContactPending=false;
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
-}
-let serverProfile = null;
-let serverProducts = [];
 function safeParse(raw, fallback) {
   try {
-    return JSON.parse(raw) ?? fallback;
+    return JSON.parse(raw);
   } catch {
     return fallback;
   }
 }
-const CONSENT_KEY = "vf-consent-v2";
+const CONSENT_KEY = "vf-consent-v1";
 function loadConsent() {
   return safeParse(localStorage.getItem(CONSENT_KEY), {
     necessary: true,
-    location: false, analytics: false,
+    analytics: false,
     personalization: false,
     marketing: false,
     decidedAt: "",
-    version: 2,
+    version: 1,
   });
 }
 function saveConsent(next) {
-  const consent = { necessary: true, location: false, analytics: false, personalization: false, marketing: false, ...next, decidedAt: new Date().toISOString(), version: 2 };
+  const consent = { necessary: true, analytics: false, personalization: false, marketing: false, ...next, decidedAt: new Date().toISOString(), version: 1 };
   localStorage.setItem(CONSENT_KEY, JSON.stringify(consent));
   document.querySelector("#consent-banner")?.setAttribute("hidden", "");
-  if(session) api('/api/profiles',{consent,preferredLanguage:language}).catch(() => {});
+  if (session && remoteProfile) void syncCustomerProfile(loadProfile()).catch(error => { result.className = "result show warning"; result.textContent = error.message; });
   return consent;
 }
-function loadRecords() { return serverProducts; }
+function loadRecords() { return []; }
+// The old flat digit-serial catalog endpoint (/api/catalog) is gone —
+// license/material info now travels inside the profile response itself
+// (see applyRemoteProfile), so there is nothing left to separately fetch.
+async function refreshCatalog() {}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
+}
+let remoteProfile = null;
+// License serials are never re-displayed in full once issued (SHOW ONCE
+// applies to the customer's own history too, not just the admin panel) —
+// `profile.licenses[].serial` from the server is already the masked form
+// (e.g. "CURA-••••-••••-••••-3HZQ"), so it doubles safely as the row's
+// display identifier here.
+function applyRemoteProfile(profile) {
+  if (!profile) return;
+  remoteProfile = profile;
+  const claimed = Object.fromEntries((profile.benefits || []).map(item => [item.threshold, item]));
+  const licenses = profile.licenses || [];
+  records = licenses.map(license => ({ serial: license.serial, name: license.material?.name || "", maker: license.material?.brand || "", lot: license.lot || "" }));
+  const verifiedAt = {};
+  licenses.forEach(license => { if (license.activatedAt) verifiedAt[license.serial] = license.activatedAt; });
+  saveProfile({ verified: licenses.filter(license => license.status === "active").map(license => license.serial), verifiedAt, claimed });
+}
+let presenceHeartbeatTimer = null;
+function startPresenceHeartbeat() {
+  stopPresenceHeartbeat();
+  const ping = () => { if (session) fetch("/api/profiles/heartbeat", { method: "POST" }).catch(() => {}); };
+  ping();
+  presenceHeartbeatTimer = setInterval(ping, 60000);
+}
+function stopPresenceHeartbeat() {
+  if (presenceHeartbeatTimer) clearInterval(presenceHeartbeatTimer);
+  presenceHeartbeatTimer = null;
+}
+function lockSession(message) {
+  session = "";
+  remoteProfile = null;
+  stopPresenceHeartbeat();
+  localStorage.removeItem("vf-user-session");
+  document.querySelector("#login-gate").classList.remove("hidden");
+  document.querySelector("#login-error").textContent = message;
+}
+async function requireResponse(response) {
+  if (response.status === 401 || response.status === 403) {
+    lockSession("Sessão indisponível ou cadastro bloqueado. Entre novamente ou contate o suporte.");
+  }
+  if (!response.ok) throw new Error("Não foi possível concluir a solicitação. Verifique sua conexão e tente novamente.");
+  return response.json();
+}
 let records = loadRecords(),
   language = localStorage.getItem("vf-language") || "pt",
-  session = "",
+  history = safeParse(localStorage.getItem("vf-history"), []),
+  session = localStorage.getItem("vf-user-session") || "",
   scanMode = "verify";
 const input = document.querySelector("#serial"),
   loginInput = document.querySelector("#login-serial"),
@@ -49,12 +93,12 @@ const t = {
     install: "Instalar app",
     heroTitle: "O seu produto.<br><em>A sua segurança.</em>",
     heroText:
-      "Valide novos produtos e acumule premiações na sua conta Save Concept.",
+      "Valide novos produtos e acumule bónus na sua conta Save Concept.",
     verifyTitle: "Verifique o seu produto",
     verifyHint:
-      "Introduza o serial de 5, 6 ou 8 números indicado no selo de segurança.",
-    serialLabel: "Número de série",
-    serialHelp: "Apenas números: exatamente 5, 6 ou 8 dígitos.",
+      "Introduza o código de licença indicado no selo de segurança (ex.: CURA-XXXX-XXXX-XXXX-XXXX).",
+    serialLabel: "Código de licença",
+    serialHelp: "Letras e números, no formato XXXX-XXXX-XXXX-XXXX-XXXX.",
     checkSerial: "Consultar serial",
     scanQr: "Ler QR Code",
     share: "Partilhar ligação de convite",
@@ -65,11 +109,11 @@ const t = {
     valid: "Produto original e validado",
     missing: "Serial não encontrado",
     blocked: "QR Code invalidado",
-    invalid: "Introduza exatamente 5, 6 ou 8 números.",
+    invalid: "Introduza um código de licença válido.",
     batch: "Lote",
     expiry: "Validade",
     loginError: "Este serial não corresponde a um produto validado.",
-    duplicate: "Este serial já foi contabilizado nas suas premiações.",
+    duplicate: "Este serial já foi contabilizado nos seus bónus.",
     added: "Serial adicionado ao seu progresso.",
     remaining: (n) =>
       `Faltam ${n} seriais diferentes para desbloquear o cupão de 50%.`,
@@ -88,9 +132,9 @@ const t = {
       "Validate new products and earn rewards in your Save Concept account.",
     verifyTitle: "Verify your product",
     verifyHint:
-      "Enter the 5-, 6- or 8-digit serial shown on the security seal.",
-    serialLabel: "Serial number",
-    serialHelp: "Numbers only: exactly 5, 6 or 8 digits.",
+      "Enter the license code shown on the security seal (e.g. CURA-XXXX-XXXX-XXXX-XXXX).",
+    serialLabel: "License code",
+    serialHelp: "Letters and numbers, formatted as XXXX-XXXX-XXXX-XXXX-XXXX.",
     checkSerial: "Check serial",
     scanQr: "Scan QR Code",
     share: "Share invitation link",
@@ -101,7 +145,7 @@ const t = {
     valid: "Genuine and validated product",
     missing: "Serial not found",
     blocked: "QR Code invalidated",
-    invalid: "Enter exactly 5, 6 or 8 digits.",
+    invalid: "Enter a valid license code.",
     batch: "Batch",
     expiry: "Expiry",
     loginError: "This serial does not belong to a validated product.",
@@ -122,9 +166,9 @@ const t = {
     heroText:
       "Valida nuevos productos y acumula beneficios en tu cuenta Save Concept.",
     verifyTitle: "Verifica tu producto",
-    verifyHint: "Ingresa el serial de 5, 6 u 8 números indicado en el sello.",
-    serialLabel: "Número de serie",
-    serialHelp: "Solo números: exactamente 5, 6 u 8 dígitos.",
+    verifyHint: "Ingresa el código de licencia indicado en el sello (ej.: CURA-XXXX-XXXX-XXXX-XXXX).",
+    serialLabel: "Código de licencia",
+    serialHelp: "Letras y números, en el formato XXXX-XXXX-XXXX-XXXX-XXXX.",
     checkSerial: "Consultar serial",
     scanQr: "Escanear QR",
     share: "Compartir enlace",
@@ -135,7 +179,7 @@ const t = {
     valid: "Producto original y validado",
     missing: "Serial no encontrado",
     blocked: "QR invalidado",
-    invalid: "Ingresa exactamente 5, 6 u 8 números.",
+    invalid: "Ingresa un código de licencia válido.",
     batch: "Lote",
     expiry: "Vencimiento",
     loginError: "Este serial no corresponde a un producto validado.",
@@ -153,8 +197,8 @@ const loginText = {
     kicker: "ACESSO DO CLIENTE",
     title: "Entre com um produto validado",
     copy: "Utilize o serial ou o QR Code de qualquer produto Save Concept já validado.",
-    serial: "Serial do produto",
-    help: "Aceita seriais de 5, 6 ou 8 dígitos.",
+    serial: "Código de licença",
+    help: "Aceita o código de licença completo, incluindo os traços.",
     button: "Entrar com serial",
     qr: "Entrar com QR Code",
     instructions: "Como faço para validar?",
@@ -165,8 +209,8 @@ const loginText = {
     kicker: "CUSTOMER ACCESS",
     title: "Sign in with a validated product",
     copy: "Use the serial or QR Code from any validated Save Concept product.",
-    serial: "Product serial",
-    help: "Accepts 5-, 6- or 8-digit serials.",
+    serial: "License code",
+    help: "Accepts the full license code, including the dashes.",
     button: "Sign in with serial",
     qr: "Sign in with QR Code",
     instructions: "How do I validate?",
@@ -178,8 +222,8 @@ const loginText = {
     kicker: "ACCESO DEL CLIENTE",
     title: "Ingresa con un producto validado",
     copy: "Usa el serial o QR de cualquier producto Save Concept validado.",
-    serial: "Serial del producto",
-    help: "Acepta seriales de 5, 6 u 8 dígitos.",
+    serial: "Código de licencia",
+    help: "Acepta el código de licencia completo, incluidos los guiones.",
     button: "Ingresar con serial",
     qr: "Ingresar con QR",
     instructions: "¿Cómo valido mi producto?",
@@ -224,7 +268,7 @@ Object.assign(t.pt, {
   historyCountLabel: "verificados",
   productColumn: "Produto Save Concept",
   verifiedDate: "Data da verificação",
-  bonusTitle: "Suas premiações",
+  bonusTitle: "Os seus bónus",
   bonusIntro:
     "Cada produto original soma 100 pontos e aproxima-o do próximo nível.",
   currentLevel: "NÍVEL ATUAL",
@@ -237,7 +281,7 @@ Object.assign(t.pt, {
   walletEyebrow: "NA SUA CONTA",
   walletTitle: "Benefícios ativos",
   walletIntro:
-    "Apresente seu código exclusivo ao vendedor responsável.",
+    "Os benefícios resgatados ficam disponíveis aqui para utilizar no próximo pedido.",
   activeLabel: "ativos",
   walletEmpty: "Ainda não há benefícios ativos.",
   activated: "Ativado na conta",
@@ -251,7 +295,7 @@ Object.assign(t.pt, {
   supportStep1Title: "Encontre o selo",
   supportStep1Copy: "O QR Code e o serial estão juntos na parte traseira da embalagem.",
   supportStep2Title: "Consulte o serial",
-  supportStep2Copy: "Digite 5, 6 ou 8 números, ou utilize a câmara para ler o QR Code.",
+  supportStep2Copy: "Digite o código de licença, ou utilize a câmara para ler o QR Code.",
   supportStep3Title: "Confira o resultado",
   supportStep3Copy: "Produto, dosagem, farmácia, lote e estado devem aparecer na confirmação.",
   supportScan: "Abrir leitor de QR Code",
@@ -274,7 +318,7 @@ Object.assign(t.en, {
   maxLevel: "Maximum level reached",
   walletEyebrow: "IN YOUR ACCOUNT",
   walletTitle: "Active benefits",
-  walletIntro: "Present your exclusive code to your seller.",
+  walletIntro: "Redeemed benefits remain available here for your next order.",
   activeLabel: "active",
   walletEmpty: "No active benefits yet.",
   activated: "Activated in account",
@@ -288,7 +332,7 @@ Object.assign(t.en, {
   supportStep1Title: "Find the seal",
   supportStep1Copy: "The QR Code and serial are together on the back of the package.",
   supportStep2Title: "Check the serial",
-  supportStep2Copy: "Enter 5, 6 or 8 digits, or use the camera to scan the QR Code.",
+  supportStep2Copy: "Enter the license code, or use the camera to scan the QR Code.",
   supportStep3Title: "Review the result",
   supportStep3Copy: "The product, dose, pharmacy, batch and status must appear in the confirmation.",
   supportScan: "Open QR Code scanner",
@@ -327,60 +371,93 @@ Object.assign(t.es, {
   supportStep1Title: "Encuentra el sello",
   supportStep1Copy: "El QR y el serial están juntos en la parte trasera del envase.",
   supportStep2Title: "Consulta el serial",
-  supportStep2Copy: "Ingresa 5, 6 u 8 números o usa la cámara para leer el QR.",
+  supportStep2Copy: "Ingresa el código de licencia o usa la cámara para leer el QR.",
   supportStep3Title: "Revisa el resultado",
   supportStep3Copy: "Producto, dosis, farmacia, lote y estado deben aparecer en la confirmación.",
   supportScan: "Abrir lector de QR",
 });
+// License format: PREFIX-XXXX-XXXX-XXXX-XXXX (prefix: 2-10 letters/digits,
+// identification only; each segment: 4 chars from a 32-symbol alphabet that
+// excludes I/L/O/U to avoid visual ambiguity — see lib/serial.ts).
+const SERIAL_PATTERN = /^[A-Z0-9]{2,10}(?:-[0-9A-HJKMNPQRSTVWXYZ]{4}){4}$/;
+// Same shape, unanchored — for pulling a code out of a scanned QR payload
+// or a `?serial=` URL rather than validating a whole input value.
+const SERIAL_PATTERN_LOOSE = /[A-Z0-9]{2,10}(?:-[0-9A-HJKMNPQRSTVWXYZ]{4}){4}/;
 function clean(v) {
-  return v.replace(/\D/g, "").slice(0, 8);
+  return v.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 30);
 }
 function validSerial(v) {
-  return /^(?:\d{5}|\d{6}|\d{8})$/.test(v);
+  return SERIAL_PATTERN.test(v);
 }
-function customerRecord(id = session) { return serverProfile?.id === id ? serverProfile : null; }
+function customerRecord() { return remoteProfile; }
+function profileKey() {
+  return `vf-rewards-profile-v3-${session || "guest"}`;
+}
 function loadProfile() {
- return { verified: serverProfile?.activeSerials || [], verifiedAt: serverProfile?.verifiedAt || {}, claimed: Object.fromEntries((serverProfile?.benefits || []).map(item => [`${item.rank || 1}-${item.threshold}`,item])) };
+  let p = safeParse(localStorage.getItem(profileKey()), null);
+  if (!p) {
+    const legacy = safeParse(
+      localStorage.getItem("vf-rewards-profile-v2"),
+      null,
+    );
+    const migratedTo = localStorage.getItem("vf-rewards-profile-v2-migrated-to");
+    p =
+      legacy && session && !migratedTo
+        ? {
+            verified: [...(legacy.verified || [])],
+            claimed: { ...(legacy.claimed || {}) },
+            verifiedAt: { ...(legacy.verifiedAt || {}) },
+          }
+        : { verified: [], claimed: {}, verifiedAt: {} };
+    if (legacy && session && !migratedTo)
+      localStorage.setItem("vf-rewards-profile-v2-migrated-to", session);
+  }
+  p.verified = Array.isArray(p.verified) ? p.verified : [];
+  p.claimed = p.claimed || {};
+  p.verifiedAt = p.verifiedAt || {};
+  p.verified.forEach((serial) => {
+    if (!p.verifiedAt[serial]) {
+      const old = history.find((x) => x.serial === serial && x.timestamp);
+      p.verifiedAt[serial] = old?.timestamp || new Date().toISOString();
+    }
+  });
+  saveProfile(p);
+  return p;
 }
-function saveProfile() { /* The server owns the profile. */ }
-function applyRemoteProfile(profile) {
- serverProfile=profile;
- serverProducts=profile?.products || [];
- records=serverProducts;
- if(profile) session=profile.id;
+function saveProfile(p) {
+  localStorage.setItem(profileKey(), JSON.stringify(p));
 }
-async function api(path, body) {
- let response;
- try {
-  response=await fetch(path,{method:body ? 'POST':'GET',credentials:'same-origin',headers:body ? {'content-type':'application/json','accept':'application/json'}:{accept:'application/json'},body:body ? JSON.stringify(body):undefined,cache:'no-store'});
- } catch { throw new Error('Não foi possível conectar ao servidor. Verifique a conexão e tente novamente.'); }
- let payload;
- try { payload=await response.json(); }
- catch { throw new Error(response.status>=500 ? 'O serviço de autenticação está indisponível. O administrador deve verificar o banco de dados e a configuração da publicação.' : 'O servidor não retornou uma resposta válida. Verifique se o site foi publicado como Next.js com as rotas /api disponíveis.'); }
- if(!response.ok) throw new Error(response.status===429 ? 'Muitas tentativas. Aguarde antes de tentar novamente.' : response.status===401 ? 'Serial não encontrado ou acesso não autorizado. Confira o serial cadastrado.' : response.status>=500 ? 'Serviço temporariamente indisponível. Tente novamente mais tarde.' : 'Não foi possível concluir. Verifique os dados e tente novamente.');
- return payload;
-}
-function showApp(serial) {
-  session = serial;
-
+function showApp(profileId) {
+  session = profileId;
+  localStorage.setItem("vf-user-session", profileId);
   document.querySelector("#login-gate").classList.add("hidden");
-  document.querySelector("#user-serial").textContent = serial;
+  // The account id is an internal opaque identifier now (never the license
+  // serial itself) — shown shortened since the full form is a long UUID.
+  document.querySelector("#user-serial").textContent = profileId ? `••${profileId.slice(-8)}` : "";
   renderRewards();
   renderHistory();
+  startPresenceHeartbeat();
 }
 async function loginWith(serial, source = "manual") {
- const button=document.querySelector('#login-form button[type="submit"]');
- if(button.disabled) return false;
- button.disabled=true;
- const error=document.querySelector('#login-error');
- if(!validSerial(serial)){error.textContent='Digite um serial de 5, 6 ou 8 números.';button.disabled=false;return false;}
- error.textContent='A verificar…';
- try {
-  const payload=await api('/api/session',{serial,source,metadata:auditMetadata()});
-  if(!payload?.profile?.id) throw new Error('Resposta de autenticação incompleta. Tente novamente.');
-  applyRemoteProfile(payload.profile); error.textContent=''; showApp(payload.profile.id); return true;
- } catch(e) {error.textContent=e.message || 'Servidor indisponível. Tente novamente.';return false;}
- finally {button.disabled=false;}
+  const error = document.querySelector("#login-error");
+  if (!validSerial(serial)) { error.textContent = t[language].loginError; return false; }
+  const button = document.querySelector('#login-form button[type="submit"]');
+  if (button) button.disabled = true;
+  error.textContent = "Verificando…";
+  try {
+    const response = await fetch("/api/profiles/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ serial }) });
+    const data = await requireResponse(response);
+    // The login endpoint already claims/validates the license and credits
+    // points server-side in one atomic step — no separate /api/verifications
+    // call is needed (or correct) for the serial that was just logged in with.
+    applyRemoteProfile(data.profile);
+    showApp(data.profile.id);
+    error.textContent = "";
+    return true;
+  } catch (failure) {
+    lockSession(failure.message);
+    return false;
+  } finally { if (button) button.disabled = false; }
 }
 document.querySelector("#login-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -388,12 +465,15 @@ document.querySelector("#login-form").addEventListener("submit", (e) => {
 });
 loginInput.addEventListener("input", () => {
   loginInput.value = clean(loginInput.value);
-  loginCount.textContent = `${loginInput.value.length} / 8`;
+  loginCount.textContent = `${loginInput.value.length}`;
   document.querySelector("#login-error").textContent = "";
 });
 document.querySelector("#logout").addEventListener("click", async () => {
- try { await fetch('/api/session',{method:'DELETE',credentials:'same-origin'}); location.reload(); }
- catch { result.textContent='Não foi possível encerrar a sessão. Tente novamente.'; }
+  try {
+    await requireResponse(await fetch("/api/profiles/session", { method: "DELETE" }));
+    lockSession("");
+    location.reload();
+  } catch (failure) { lockSession(failure.message); }
 });
 function renderHistory() {
   const p = session ? loadProfile() : { verified: [], verifiedAt: {} },
@@ -406,24 +486,18 @@ function renderHistory() {
           lot: "—",
           status: "authentic",
         };
-        const activation=serverProfile?.products?.find(product=>product.serial===serial);
-        return { ...item, timestamp: p.verifiedAt[serial], activationTimezone:activation?.activationTimezone || '',activationCity:activation?.activationCity || '' };
+        return { ...item, timestamp: p.verifiedAt[serial] };
       })
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   document.querySelector("#history-count").textContent = items.length;
-  const fmt={day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'};
-  document.querySelector('#products-active-total').textContent=items.length;
-  const latest=items[0]?.timestamp ? new Date(items[0].timestamp) : null;
-  document.querySelector('#products-last-activation').textContent=latest && Number.isFinite(latest.getTime()) ? latest.toLocaleString(t[language].locale,{...fmt,timeZone:items[0].activationTimezone || 'UTC',timeZoneName:'short'}) : '—';
-  historyBody.innerHTML=items.length ? items.map(x=>{
-   const activated=new Date(x.timestamp),known=Number.isFinite(activated.getTime());
-   const zone=x.activationTimezone || 'UTC';
-   const until=new Date(activated);
-   if(known){const month=until.getUTCMonth();until.setUTCFullYear(until.getUTCFullYear()+2);if(until.getUTCMonth()!==month)until.setUTCDate(0);}
-   const elapsed=known ? Math.max(0,Math.min(100,(Date.now()-activated.getTime())/(until.getTime()-activated.getTime())*100)) : 0;
-   return `<article class="user-product-card"><div class="user-product-heading"><img class="product-brand-logo" src="./save-concept-mark-v2.webp" alt="Save Concept" width="48" height="48" loading="lazy" decoding="async" /><span class="product-active-badge">Serial ativo</span></div><h3>${escapeHtml(x.name)}</h3><p class="product-maker">${escapeHtml(x.maker || 'Save Concept')}</p><dl><div><dt>Serial do seu produto</dt><dd><code>${escapeHtml(x.serial)}</code></dd></div><div><dt>Ativado em · ${escapeHtml(x.activationTimezone ? (x.activationCity || x.activationTimezone) : 'UTC — localização indisponível')}</dt><dd>${known ? `<time datetime="${escapeHtml(activated.toISOString())}">${escapeHtml(activated.toLocaleString(t[language].locale,{...fmt,timeZone:zone,timeZoneName:'short'}))}</time>` : 'Não informado'}</dd></div><div><dt>Validade cadastrada do lote</dt><dd>${escapeHtml(x.expiry || 'Não informada — confira a embalagem')}</dd></div><div><dt>Lote</dt><dd>${escapeHtml(x.lot || '—')}</dd></div></dl><div class="product-followup"><span>Acompanhamento de 2 anos</span><strong>${known ? until.toLocaleDateString(t[language].locale) : 'Data indisponível'}</strong><div class="product-followup-track"><span style="width:${elapsed}%"></span></div><small>${known && Date.now()>until.getTime() ? 'Período de acompanhamento encerrado' : 'Contado a partir da primeira ativação'}</small></div></article>`;
-  }).join('') : `<div class="products-empty">${t[language].empty}</div>`;
-
+  historyBody.innerHTML = items.length
+    ? items
+        .map(
+          (x) =>
+            `<tr><td><strong>${escapeHtml(x.serial)}</strong></td><td>${escapeHtml(x.name)}<small style="display:block;color:#718095">${escapeHtml(x.maker || "")}</small></td><td>${escapeHtml(x.lot || "—")}</td><td><time datetime="${escapeHtml(x.timestamp)}">${new Date(x.timestamp).toLocaleString(t[language].locale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</time></td><td><span class="status-pill authentic">${t[language].valid}</span></td></tr>`,
+        )
+        .join("")
+    : `<tr class="empty-row"><td colspan="5">${t[language].empty}</td></tr>`;
 }
 function setLanguage(lang) {
   language = lang;
@@ -468,7 +542,6 @@ function setLanguage(lang) {
   document
     .querySelectorAll("[data-lang]")
     .forEach((b) => b.classList.toggle("active", b.dataset.lang === lang));
-  document.querySelectorAll(".language-select").forEach(select => { select.value = lang; });
   renderHistory();
   if (session) renderRewards();
 }
@@ -477,12 +550,9 @@ document
   .forEach((b) =>
     b.addEventListener("click", () => setLanguage(b.dataset.lang)),
   );
-document.querySelectorAll(".language-select").forEach(select => {
-  select.addEventListener("change", () => setLanguage(select.value));
-});
 input.addEventListener("input", () => {
   input.value = clean(input.value);
-  count.textContent = `${input.value.length} / 8`;
+  count.textContent = `${input.value.length}`;
   result.className = "result";
   result.innerHTML = "";
 });
@@ -491,23 +561,37 @@ document.querySelector("#verify-form").addEventListener("submit", (e) => {
   verify(clean(input.value), "manual");
 });
 async function verify(serial, source = "manual") {
- const button=document.querySelector('#verify-form button[type="submit"]');
- if(button.disabled) return;
- button.disabled=true; result.className='result show'; result.textContent='A consultar o servidor…';
- try {
-  const payload=await api('/api/verifications',{serial,source,metadata:auditMetadata()});
-  if(payload.profile) applyRemoteProfile(payload.profile);
-  renderHistory(); renderRewards();
-  if(payload.status==='authentic' && payload.product) {
-   const item=payload.product;
-   result.className='result show authentic';
-   result.innerHTML=`<strong>✓ ${t[language].valid}</strong>${escapeHtml(item.name)}<br>${escapeHtml(item.maker)} · ${t[language].batch} ${escapeHtml(item.lot)} · ${t[language].expiry} ${escapeHtml(item.expiry)}<br><small>${payload.credited ? t[language].added : t[language].duplicate}</small>`;
-  } else {
-   result.className='result show invalid';
-   result.textContent=payload.status==='already_claimed' ? 'Este serial já está associado a outro perfil.' : payload.status==='not_found' ? t[language].missing : 'Produto ou perfil bloqueado. Contacte o suporte.';
+  if (!validSerial(serial)) {
+    result.className = "result show invalid";
+    result.textContent = t[language].invalid;
+    input.focus();
+    return;
   }
- } catch(e) {result.className='result show invalid';result.textContent=e.message || 'Servidor indisponível. A consulta não foi confirmada.';}
- finally {button.disabled=false;}
+  const button = document.querySelector('#verify-form button[type="submit"]');
+  if (button) button.disabled = true;
+  result.className = "result show";
+  result.textContent = "Consultando o servidor…";
+  try {
+    await refreshCatalog();
+    const data = await recordRemoteVerification({ serial, action: "verification", source });
+    if (data.product) records = [...records.filter(row => row.serial !== serial), data.product];
+    const item = data.product || records.find(row => row.serial === serial) || { serial, name: "", maker: "", lot: "", expiry: "" };
+    if (data.status === "not_found") {
+      result.className = "result show warning";
+      result.textContent = t[language].missing;
+    } else if (data.status !== "authentic") {
+      result.className = "result show invalid";
+      result.textContent = t[language].blocked;
+    } else {
+      result.className = "result show authentic";
+      result.innerHTML = `<strong>✓ ${t[language].valid}</strong>${escapeHtml(item.name)}<br>${escapeHtml(item.maker)} · ${t[language].batch} ${escapeHtml(item.lot)} · ${t[language].expiry} ${escapeHtml(item.expiry)}<br><small>${data.credited ? t[language].added : t[language].duplicate}</small>`;
+    }
+    renderRewards();
+    renderHistory();
+  } catch (failure) {
+    result.className = "result show warning";
+    result.textContent = failure.message;
+  } finally { if (button) button.disabled = false; }
 }
 function auditMetadata() {
   const consent = loadConsent();
@@ -515,7 +599,6 @@ function auditMetadata() {
     navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   const essential = {
     consent: {
-      location: consent.location === true,
       analytics: Boolean(consent.analytics),
       personalization: Boolean(consent.personalization),
       marketing: Boolean(consent.marketing),
@@ -555,10 +638,18 @@ function auditMetadata() {
     referrer: document.referrer.slice(0, 500),
   };
 }
-
+async function recordRemoteVerification(item) {
+  const response = await fetch("/api/verifications", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ serial: item.serial, profileId: session, language, action: item.action || "verification", source: item.source || "manual", metadata: auditMetadata() }),
+  });
+  const data = await requireResponse(response);
+  applyRemoteProfile(data.profile);
+  return data;
+}
 const LEVELS = [
   {
-    name: { pt: "Bronze", en: "Bronze", es: "Bronce" },
+    name: { pt: "Essencial", en: "Essential", es: "Esencial" },
     points: 0,
     prize: {
       pt: "Envio grátis, 50% OFF e 1 frasco grátis",
@@ -603,16 +694,6 @@ const LEVELS = [
     },
   },
 ];
-function rankInsignia(index) {
-  const symbols = [
-    '<path d="m12 7 1.4 2.8 3.1.5-2.2 2.2.5 3.1-2.8-1.5-2.8 1.5.5-3.1L7.5 10.3l3.1-.5Z"/><path d="M7 16c1 2 2.5 3 5 4 2.5-1 4-2 5-4M8 18l-2-1m4 3-2-1m8-1 2-1m-4 3 2-1" stroke-width=".8"/>',
-    '<path d="m8 14 4-5 4 5M8 18l4-5 4 5"/>',
-    '<path d="m12 6 1.8 3.8 4.2.6-3 3 .7 4.2-3.7-2-3.7 2 .7-4.2-3-3 4.2-.6Z"/>',
-    '<path d="m6 9 3 3 3-5 3 5 3-3-2 8H8ZM8 20h8"/>',
-    '<path d="m6 10 3-4h6l3 4-6 9ZM6 10h12M9 6l3 13 3-13"/>'
-  ];
-  return `<span class="rank-insignia rank-${index + 1}" aria-hidden="true"><svg viewBox="0 0 24 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path class="rank-shield" d="M2 3 12 1l10 2v12c0 5-6 9-10 12C8 24 2 20 2 15Z"/><path d="M4 5 12 3.4 20 5v10c0 3.6-4.6 7.1-8 9.4C8.6 22.1 4 18.6 4 15Z" stroke-width=".6" opacity=".55"/><path d="m5 6 7-1.4L19 6" stroke="#fff" stroke-width="1" opacity=".8"/>${symbols[index]}</svg></span>`;
-}
 function getLevelIndex(points) {
   let index = 0;
   LEVELS.forEach((entry, i) => {
@@ -620,17 +701,32 @@ function getLevelIndex(points) {
   });
   return index;
 }
-function syncCustomerProfile() { /* Read-only rendering; no client-owned points. */ }
+async function syncCustomerProfile(p) {
+  if (!session || !remoteProfile) return;
+  const response = await fetch("/api/profiles", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: session, preferredLanguage: language, consent: loadConsent(), benefits: Object.entries(p.claimed).map(([threshold, item]) => ({ ...item, threshold: Number(threshold) })) }),
+  });
+  const data = await requireResponse(response);
+  if (data.profile) applyRemoteProfile(data.profile);
+  else {
+    const latest = await requireResponse(await fetch(`/api/profiles?id=${encodeURIComponent(session)}`, { cache: "no-store" }));
+    applyRemoteProfile(latest.profile);
+  }
+}
+function rewardCode(level) {
+  return `SAVE${level === 10 ? "FRASCO" : level === 5 ? "50" : "FRETE"}-${session.slice(-4)}`;
+}
 function renderRewards() {
   const p = loadProfile(),
     n = p.verified.length,
     customer = customerRecord(),
     rankOverride = Number(customer?.rankOverride || 0),
-    basePoints = Number(serverProfile?.points || 0),
+    basePoints = n * 100,
     levelIndex = rankOverride
       ? Math.max(0, Math.min(LEVELS.length - 1, rankOverride - 1))
       : getLevelIndex(basePoints),
-    points = basePoints,
+    points = Math.max(basePoints, LEVELS[levelIndex].points),
     level = LEVELS[levelIndex],
     next = LEVELS[levelIndex + 1];
   document.querySelector("#points-total").textContent = points.toLocaleString(
@@ -638,13 +734,6 @@ function renderRewards() {
   );
   document.querySelector("#level-name").textContent = level.name[language];
   document.querySelector("#header-level").textContent = level.name[language];
-  document.querySelector('#profile-insignia').innerHTML = rankInsignia(levelIndex);
-  document.querySelector('#profile-rank-name').textContent = level.name[language];
-  document.querySelector('#profile-points').textContent = points.toLocaleString(t[language].locale);
-  document.querySelector('#profile-products').textContent = String(serverProfile?.activeSerials?.length || 0);
-  const progress = next ? Math.max(0, Math.min(100, (points-level.points)/(next.points-level.points)*100)) : 100;
-  document.querySelector('#profile-progress').value = progress;
-  document.querySelector('#profile-next').textContent = next ? t[language].nextPoints(Math.max(0,next.points-points),next.name[language]) : t[language].maxLevel;
   document.querySelector("#level-number").textContent =
     `${language === "en" ? "Level" : language === "es" ? "Nivel" : "Nível"} ${levelIndex + 1}`;
   document.querySelector("#level-range").textContent = next
@@ -660,24 +749,26 @@ function renderRewards() {
     n >= 10 ? t[language].ready : t[language].remaining(10 - n);
   document.querySelectorAll("[data-reward]").forEach((card) => {
     const threshold = Number(card.dataset.reward),
-      button = card.querySelector(".reward-redeem"),
-      unlocked = (serverProfile?.rewardCycle?.products || 0) >= threshold,
-      claimed = (serverProfile?.benefits || []).find(item=>Number(item.rank)===Number(serverProfile?.level) && Number(item.threshold)===threshold);
-    const catalog=serverProfile?.rewardCycle?.catalog?.find(item=>item.threshold===threshold);
-    if(catalog){card.querySelector('h3').textContent=catalog.title;card.querySelector('p').textContent=catalog.description;}
-    card.querySelector(':scope > span').textContent=`NÍVEL ${serverProfile?.level || 1} · ${threshold} NOVOS PRODUTOS`;
+      button = card.querySelector("button"),
+      unlocked = n >= threshold,
+      claimed = p.claimed[threshold];
     card.classList.toggle("unlocked", unlocked);
     card.classList.toggle("claimed", !!claimed);
-    button.disabled = true;
-    button.textContent = claimed?.redeemedAt ? (claimed.title.includes('vitalício') ? 'Vitalício confirmado pelo vendedor' : 'Utilizado · próximo ciclo no novo nível') : claimed ? 'Código disponível abaixo' : `Faltam ${Math.max(0,threshold-(serverProfile?.rewardCycle?.products || 0))} produtos neste nível`;
-
+    button.disabled = !unlocked || !!claimed;
+    button.textContent = claimed
+      ? t[language].activated
+      : unlocked
+        ? t[language].redeem
+        : language === "en"
+          ? "Locked"
+          : language === "es"
+            ? "Bloqueado"
+            : "Bloqueado";
   });
   document.querySelector("#level-journey").innerHTML = LEVELS.map(
     (x, i) =>
-      `<article class="${i < levelIndex ? "complete" : i === levelIndex ? "current" : ""}">${rankInsignia(i)}<div><small>${language === "en" ? "LEVEL" : language === "es" ? "NIVEL" : "NÍVEL"} ${i + 1}</small><strong>${x.name[language]}</strong></div><b>${x.points.toLocaleString(t[language].locale)} pts</b><button type="button" class="bonus-info" data-bonus-info="rank-${i}" aria-label="${language === 'en' ? 'Rank information' : 'Informações do rank'} ${x.name[language]}">i</button></article>`,
+      `<article class="${i < levelIndex ? "complete" : i === levelIndex ? "current" : ""}"><span>${i < levelIndex ? "✓" : i + 1}</span><div><small>${language === "en" ? "LEVEL" : language === "es" ? "NIVEL" : "NÍVEL"} ${i + 1}</small><strong>${x.name[language]}</strong><p>${x.prize[language]}</p></div><b>${x.points.toLocaleString(t[language].locale)} pts</b></article>`,
   ).join("");
-  document.querySelector('#rank-code-wallet').innerHTML=(serverProfile?.rankCodes || []).map(item=>`<article class="rank-code-card"><strong>Rank ${escapeHtml(item.title)}</strong><code>${escapeHtml(item.code)}</code><small>${item.eligible ? 'Código exclusivo · entre em contato com seu vendedor' : 'Elegibilidade suspensa · consulte seu vendedor'}</small></article>`).join('');
-  updateSellerContact();
   let migrated = false;
   const claimed = Object.entries(p.claimed).map(([key, value]) => {
     const card = document.querySelector(`[data-reward="${key}"]`),
@@ -696,19 +787,39 @@ function renderRewards() {
     return [key, item];
   });
   if (migrated) saveProfile(p);
-  syncCustomerProfile(p, levelIndex, points, claimed);
-  document.querySelector("#active-benefits-count").textContent = claimed.filter(([,item])=>item.eligible).length;
-  document.querySelector("#header-benefits-count").textContent = claimed.filter(([,item])=>item.eligible).length;
+  document.querySelector("#active-benefits-count").textContent = claimed.length;
+  document.querySelector("#header-benefits-count").textContent = claimed.length;
   document.querySelector("#active-benefits").innerHTML = claimed.length
     ? claimed
         .map(
           ([, item]) =>
-            `<article><span class="benefit-check">✓</span><div><small>${t[language].activated} · ${new Date(item.activatedAt).toLocaleDateString(t[language].locale)}</small><strong>${escapeHtml(item.title)} · Nível ${Number(item.rank || 1)}</strong><small>${item.redeemedAt ? (item.title.includes('vitalício') ? 'Vitalício confirmado · apresente ao vendedor nos próximos pedidos' : 'Utilizado — confirmado pelo vendedor/admin') : item.eligible===false ? 'Elegibilidade suspensa — consulte o vendedor' : 'Apresente este código ao seu vendedor'}</small><code>${escapeHtml(item.code)}</code></div><button type="button" data-copy-code="${escapeHtml(item.code)}">${t[language].copyCode}</button></article>`,
+            `<article><span class="benefit-check">✓</span><div><small>${t[language].activated} · ${new Date(item.activatedAt).toLocaleDateString(t[language].locale)}</small><strong>${escapeHtml(item.title)}</strong><code>${escapeHtml(item.code)}</code></div><button type="button" data-copy-code="${escapeHtml(item.code)}">${t[language].copyCode}</button></article>`,
         )
         .join("")
     : `<div class="wallet-empty">${t[language].walletEmpty}</div>`;
 }
-
+document.querySelector(".rewards-grid").addEventListener("click", async (e) => {
+  const button = e.target.closest("button"),
+    card = button?.closest("[data-reward]");
+  if (!card || button.disabled) return;
+  const p = loadProfile(),
+    level = Number(card.dataset.reward),
+    code = rewardCode(level);
+  p.claimed[level] = {
+    code,
+    title: card.querySelector("h3").textContent,
+    activatedAt: new Date().toISOString(),
+  };
+  const out = document.querySelector("#coupon-output");
+  out.className = "coupon-output show";
+  button.disabled = true;
+  try {
+    await syncCustomerProfile(p);
+    renderRewards();
+    if (!loadProfile().claimed[level]) throw new Error("Benefício indisponível para este perfil.");
+    out.innerHTML = `<span>${t[language].activated}</span><strong>${escapeHtml(code)}</strong>`;
+  } catch (failure) { out.textContent = failure.message; button.disabled = false; }
+});
 document
   .querySelector("#active-benefits")
   .addEventListener("click", async (e) => {
@@ -772,17 +883,17 @@ document.querySelector("#close-scanner").addEventListener("click", async () => {
 });
 dialog.addEventListener("close", stopCamera);
 async function acceptCode(raw, source = "qr-camera") {
-  const match = String(raw).match(/(?:\d{8}|\d{6}|\d{5})/);
+  const match = String(raw).toUpperCase().match(SERIAL_PATTERN_LOOSE);
   if (!match) return false;
   await stopCamera();
   dialog.close();
   if (scanMode === "login") {
     loginInput.value = match[0];
-    loginCount.textContent = `${match[0].length} / 8`;
+    loginCount.textContent = `${match[0].length}`;
     return loginWith(match[0], source);
   }
   input.value = match[0];
-  count.textContent = `${match[0].length} / 8`;
+  count.textContent = `${match[0].length}`;
   verify(match[0], source);
   return true;
 }
@@ -859,24 +970,43 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") setHelpOpen(false);
 });
-const demoQr = document.querySelector("#login-demo-qr");
-if (window.QRCode && demoQr)
-  new QRCode(demoQr, {
-    text: `${location.origin}${location.pathname}?serial=35172`,
-    width: 120,
-    height: 120,
-    colorDark: "#071b42",
-    colorLight: "#fff",
-    correctLevel: QRCode.CorrectLevel.H,
-  });
+// The old "35172" demo serial only existed under the retired digit-serial
+// catalog and has no equivalent here — license codes are minted on demand
+// (SHOW ONCE) and can't be baked into a static demo QR, so this decorative
+// code was removed rather than left pointing at something invalid.
 const serialFromUrl = new URLSearchParams(location.search).get("serial");
-(async () => {
- try {const payload=await api('/api/session');applyRemoteProfile(payload.profile);showApp(payload.profile.id);} catch {session='';}
- if(serialFromUrl && validSerial(serialFromUrl)) {
-  if(!session) {loginInput.value=serialFromUrl;loginCount.textContent=`${serialFromUrl.length} / 8`;await loginWith(serialFromUrl,'qr-link');}
-  else {input.value=serialFromUrl;count.textContent=`${serialFromUrl.length} / 8`;await verify(serialFromUrl,'qr-link');}
- }
-})();
+async function restoreSession() {
+  const storedSession = session;
+  session = "";
+  if (storedSession) {
+    try {
+      const data = await requireResponse(await fetch(`/api/profiles?id=${encodeURIComponent(storedSession)}`, { cache: "no-store" }));
+      session = storedSession;
+      applyRemoteProfile(data.profile);
+      await refreshCatalog();
+      showApp(session);
+    } catch (failure) { lockSession(failure.message); }
+  }
+  if (serialFromUrl && validSerial(serialFromUrl)) {
+    if (!session) {
+      loginInput.value = serialFromUrl;
+      loginCount.textContent = `${serialFromUrl.length}`;
+      await loginWith(serialFromUrl, "qr-link");
+    } else {
+      input.value = serialFromUrl;
+      count.textContent = `${serialFromUrl.length}`;
+      await verify(serialFromUrl, "qr-link");
+    }
+    // Scrub the license code out of the visible URL/history entry the
+    // moment it's been consumed — it already reached the server once (how
+    // else would this flow work), but there's no reason to leave it
+    // sitting in the address bar, browser history, or a bookmark after.
+    const cleanUrl = new URL(location.href);
+    cleanUrl.searchParams.delete("serial");
+    history.replaceState(history.state, "", cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+  }
+}
+void restoreSession();
 let installPrompt;
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
@@ -936,16 +1066,7 @@ if (!reduceMotion.matches && "IntersectionObserver" in window) {
 
 const signatureVial = document.querySelector("#signature-vial");
 const vialFlipButton = document.querySelector("#vial-flip");
-const signatureQr = document.querySelector("#signature-demo-qr");
-if (window.QRCode && signatureQr)
-  new QRCode(signatureQr, {
-    text: `${location.origin}${location.pathname}?serial=35172`,
-    width: 150,
-    height: 150,
-    colorDark: "#071b42",
-    colorLight: "#ffffff",
-    correctLevel: QRCode.CorrectLevel.H,
-  });
+// See the note above the removed #login-demo-qr block — same reasoning.
 if (signatureVial && vialFlipButton) {
   const setVialSide = (flipped) => {
     signatureVial.classList.toggle("is-flipped", flipped);
@@ -976,7 +1097,46 @@ document.addEventListener("click", (event) => {
   window.setTimeout(() => target?.classList.remove("section-arrival"), 720);
 });
 
-// Native system cursor: no pointer tracking or continuous cursor animation.
+if (matchMedia("(pointer: fine)").matches && !reduceMotion.matches) {
+  const dot = document.createElement("span");
+  const ring = document.createElement("span");
+  dot.className = "brand-cursor-dot";
+  ring.className = "brand-cursor-ring";
+  document.body.append(dot, ring);
+  let pointerX = -50;
+  let pointerY = -50;
+  let ringX = -50;
+  let ringY = -50;
+  addEventListener("pointermove", (event) => {
+    pointerX = event.clientX;
+    pointerY = event.clientY;
+    dot.style.left = `${pointerX}px`;
+    dot.style.top = `${pointerY}px`;
+    document.body.classList.add("brand-cursor-active");
+  }, { passive: true });
+  const animateCursor = () => {
+    ringX += (pointerX - ringX) * 0.18;
+    ringY += (pointerY - ringY) * 0.18;
+    ring.style.left = `${ringX}px`;
+    ring.style.top = `${ringY}px`;
+    requestAnimationFrame(animateCursor);
+  };
+  animateCursor();
+  document.addEventListener("pointerover", (event) => {
+    document.body.classList.toggle(
+      "brand-cursor-hover",
+      Boolean(event.target.closest("a, button, input, select, [role='button']")),
+    );
+  });
+  document.addEventListener("pointerdown", (event) => {
+    const ripple = document.createElement("span");
+    ripple.className = "brand-ripple";
+    ripple.style.left = `${event.clientX}px`;
+    ripple.style.top = `${event.clientY}px`;
+    document.body.append(ripple);
+    ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
+  });
+}
 
 function addDepthResponse(selector) {
   if (reduceMotion.matches || !matchMedia("(pointer: fine)").matches) return;
@@ -1001,21 +1161,17 @@ const consentDialog = document.querySelector("#consent-dialog");
 const currentConsent = loadConsent();
 if (!currentConsent.decidedAt) consentBanner?.removeAttribute("hidden");
 document.querySelector("#consent-essential")?.addEventListener("click", () => saveConsent({}));
-document.querySelector("#consent-all")?.addEventListener("click", () => saveConsent({ location: true, analytics: true, personalization: true, marketing: true }));
-function openPrivacyPreferences() {
+document.querySelector("#consent-all")?.addEventListener("click", () => saveConsent({ analytics: true, personalization: true, marketing: true }));
+document.querySelector("#consent-settings")?.addEventListener("click", () => {
   const consent = loadConsent();
-  document.querySelector("#consent-location").checked = consent.location === true;
   document.querySelector("#consent-analytics").checked = Boolean(consent.analytics);
   document.querySelector("#consent-personalization").checked = Boolean(consent.personalization);
   document.querySelector("#consent-marketing").checked = Boolean(consent.marketing);
   consentDialog?.showModal();
-}
-document.querySelector("#consent-settings")?.addEventListener("click", openPrivacyPreferences);
-document.querySelector("#privacy-preferences")?.addEventListener("click", openPrivacyPreferences);
+});
 document.querySelector("#close-consent")?.addEventListener("click", () => consentDialog?.close());
 document.querySelector("#save-consent")?.addEventListener("click", () => {
   saveConsent({
-    location: document.querySelector("#consent-location").checked,
     analytics: document.querySelector("#consent-analytics").checked,
     personalization: document.querySelector("#consent-personalization").checked,
     marketing: document.querySelector("#consent-marketing").checked,
@@ -1024,34 +1180,3 @@ document.querySelector("#save-consent")?.addEventListener("click", () => {
   if (session) renderRewards();
 });
 setLanguage(language);
-
-const bonusInfoDialog=document.querySelector('#bonus-info-dialog');
-document.querySelector('#bonus').addEventListener('click',event=>{
- const trigger=event.target.closest('[data-bonus-info]');if(!trigger)return;
- const key=trigger.dataset.bonusInfo;
- let title='',text='';
- if(key==='club') {
-  title=language==='en'?'Your Save Club':'Seu Clube Save';
-  text=language==='en'?'Each eligible original product adds 100 points, once per serial. Ranks follow your points; rewards unlock at 3, 5 and 10 validated products. Codes are issued automatically. Contact your seller to request the reward; no redemption takes place on this website.':'Cada produto original elegível soma 100 pontos, uma única vez por serial. Os ranks acompanham seus pontos; os prêmios são renovados a cada nível e liberados com 3, 5 e 10 novas ativações no ciclo. Os códigos são emitidos automaticamente. Apresente-os ao vendedor responsável; o site não realiza o resgate.';
- } else if(key.startsWith('rank-')) {
-  const rank=LEVELS[Number(key.slice(5))];title=rank.name[language];
-  text=language==='en'?`Rank reached at ${rank.points.toLocaleString()} points. Reward eligibility is shown on each reward card.`:`Rank a partir de ${rank.points.toLocaleString('pt-BR')} pontos. A disponibilidade de cada prêmio aparece no respectivo cartão.`;
- } else {
-  const card=document.querySelector(`[data-reward="${key}"]`);title=card.querySelector('h3').textContent;
-  text=card.querySelector('p').textContent+(language==='en'?` Unlock with ${key} validated products.`:` Libere com ${key} novas ativações neste nível. O código é emitido automaticamente. Entre em contato com seu vendedor para solicitar o prêmio.`);
- }
- document.querySelector('#bonus-info-title').textContent=title;document.querySelector('#bonus-info-text').textContent=text;bonusInfoDialog.showModal();
-});
-document.querySelector('#bonus-info-close').addEventListener('click',()=>bonusInfoDialog.close());
-
-const accountMenu=document.querySelector('#account-menu');
-document.addEventListener('click',event=>{if(accountMenu && !accountMenu.contains(event.target))accountMenu.open=false;});
-document.addEventListener('keydown',event=>{if(event.key==='Escape' && accountMenu?.open){accountMenu.open=false;accountMenu.querySelector('summary').focus();}});
-
-
-async function updateSellerContact() {
- const link=document.querySelector('#seller-whatsapp');
- if(!serverProfile?.activeSerials?.length || serverProfile.blocked){link.hidden=true;link.removeAttribute('href');return;}
- if(sellerContactPending)return;sellerContactPending=true;
- try {const response=await fetch('/api/seller-contact',{cache:'no-store'});const data=await response.json();link.hidden=!response.ok || !data.url;if(!link.hidden)link.href=data.url;else link.removeAttribute('href');}catch{link.hidden=true;link.removeAttribute('href');}finally{sellerContactPending=false;}
-}

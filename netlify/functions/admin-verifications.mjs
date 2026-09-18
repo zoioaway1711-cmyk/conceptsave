@@ -30,13 +30,37 @@ async function signature(value) {
     ),
   );
 }
+async function timingSafeStringEqual(a, b) {
+  // Hash both sides to a fixed-length digest first so neither a length
+  // mismatch nor the byte comparison itself leaks timing information.
+  const [da, db] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(String(a ?? ""))),
+    crypto.subtle.digest("SHA-256", encoder.encode(String(b ?? ""))),
+  ]);
+  const va = new Uint8Array(da), vb = new Uint8Array(db);
+  let diff = 0;
+  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
+  return diff === 0;
+}
 async function validSession(request) {
   const match = request.headers
     .get("cookie")
     ?.match(new RegExp(`(?:^|; )${cookieName}=([^;]+)`));
   if (!match) return false;
   const [expires, sent] = decodeURIComponent(match[1]).split(".");
-  return Number(expires) > Date.now() && sent === (await signature(expires));
+  if (!expires || !sent || Number(expires) <= Date.now()) return false;
+  return timingSafeStringEqual(sent, await signature(expires));
+}
+const rateLimitBuckets = new Map();
+function rateLimited(key, limit, windowMs) {
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > limit;
 }
 async function listRecords() {
   const store = getStore({
@@ -53,20 +77,27 @@ async function listRecords() {
     .sort((a, b) => new Date(b.activatedAt) - new Date(a.activatedAt));
   return { records };
 }
-export default async (request) => {
+export default async (request, context) => {
   const configuredUser = Netlify.env.get("ADMIN_USER"),
     configuredPassword = Netlify.env.get("ADMIN_PASSWORD"),
     secret = Netlify.env.get("SESSION_SECRET");
   if (!configuredUser || !configuredPassword || !secret)
     return json(503, { error: "admin_environment_not_configured" });
   if (request.method === "POST") {
+    const ip = request.headers.get("x-nf-client-connection-ip") || context?.ip || "unknown";
+    if (rateLimited(`admin-login:${ip}`, 8, 60 * 1000) || rateLimited(`admin-login-sustained:${ip}`, 20, 15 * 60 * 1000))
+      return json(429, { error: "rate_limited" });
     let input;
     try {
       input = await request.json();
     } catch {
       return json(400, { error: "invalid_json" });
     }
-    if (input.user !== configuredUser || input.password !== configuredPassword)
+    const [userOk, passwordOk] = await Promise.all([
+      timingSafeStringEqual(input.user, configuredUser),
+      timingSafeStringEqual(input.password, configuredPassword),
+    ]);
+    if (!userOk || !passwordOk)
       return json(401, { error: "invalid_credentials" });
     const expires = String(Date.now() + 8 * 60 * 60 * 1000),
       token = `${expires}.${await signature(expires)}`;

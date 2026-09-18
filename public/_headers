@@ -1,15 +1,21 @@
+# Security headers for statically-served assets (index.html, admin.html,
+# app.js, admin.js, css). Mirrors the equivalent rules in next.config.ts,
+# which only cover requests actually handled by the Next.js/Workers runtime
+# (the API routes and /usuarios) — static files bypass that runtime and are
+# served directly by the platform's asset handler, so they need their own
+# copy of these rules via this Cloudflare Pages/Workers `_headers` convention.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(self), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
 
-/admin.html
-  Cache-Control: no-store
-
-/admin.js
-  Cache-Control: no-store
-
-/sw.js
-  Cache-Control: no-cache
+# Restored: vinext generates this immutable-cache rule for content-hashed
+# assets automatically, but only when there's no public/_headers of our own
+# to merge with — since we ship our own for the security headers above,
+# we carry this rule forward ourselves so hashed static assets keep their
+# long-lived cache.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable

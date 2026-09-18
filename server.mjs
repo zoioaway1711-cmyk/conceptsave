@@ -13,19 +13,41 @@ const databaseUrl = process.env.DATABASE_URL || "";
 const localDataFile = process.env.LOCAL_DATA_FILE
   ? path.resolve(root, process.env.LOCAL_DATA_FILE)
   : "";
-const pool = databaseUrl
-  ? new pg.Pool({
-      connectionString: databaseUrl,
-      ssl: databaseUrl.includes("sslmode=")
-        ? undefined
-        : { rejectUnauthorized: false },
-    })
-  : null;
+// Always negotiate TLS to a remote database unless the operator explicitly
+// opted out with sslmode=disable. The previous logic set `ssl: undefined`
+// whenever the URL *did* mention sslmode (the DigitalOcean/production case,
+// which uses sslmode=require) which disables encryption entirely in
+// node-postgres — the opposite of what that URL asked for. Managed
+// providers such as DigitalOcean use a private CA; set PGSSLROOTCERT to
+// that CA bundle for full chain verification instead of the
+// rejectUnauthorized:false default below.
+const ssl = !databaseUrl || /sslmode=disable/i.test(databaseUrl)
+  ? false
+  : process.env.PGSSLROOTCERT
+    ? { ca: (await fs.readFile(process.env.PGSSLROOTCERT, "utf8")), rejectUnauthorized: true }
+    : { rejectUnauthorized: false };
+const pool = databaseUrl ? new pg.Pool({ connectionString: databaseUrl, ssl }) : null;
 const memoryRecords = [];
+const rateLimitBuckets = new Map();
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(express.json({ limit: "32kb" }));
+
+function rateLimited(key, limit, windowMs) {
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > limit;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateLimitBuckets) if (bucket.resetAt <= now) rateLimitBuckets.delete(key);
+}, 5 * 60 * 1000).unref();
 
 const clean = (value, max = 300) =>
   String(value ?? "")
@@ -125,6 +147,9 @@ function normalizeMetadata(value) {
 }
 
 app.post("/.netlify/functions/log-verification", async (req, res) => {
+  const ip = clean(req.ip || req.socket.remoteAddress || "unknown", 64);
+  if (rateLimited(`log-verification:${ip}`, 30, 60 * 1000))
+    return res.status(429).set("Retry-After", "60").json({ error: "rate_limited" });
   const input = req.body || {};
   const serial = clean(input.serial, 8);
   if (!serialPattern.test(serial))
@@ -138,6 +163,10 @@ app.post("/.netlify/functions/log-verification", async (req, res) => {
     product: clean(input.product, 160),
     maker: clean(input.maker, 120),
     lot: clean(input.lot, 80),
+    // This legacy endpoint has no products table of its own — status/credited
+    // are client-reported telemetry only, never an authorization decision.
+    // Nothing in this deployment grants points/benefits from these fields;
+    // if that ever changes, this endpoint must look up the serial itself.
     status: ["authentic", "invalid", "not_found"].includes(input.status)
       ? input.status
       : "not_found",
@@ -254,6 +283,17 @@ async function listRecords() {
   };
 }
 
+function timingSafeStringEqual(a, b) {
+  const bufA = Buffer.from(String(a ?? ""));
+  const bufB = Buffer.from(String(b ?? ""));
+  // Hash first so the comparison buffers always have equal length: an
+  // early length mismatch in timingSafeEqual would itself leak a timing
+  // signal, and the digest sidesteps it.
+  const hashA = crypto.createHash("sha256").update(bufA).digest();
+  const hashB = crypto.createHash("sha256").update(bufB).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
 app.all("/.netlify/functions/admin-verifications", async (req, res) => {
   const adminUser = process.env.ADMIN_USER;
   const adminPassword = process.env.ADMIN_PASSWORD;
@@ -261,9 +301,12 @@ app.all("/.netlify/functions/admin-verifications", async (req, res) => {
   if (!adminUser || !adminPassword || !secret)
     return res.status(503).json({ error: "admin_environment_not_configured" });
   if (req.method === "POST") {
+    const ip = clean(req.ip || req.socket.remoteAddress || "unknown", 64);
+    if (rateLimited(`admin-login:${ip}`, 8, 60 * 1000) || rateLimited(`admin-login-sustained:${ip}`, 20, 15 * 60 * 1000))
+      return res.status(429).set("Retry-After", "60").json({ error: "rate_limited" });
     if (
-      req.body?.user !== adminUser ||
-      req.body?.password !== adminPassword
+      !timingSafeStringEqual(req.body?.user, adminUser) ||
+      !timingSafeStringEqual(req.body?.password, adminPassword)
     )
       return res.status(401).json({ error: "invalid_credentials" });
     const expires = String(Date.now() + 8 * 60 * 60 * 1000);

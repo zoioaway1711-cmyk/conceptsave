@@ -1,11 +1,11 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c567ac38-f0b8-46fd-88f5-d3dc0d9c3934",
-  "prevId": "977e8886-eb8c-4a50-96bd-f2219cbc2767",
+  "id": "2214ffe7-a190-484e-9ada-5211b7a42e58",
+  "prevId": "f80c5ac0-a55b-4803-b60e-7b41f50ca8f9",
   "tables": {
-    "admin_audit_events": {
-      "name": "admin_audit_events",
+    "audit_logs": {
+      "name": "audit_logs",
       "columns": {
         "id": {
           "name": "id",
@@ -14,6 +14,13 @@
           "notNull": true,
           "autoincrement": true
         },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "action": {
           "name": "action",
           "type": "text",
@@ -21,29 +28,28 @@
           "notNull": true,
           "autoincrement": false
         },
-        "target_type": {
-          "name": "target_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'system'"
-        },
-        "target_id": {
-          "name": "target_id",
+        "resource": {
+          "name": "resource",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
-        "details_json": {
-          "name": "details_json",
+        "resource_id": {
+          "name": "resource_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'{}'"
+          "default": "''"
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "ip": {
           "name": "ip",
@@ -53,13 +59,13 @@
           "autoincrement": false,
           "default": "''"
         },
-        "user_agent": {
-          "name": "user_agent",
+        "metadata_json": {
+          "name": "metadata_json",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "''"
+          "default": "'{}'"
         },
         "created_at": {
           "name": "created_at",
@@ -69,43 +75,18 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "admin_login_limits": {
-      "name": "admin_login_limits",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
       "indexes": {
-        "admin_login_limits_expiry_idx": {
-          "name": "admin_login_limits_expiry_idx",
+        "idx_audit_logs_created_at": {
+          "name": "idx_audit_logs_created_at",
           "columns": [
-            "expires_at"
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "idx_audit_logs_action": {
+          "name": "idx_audit_logs_action",
+          "columns": [
+            "action"
           ],
           "isUnique": false
         }
@@ -113,7 +94,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "audit_logs_result_check": {
+          "name": "audit_logs_result_check",
+          "value": "\"audit_logs\".\"result\" IN ('success','failure')"
+        }
+      }
     },
     "customer_profiles": {
       "name": "customer_profiles",
@@ -232,10 +218,27 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "customer_profiles_points_check": {
+          "name": "customer_profiles_points_check",
+          "value": "\"customer_profiles\".\"points\" >= 0"
+        },
+        "customer_profiles_level_check": {
+          "name": "customer_profiles_level_check",
+          "value": "\"customer_profiles\".\"level\" BETWEEN 1 AND 5"
+        },
+        "customer_profiles_rank_override_check": {
+          "name": "customer_profiles_rank_override_check",
+          "value": "\"customer_profiles\".\"rank_override\" BETWEEN 0 AND 5"
+        },
+        "customer_profiles_preferred_language_check": {
+          "name": "customer_profiles_preferred_language_check",
+          "value": "\"customer_profiles\".\"preferred_language\" IN ('pt','en','es')"
+        }
+      }
     },
-    "product_serials": {
-      "name": "product_serials",
+    "products": {
+      "name": "products",
       "columns": {
         "serial": {
           "name": "serial",
@@ -256,8 +259,28 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "''"
+          "autoincrement": false
+        },
+        "lot": {
+          "name": "lot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expiry": {
+          "name": "expiry",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "brand": {
           "name": "brand",
@@ -266,55 +289,58 @@
           "notNull": true,
           "autoincrement": false,
           "default": "''"
-        },
-        "lot": {
-          "name": "lot",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "expiry": {
-          "name": "expiry",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'authentic'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'admin'"
         }
       },
       "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "products_status_check": {
+          "name": "products_status_check",
+          "value": "\"products\".\"status\" IN ('authentic','invalid')"
+        },
+        "products_serial_format_check": {
+          "name": "products_serial_format_check",
+          "value": "\"products\".\"serial\" GLOB '[0-9][0-9][0-9][0-9][0-9]' OR \"products\".\"serial\" GLOB '[0-9][0-9][0-9][0-9][0-9][0-9]' OR \"products\".\"serial\" GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'"
+        }
+      }
+    },
+    "rate_limits": {
+      "name": "rate_limits",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_rate_limits_expires_at": {
+          "name": "idx_rate_limits_expires_at",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -447,13 +473,33 @@
             "serial",
             "activated_at"
           ],
-          "isUnique": true
+          "isUnique": false
+        },
+        "idx_verification_serial": {
+          "name": "idx_verification_serial",
+          "columns": [
+            "serial"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "verification_events_status_check": {
+          "name": "verification_events_status_check",
+          "value": "\"verification_events\".\"status\" IN ('authentic','invalid','not_found')"
+        },
+        "verification_events_action_check": {
+          "name": "verification_events_action_check",
+          "value": "\"verification_events\".\"action\" IN ('login','verification')"
+        },
+        "verification_events_source_check": {
+          "name": "verification_events_source_check",
+          "value": "\"verification_events\".\"source\" IN ('manual','qr-camera','qr-image','qr-link')"
+        }
+      }
     }
   },
   "views": {},

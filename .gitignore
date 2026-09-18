@@ -30,7 +30,6 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-!.env.example
 
 # vercel
 .vercel
@@ -46,16 +45,3 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
-
-/.local/
-
-# Generated builds, local tooling and database files
-/build/
-/.do/
-/.openai/
-*.log
-*.sqlite
-*.sqlite3
-*.db
-*.db-shm
-*.db-wal

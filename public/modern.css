@@ -1,0 +1,39 @@
+/* Final visual layer: shared across portal and administration. */
+:root { --ink:#102a4b; --green:#0b54aa; --green2:#0876d9; --mint:#e7f1fb; --cream:#f4f8fc; --paper:#fff; --line:#dce7f1; --muted:#68798c; --shadow:0 22px 70px rgba(7,31,76,.10); }
+body { background:#f4f8fc; color:#102a4b; letter-spacing:-.01em; }
+::selection { background:#d7eafb; color:#071f4c; }
+.shell { max-width:none; }
+.topbar { height:76px; border-color:rgba(206,220,212,.85); background:rgba(244,247,245,.88); box-shadow:0 8px 30px rgba(11,84,170,.04); backdrop-filter:blur(18px) saturate(1.25); }
+.topbar nav a { font-size:13px; letter-spacing:.01em; }
+.topbar nav a.active { color:#0b54aa; }
+.topbar nav a.active:after { height:2px; background:#0b54aa; }
+.hero { min-height:calc(100vh - 76px); padding-top:clamp(54px,7vw,96px); padding-bottom:clamp(54px,7vw,96px); background:linear-gradient(rgba(11,84,170,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(11,84,170,.035) 1px,transparent 1px),radial-gradient(circle at 82% 20%,rgba(183,216,244,.50),transparent 34%),#f4f8fc; background-size:32px 32px,32px 32px,auto,auto; }
+.hero:after { content:"AUTH / 03"; right:5%; top:8%; font:700 10px/1.2 monospace; letter-spacing:.2em; color:rgba(11,84,170,.4); }
+h1 { letter-spacing:-.055em; }
+.eyebrow,.section-title span,.how>div>span { color:#0b54aa; }
+.verify-card,.generator-card,.admin-register,.customer-dashboard,.history,.how,.bonus-section { border:1px solid rgba(215,228,240,.94); border-radius:24px; box-shadow:0 18px 60px rgba(7,31,76,.07); }
+.verify-card { padding:clamp(26px,4vw,42px); overflow:hidden; }
+.verify-card:before { content:""; position:absolute; width:170px; height:170px; right:-82px; top:-82px; border:1px dashed rgba(11,84,170,.22); border-radius:50%; }
+input,select,textarea { border-color:#d3dfeb!important; border-radius:13px!important; background:rgba(255,255,255,.92)!important; box-shadow:inset 0 1px 2px rgba(7,31,76,.025)!important; }
+input:focus,select:focus,textarea:focus { border-color:#2783ca!important; box-shadow:0 0 0 4px rgba(11,84,170,.10)!important; }
+button.primary,.primary { border-radius:14px!important; background:linear-gradient(135deg,#0b63bd,#073e82)!important; box-shadow:0 13px 28px rgba(11,84,170,.20); }
+.product-visual,.admin-vial-figure { transform:perspective(1100px) rotateY(-5deg) rotateX(2deg); filter:drop-shadow(0 34px 36px rgba(7,31,76,.18)); transition:transform .5s cubic-bezier(.2,.8,.2,1); }
+.product-visual:hover,.admin-vial-figure:hover { transform:perspective(1100px) rotateY(0) rotateX(0) translateY(-6px); }
+.customer-profile-card { border-color:#dce7f1; border-radius:20px; background:linear-gradient(145deg,#fff 45%,#f1f7fd); box-shadow:0 16px 44px rgba(11,84,170,.07); transform-style:preserve-3d; transition:transform .28s ease,box-shadow .28s ease,border-color .28s ease; }
+.customer-profile-card:hover { transform:perspective(900px) translateY(-5px) rotateX(1deg); border-color:#bdd5e9; box-shadow:0 24px 55px rgba(11,84,170,.12); }
+.customer-avatar { border-radius:15px; background:linear-gradient(145deg,#0b63bd,#071f4c); box-shadow:0 8px 18px rgba(11,84,170,.2); }
+.customer-profile-metrics span,.customer-summary article,.admin-summary article { background:#eef5fc; border-color:#dfe8f1; }
+.customer-profile-metrics strong,.customer-summary strong { color:#0b54aa; }
+.customer-card-foot button,.customer-head-actions a { background:#0b54aa; }
+.customer-table-wrap,.admin-table-wrap { border-radius:18px; border-color:#dce7f1; box-shadow:0 14px 38px rgba(11,84,170,.05); }
+.customer-table-wrap thead,.admin-table-wrap thead { background:rgba(238,244,240,.96); backdrop-filter:blur(10px); }
+.admin-page { background:radial-gradient(circle at 90% 0%,#e7f1fb,transparent 26%),#f4f8fc; }
+.admin-head { border-radius:26px; overflow:hidden; background:linear-gradient(130deg,#071f4c,#0b54aa); box-shadow:0 26px 70px rgba(7,31,76,.18); }
+.admin-login-gate { background:radial-gradient(circle at 70% 20%,#d9eafa,transparent 38%),#f4f8fc; }
+.admin-login-card { border:1px solid #d7e4f0; border-radius:26px; box-shadow:0 30px 90px rgba(7,31,76,.16); }
+.customer-detail-head { background:linear-gradient(120deg,#071f4c,#0b63bd); }
+.status-pill.authentic { background:#e7f5ff; color:#0b54aa; }
+.consent-banner { background:rgba(4,22,50,.97); border-color:rgba(65,213,231,.28); }
+.consent-actions button.primary { background:linear-gradient(135deg,#0a75db,#11cbd8)!important; }
+@media (max-width:760px) { .topbar{height:68px}.hero{min-height:auto;background-size:24px 24px,24px 24px,auto,auto}.verify-card,.generator-card,.admin-register,.customer-dashboard{border-radius:20px}.product-visual,.admin-vial-figure{transform:none} }
+@media (prefers-reduced-motion:reduce) { .product-visual,.admin-vial-figure,.customer-profile-card{transform:none!important;transition:none!important} }
