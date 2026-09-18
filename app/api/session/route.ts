@@ -1,7 +1,11 @@
 import { activate, logEvent, serialPattern, refreshProfile } from '@/lib/verification-service';
 import { createSession, getSession, deleteSession } from '@/lib/sessions';
-import { rateLimit } from '@/lib/rate-limit';
+import { clientIp, consumeRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getDatabase } from '@/db/client';
+async function rateLimit(request: Request, scope: string, limit: number, windowSeconds = 60) {
+  const result = await consumeRateLimit(getDatabase() as never, scope, clientIp(request), limit, windowSeconds);
+  return result.allowed ? null : rateLimitResponse(result);
+}
 export async function GET(request: Request) {
  const session = await getSession(request,'customer');
  if (!session) return Response.json({error:'unauthorized'},{status:401});
