@@ -16,6 +16,14 @@ const managedLinux = readExecutionProfile() === "managed-linux";
 const localBindingConfig = {
   main: "vinext/server/fetch-handler",
   compatibility_flags: ["nodejs_compat"],
+  // Cloudflare's asset server defaults to redirecting `/index.html` -> `/`
+  // (its usual "canonical URL" behavior). That default is wrong here: `/`
+  // is the Next.js landing page (app/page.tsx), not the static customer
+  // portal in public/index.html — the redirect was silently bouncing
+  // visitors straight back to the landing page instead of ever reaching
+  // the actual verification/login screen. "none" serves each static file
+  // at its literal path, no redirect.
+  assets: { html_handling: "none" as const },
   d1_databases: d1
     ? [
         {

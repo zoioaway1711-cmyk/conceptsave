@@ -144,6 +144,51 @@ body {
   perspective: 1200px;
 }
 
+/* Shared "glass" surface — same visual language as the public verification
+   pages (public/styles.css): translucent gradient, blur, soft brand-blue
+   shadow. Used by components/ui/card.tsx so every admin screen (licenses,
+   materials, dashboard, live, login…) picks it up automatically instead of
+   the flat default Shadcn card. */
+.glass-surface {
+  background: radial-gradient(circle at 85% 0%, #e4f1fc, transparent 45%), linear-gradient(155deg, #ffffff, #f3f8fd);
+  border-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 24px 70px -20px rgba(11, 84, 170, 0.22), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+/* Ambient blurred backdrop blobs behind the admin shell — mirrors the
+   landing hero (components/demo.tsx) so /admin doesn't feel like a
+   different, unstyled product. Purely decorative, never intercepts clicks. */
+.admin-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.admin-ambient::before,
+.admin-ambient::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+}
+.admin-ambient::before {
+  top: -8rem;
+  left: -10rem;
+  height: 26rem;
+  width: 26rem;
+  background: rgba(215, 233, 248, 0.65);
+}
+.admin-ambient::after {
+  bottom: -12rem;
+  right: -8rem;
+  height: 24rem;
+  width: 24rem;
+  background: rgba(199, 223, 244, 0.55);
+}
+
 .schematic-grid {
   background-image:
     linear-gradient(rgba(25, 100, 71, .055) 1px, transparent 1px),

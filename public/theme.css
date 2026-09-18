@@ -222,9 +222,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 #customer-detail-dialog .customer-detail-summary article {padding:12px;}
 #customer-detail-dialog .customer-detail-summary strong {font-size:14px;}
 @media(max-width:620px){.admin-tabs button{padding:9px 5px;font-size:12px;}.admin-standalone .admin-head{padding:18px;}#panel-customers .customer-summary{grid-template-columns:1fr;}#customer-detail-dialog .customer-detail-summary{grid-template-columns:1fr 1fr;}}
-/* Native pointer and compact account controls. */
-html,body {cursor:auto;}
-.brand-cursor-dot,.brand-cursor-ring {display:none!important;}
+/* Compact account controls. */
 .account-controls {display:flex;align-items:center;gap:8px;position:relative;flex-shrink:0;}
 .topbar .user-account-summary {display:block;position:relative;overflow:visible;background:var(--ui-surface);border:1px solid var(--ui-border);box-shadow:none;margin:0;}
 .topbar .account-id {display:flex;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;min-height:40px;border:0;cursor:pointer;list-style:none;}

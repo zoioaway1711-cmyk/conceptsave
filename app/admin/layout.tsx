@@ -17,17 +17,19 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   if (!admin) {
     return (
-      <div className="min-h-screen bg-background text-foreground">
-        {children}
+      <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+        <div className="admin-ambient" aria-hidden="true" />
+        <div className="relative z-10">{children}</div>
         <Toaster position="top-right" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="relative flex min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="admin-ambient" aria-hidden="true" />
       <AdminSidebar username={admin.username} permissions={admin.permissions} />
-      <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
+      <main className="relative z-10 min-w-0 flex-1 overflow-x-hidden">{children}</main>
       <Toaster position="top-right" />
     </div>
   );

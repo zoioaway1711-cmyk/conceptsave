@@ -14,10 +14,10 @@ export function NoAccess({ permission }: { permission: string }) {
           <EmptyMedia variant="icon">
             <ShieldAlert />
           </EmptyMedia>
-          <EmptyTitle>You don&apos;t have access to this</EmptyTitle>
+          <EmptyTitle>Você não tem acesso a esta página</EmptyTitle>
           <EmptyDescription>
-            Your admin account doesn&apos;t have the <code className="rounded bg-muted px-1 py-0.5 text-xs">{permission}</code> permission
-            required to view this page. Ask another admin with the &quot;Admins&quot; permission to grant it.
+            Sua conta de admin não tem a permissão <code className="rounded bg-muted px-1 py-0.5 text-xs">{permission}</code> necessária
+            para ver esta página. Peça a outro admin com a permissão &quot;Admins&quot; para liberar o acesso.
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

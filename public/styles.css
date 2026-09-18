@@ -1531,7 +1531,7 @@ footer {
     cursor: pointer;
     min-width: 0;
   }
-  .mobile-nav a.active {
+  .mobile-nav a:first-child {
     color: #0b54aa;
     background: #e9f1fa;
   }
@@ -1833,9 +1833,6 @@ footer {
 }
 .login-gate.hidden {
   display: none;
-}
-.tab-hidden {
-  display: none !important;
 }
 .login-brand {
   position: fixed;
@@ -4387,56 +4384,14 @@ body::-webkit-scrollbar-thumb {
   transition-delay: var(--reveal-delay, 0ms);
 }
 .reveal-ready.is-visible { opacity: 1; transform: none; }
-.brand-cursor-dot,
-.brand-cursor-ring {
-  position: fixed;
-  z-index: 9999;
-  left: 0;
-  top: 0;
-  border-radius: 50%;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  opacity: 0;
-}
-.brand-cursor-dot { width: 5px; height: 5px; background: #13d0dd; }
-.brand-cursor-ring {
-  width: 28px;
-  height: 28px;
-  border: 1px solid rgba(23, 100, 220, .65);
-  box-shadow: 0 0 15px rgba(12, 199, 221, .18);
-  transition: width .2s ease, height .2s ease, border-color .2s ease;
-}
-body.brand-cursor-active .brand-cursor-dot,
-body.brand-cursor-active .brand-cursor-ring { opacity: 1; }
-body.brand-cursor-hover .brand-cursor-ring {
-  width: 46px;
-  height: 46px;
-  border-color: rgba(12, 199, 221, .8);
-}
-.brand-ripple {
-  position: fixed;
-  z-index: 9998;
-  width: 12px;
-  height: 12px;
-  border: 1px solid rgba(15, 184, 218, .8);
-  border-radius: 50%;
-  pointer-events: none;
-  transform: translate(-50%, -50%) scale(.4);
-  animation: brand-ripple .55s ease-out forwards;
-}
-@keyframes brand-ripple { to { opacity: 0; transform: translate(-50%, -50%) scale(4.6); } }
 @media (max-width: 900px) {
   .signature-vial { width: min(72vw, 340px); height: 450px; }
   .signature-vial figcaption { right: 2%; }
-}
-@media (pointer: coarse) {
-  .brand-cursor-dot, .brand-cursor-ring { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .signature-vial img, .vial-orbit-one, .vial-orbit-two { animation: none !important; transform: none; }
   .reveal-ready { opacity: 1; transform: none; transition: none; }
-  .brand-cursor-dot, .brand-cursor-ring, .brand-ripple { display: none; }
 }
 
 /* Interações finais: transições de menus e experiência touch/mobile */
@@ -4451,11 +4406,6 @@ body::after {
   transform: translateX(-100%);
 }
 body.ui-transitioning::after { animation: ui-sweep .5s cubic-bezier(.2,.7,.2,1); }
-body.brand-cursor-active,
-body.brand-cursor-active a,
-body.brand-cursor-active button,
-body.brand-cursor-active input,
-body.brand-cursor-active select { cursor: none; }
 @keyframes ui-sweep {
   0% { opacity: 0; transform: translateX(-100%); }
   25% { opacity: 1; }
