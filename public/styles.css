@@ -1531,7 +1531,7 @@ footer {
     cursor: pointer;
     min-width: 0;
   }
-  .mobile-nav a:first-child {
+  .mobile-nav a.active {
     color: #0b54aa;
     background: #e9f1fa;
   }
@@ -1833,6 +1833,9 @@ footer {
 }
 .login-gate.hidden {
   display: none;
+}
+.tab-hidden {
+  display: none !important;
 }
 .login-brand {
   position: fixed;

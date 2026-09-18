@@ -88,7 +88,7 @@ const t = {
   pt: {
     locale: "pt-PT",
     navVerify: "Verificar",
-    navHistory: "Histórico",
+    navHistory: "Produtos",
     navAdmin: "Painel administrativo",
     install: "Instalar app",
     heroTitle: "O seu produto.<br><em>A sua segurança.</em>",
@@ -124,7 +124,7 @@ const t = {
   en: {
     locale: "en-GB",
     navVerify: "Verify",
-    navHistory: "History",
+    navHistory: "Products",
     navAdmin: "Admin panel",
     install: "Install app",
     heroTitle: "Your product.<br><em>Your rewards.</em>",
@@ -159,7 +159,7 @@ const t = {
   es: {
     locale: "es-PY",
     navVerify: "Verificar",
-    navHistory: "Historial",
+    navHistory: "Productos",
     navAdmin: "Panel administrativo",
     install: "Instalar app",
     heroTitle: "Tu producto.<br><em>Tus beneficios.</em>",
@@ -262,7 +262,7 @@ const tutorialText = {
   },
 };
 Object.assign(t.pt, {
-  recent: "PRODUTOS VERIFICADOS",
+  recent: "PRODUTOS ATIVOS",
   historyTitle: "Todos os seus produtos",
   historyNote: "O seu histórico fica guardado e não pode ser apagado.",
   historyCountLabel: "verificados",
@@ -301,7 +301,7 @@ Object.assign(t.pt, {
   supportScan: "Abrir leitor de QR Code",
 });
 Object.assign(t.en, {
-  recent: "VERIFIED PRODUCTS",
+  recent: "ACTIVE PRODUCTS",
   historyTitle: "All your products",
   historyNote: "Your verification history is saved permanently.",
   historyCountLabel: "verified",
@@ -338,7 +338,7 @@ Object.assign(t.en, {
   supportScan: "Open QR Code scanner",
 });
 Object.assign(t.es, {
-  recent: "PRODUCTOS VERIFICADOS",
+  recent: "PRODUCTOS ACTIVOS",
   historyTitle: "Todos tus productos",
   historyNote: "Tu historial de verificaciones queda guardado permanentemente.",
   historyCountLabel: "verificados",
@@ -427,6 +427,15 @@ function loadProfile() {
 function saveProfile(p) {
   localStorage.setItem(profileKey(), JSON.stringify(p));
 }
+const TAB_IDS = ["historico", "verificar", "bonus"];
+function activateTab(id) {
+  if (!TAB_IDS.includes(id)) return;
+  TAB_IDS.forEach((tabId) => document.getElementById(tabId)?.classList.toggle("tab-hidden", tabId !== id));
+  document.querySelectorAll(".topbar nav a[href^='#'], .mobile-nav a[href^='#']").forEach((link) => {
+    link.classList.toggle("active", link.getAttribute("href") === `#${id}`);
+  });
+  window.scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" });
+}
 function showApp(profileId) {
   session = profileId;
   localStorage.setItem("vf-user-session", profileId);
@@ -437,6 +446,8 @@ function showApp(profileId) {
   renderRewards();
   renderHistory();
   startPresenceHeartbeat();
+  // Land straight on the customer's active products, not the verify hero.
+  activateTab("historico");
 }
 async function loginWith(serial, source = "manual") {
   const error = document.querySelector("#login-error");
@@ -1086,10 +1097,14 @@ if (signatureVial && vialFlipButton) {
 document.addEventListener("click", (event) => {
   const trigger = event.target.closest("a[href^='#'], .mobile-nav button, [data-tab]");
   if (!trigger) return;
+  const targetId = trigger.getAttribute("href")?.slice(1);
+  if (targetId && TAB_IDS.includes(targetId)) {
+    event.preventDefault();
+    activateTab(targetId);
+  }
   document.body.classList.remove("ui-transitioning");
   requestAnimationFrame(() => document.body.classList.add("ui-transitioning"));
   window.setTimeout(() => document.body.classList.remove("ui-transitioning"), 520);
-  const targetId = trigger.getAttribute("href")?.slice(1);
   if (!targetId) return;
   const target = document.getElementById(targetId);
   target?.classList.remove("section-arrival");
