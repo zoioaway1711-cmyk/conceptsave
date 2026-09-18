@@ -17,6 +17,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },
+  // Scoped to the Vercel build (package.json's build:vercel sets this env
+  // var) — vinext's own Cloudflare pipeline also reads this config file and
+  // needs `cloudflare:workers` to resolve to the REAL module, not this
+  // build-only shim, so the alias must not apply there.
+  ...(process.env.NEXT_BUILD_TARGET === "vercel"
+    ? { turbopack: { resolveAlias: { "cloudflare:workers": "./lib/cloudflare-workers-shim.ts" } } }
+    : {}),
 };
 
 export default nextConfig;

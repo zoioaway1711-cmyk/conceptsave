@@ -1,7 +1,27 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+/**
+ * The real app runs on Cloudflare Workers with a D1 binding that only
+ * exists in that runtime — it can't run on Vercel. Rather than duplicate
+ * the backend behind a second, slower, credential-holding code path, a
+ * Vercel deployment of this same repo forwards every request to the real
+ * production site instead. Set `PRODUCTION_URL` in the Vercel project's
+ * environment variables to the real Cloudflare domain to enable this.
+ * Cloudflare deployments never set `VERCEL`, so this is a no-op there.
+ */
+function vercelRedirect(request: NextRequest): NextResponse | null {
+  if (process.env.VERCEL !== "1") return null;
+  const target = process.env.PRODUCTION_URL;
+  if (!target) return null;
+  const destination = new URL(request.nextUrl.pathname + request.nextUrl.search, target);
+  return NextResponse.redirect(destination, 308);
+}
+
 export async function proxy(request: NextRequest) {
+  const redirect = vercelRedirect(request);
+  if (redirect) return redirect;
+  if (!request.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
   const headers = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -42,4 +62,8 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/api/:path*"] };
+// Broadened from "/api/:path*" so the Vercel redirect above catches every
+// path, not just API calls. Non-API requests skip straight past the
+// origin/CSRF/body checks below, which only run for methods other than
+// GET/HEAD/OPTIONS under /api/ — unchanged from before.
+export const config = { matcher: ["/:path*"] };
