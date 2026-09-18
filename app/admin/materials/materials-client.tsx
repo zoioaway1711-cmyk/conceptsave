@@ -111,7 +111,7 @@ export function MaterialsClient() {
                     <TableCell><Badge variant="secondary" className="font-mono">{material.prefixCode}</Badge></TableCell>
                     <TableCell className="text-muted-foreground">{material.maker || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{material.brand || "—"}</TableCell>
-                    <TableCell>{material.archived ? <Badge variant="outline">Archived</Badge> : <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Active</Badge>}</TableCell>
+                    <TableCell>{material.archived ? <Badge variant="outline">Archived</Badge> : <Badge variant="outline" className="border-emerald-900/60 bg-emerald-950/70 text-emerald-400">Active</Badge>}</TableCell>
                     <TableCell className="text-muted-foreground">{new Date(material.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="outline" size="sm">

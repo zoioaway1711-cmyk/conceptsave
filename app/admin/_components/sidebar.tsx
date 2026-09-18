@@ -36,10 +36,15 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
   }
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center gap-2 border-b px-5 py-4">
-        <ShieldCheck className="size-5 text-primary" />
-        <span className="text-sm font-semibold tracking-tight">Admin Console</span>
+    <aside className="relative flex h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <div className="flex items-center gap-2.5 border-b border-sidebar-border px-5 py-4">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-[0_0_20px_rgba(47,123,255,0.25)]">
+          <ShieldCheck className="size-4" />
+        </span>
+        <div className="leading-tight">
+          <span className="block text-sm font-semibold tracking-tight">VerificaFarma</span>
+          <span className="block text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Command Center</span>
+        </div>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {items.map((item) => {
@@ -50,21 +55,31 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active ? "bg-sidebar-primary text-sidebar-primary-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                active
+                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  : "text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
               )}
             >
-              <Icon className="size-4" />
+              <span
+                className={cn(
+                  "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-sidebar-primary shadow-[0_0_10px_rgba(47,123,255,0.7)] transition-opacity duration-200",
+                  active ? "opacity-100" : "opacity-0 group-hover:opacity-40",
+                )}
+              />
+              <Icon className={cn("size-4 transition-colors", active ? "text-sidebar-primary" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80")} />
               {item.label}
             </Link>
           );
         })}
       </nav>
-      <div className="border-t px-3 py-4">
-        <div className="mb-2 truncate px-2 text-xs text-muted-foreground">Signed in as <span className="font-medium text-foreground">{username}</span></div>
-        <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => void signOut()} disabled={signingOut}>
+      <div className="border-t border-sidebar-border px-3 py-4">
+        <div className="mb-2 truncate px-2 text-xs text-muted-foreground">
+          Conectado como <span className="font-medium text-sidebar-foreground">{username}</span>
+        </div>
+        <Button variant="outline" size="sm" className="w-full justify-start gap-2 border-sidebar-border bg-transparent text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" onClick={() => void signOut()} disabled={signingOut}>
           <LogOut className="size-4" />
-          {signingOut ? "Signing out…" : "Sign out"}
+          {signingOut ? "Saindo…" : "Sair"}
         </Button>
       </div>
     </aside>

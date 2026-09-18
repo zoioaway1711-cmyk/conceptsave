@@ -4574,3 +4574,233 @@ body.ui-transitioning::after { animation: ui-sweep .5s cubic-bezier(.2,.7,.2,1);
   .consent-actions { justify-content: stretch; }
   .consent-actions button { flex: 1 1 135px; }
 }
+
+/* ==========================================================================
+   Save Concept — Cyber Premium (2026 refresh)
+   Deep black + electric blue. One identity, not a light/dark toggle — the
+   whole customer portal reads this layer last, so it wins over every color
+   declared earlier in this file. Rather than hunting down and flipping
+   hundreds of scattered hex values throughout the file (high risk of
+   breaking contrast somewhere invisible without a way to check visually),
+   this overrides every CONTAINER-level surface the customer actually sees,
+   as background+text PAIRS, so nothing goes dark-on-dark or light-on-light.
+   Deep list/table-row internals inside Histórico/Bónus inherit from their
+   container; flag anything that still reads wrong so it can get its own
+   pass — that's a faster, safer loop than a blind global rewrite.
+   ========================================================================== */
+:root {
+  --ink: #f2f6fc;
+  --green: #2f7bff;
+  --green2: #4c8fff;
+  --mint: #101a2c;
+  --cream: #050810;
+  --paper: #0b1220;
+  --line: rgba(122, 162, 255, .16);
+  --muted: #8ca0be;
+  --amber: #f5a623;
+  --blue: #2f7bff;
+  --danger: #ff5468;
+  --shadow: 0 30px 80px -20px rgba(0, 0, 0, .65);
+  --electric: #2f7bff;
+  --neon: #22d3ff;
+  --surface-2: #101a2c;
+  --surface-3: #16223a;
+  --glow: 0 0 40px rgba(47, 123, 255, .22);
+}
+html { color-scheme: dark; }
+body { background: var(--cream); color: var(--ink); }
+.topbar {
+  border-color: var(--line) !important;
+  background: rgba(5, 8, 16, .78) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .35) !important;
+}
+.topbar nav a { color: var(--muted); }
+.topbar nav a.active { color: var(--ink); }
+.topbar nav a.active:after { background: var(--electric); box-shadow: 0 0 12px rgba(47, 123, 255, .6); }
+footer, .mobile-nav {
+  background: rgba(5, 8, 16, .92) !important;
+  border-color: var(--line) !important;
+  color: var(--muted);
+}
+.mobile-nav a:first-child { color: var(--electric) !important; background: rgba(47, 123, 255, .12) !important; }
+.hero {
+  background:
+    linear-gradient(rgba(47, 123, 255, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 123, 255, .05) 1px, transparent 1px),
+    radial-gradient(circle at 82% 14%, rgba(47, 123, 255, .16), transparent 40%),
+    var(--cream) !important;
+}
+.hero:before, .bonus-section:before { opacity: .05; filter: invert(1); }
+.verify-card,
+.generator-card,
+.admin-register,
+.customer-dashboard,
+.history,
+.how,
+.bonus-section {
+  border-color: var(--line) !important;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.verify-card:before { border-color: rgba(47, 123, 255, .3); }
+input, select, textarea {
+  border-color: var(--line) !important;
+  background: rgba(16, 26, 44, .85) !important;
+  color: var(--ink) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .2) !important;
+}
+input::placeholder, textarea::placeholder { color: #4f5f78 !important; }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--electric) !important;
+  box-shadow: 0 0 0 4px rgba(47, 123, 255, .22) !important;
+}
+button.primary, .primary {
+  background: linear-gradient(135deg, #3b82ff, #1554c7) !important;
+  box-shadow: 0 14px 34px rgba(47, 123, 255, .32) !important;
+  color: #f8fbff !important;
+}
+.product-visual, .admin-vial-figure { filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .55)); }
+.customer-profile-card {
+  border-color: var(--line) !important;
+  background: linear-gradient(155deg, var(--paper) 45%, var(--surface-2)) !important;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+.customer-profile-card:hover { border-color: rgba(47, 123, 255, .4) !important; box-shadow: var(--shadow), var(--glow); }
+.customer-avatar { background: linear-gradient(145deg, #3b82ff, #12234a) !important; box-shadow: 0 8px 18px rgba(47, 123, 255, .3); }
+.customer-profile-metrics span, .customer-summary article, .admin-summary article { background: var(--surface-2) !important; border-color: var(--line) !important; color: var(--ink); }
+.customer-profile-metrics strong, .customer-summary strong { color: var(--electric) !important; }
+.customer-card-foot button, .customer-head-actions a { background: var(--electric) !important; color: #f8fbff !important; }
+.customer-table-wrap, .admin-table-wrap { border-color: var(--line) !important; box-shadow: var(--shadow); }
+.customer-table-wrap thead, .admin-table-wrap thead { background: rgba(16, 26, 44, .96) !important; color: var(--muted); }
+.status-pill.authentic { background: rgba(52, 211, 153, .14) !important; color: #34d399 !important; }
+.status-pill.invalid { background: rgba(255, 84, 104, .14) !important; color: var(--danger) !important; }
+.history-note, .history-total span { color: var(--muted) !important; }
+.history-total { background: var(--surface-2) !important; border-color: var(--line) !important; }
+.history-total strong { color: var(--electric) !important; }
+.history time { color: #7d92ad !important; }
+
+/* Login / authenticate hero — the highest-priority screen in the product. */
+.login-gate {
+  background:
+    radial-gradient(circle at 18% 15%, rgba(47, 123, 255, .16), transparent 42%),
+    radial-gradient(circle at 85% 80%, rgba(34, 211, 255, .08), transparent 45%),
+    var(--cream) !important;
+}
+.login-brand { color: var(--ink) !important; }
+.login-card {
+  background: linear-gradient(165deg, #0d1526, #080d18) !important;
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow), 0 0 60px rgba(47, 123, 255, .06) !important;
+  color: var(--ink);
+}
+.login-kicker { color: var(--neon) !important; }
+.login-card h1 { color: var(--ink); }
+.login-card > p { color: var(--muted) !important; }
+.login-card form > small { color: #6b7f9c !important; }
+.original-only { border-color: var(--electric) !important; background: rgba(47, 123, 255, .1) !important; color: #cfe0ff !important; }
+.verification-privacy { background: rgba(122, 162, 255, .07) !important; color: var(--muted) !important; }
+.login-error { color: var(--danger) !important; }
+.instructions-button { color: var(--electric) !important; }
+.instructions-button:hover, .instructions-button:focus-visible { background: rgba(47, 123, 255, .1) !important; }
+.login-help-popover { background: var(--surface-2) !important; border-color: var(--line) !important; box-shadow: var(--shadow) !important; }
+.login-tutorial article strong { color: var(--ink) !important; }
+.login-tutorial article span { color: var(--muted) !important; }
+.user-session { background: var(--surface-2) !important; border-color: var(--line) !important; color: var(--ink) !important; }
+.user-session small { color: var(--danger) !important; }
+.language-switcher button { filter: none; opacity: .85; }
+.language-switcher button:hover, .language-switcher button.active { opacity: 1; background: rgba(47, 123, 255, .12) !important; }
+
+/* Consent dialog/banner: banner was already dark, the dialog wasn't. */
+.consent-dialog { background: var(--paper) !important; color: var(--ink) !important; }
+.consent-options label { background: var(--surface-2) !important; border-color: var(--line) !important; }
+.consent-options label small { color: var(--muted) !important; }
+.privacy-boundary { background: rgba(24, 169, 193, .1) !important; color: #8fe0ee !important; }
+
+/* Save Core — proprietary 3D authentication element. CSS-only (no WebGL):
+   layered radial glow + three tilted rings orbiting a nucleus, all built
+   from `transform`/`opacity` so it stays GPU-cheap. `data-state` on
+   #save-core (driven by app.js around the real /api/profiles/session call —
+   never decorative-only) selects the animation. */
+.save-core {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  margin: 0 auto 22px;
+  perspective: 700px;
+}
+.save-core-glow {
+  position: absolute;
+  inset: -26px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(47, 123, 255, .35), transparent 68%);
+  filter: blur(8px);
+  animation: save-core-breathe 3.2s ease-in-out infinite;
+}
+.save-core-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(122, 162, 255, .35);
+  transform-style: preserve-3d;
+}
+.save-core-ring-1 { transform: rotateX(62deg) rotateZ(0deg); animation: save-core-spin 9s linear infinite; }
+.save-core-ring-2 { inset: 10px; border-color: rgba(34, 211, 255, .3); transform: rotateX(62deg) rotateZ(120deg); animation: save-core-spin 7s linear infinite reverse; }
+.save-core-ring-3 { inset: 20px; border-color: rgba(122, 162, 255, .2); transform: rotateX(62deg) rotateZ(240deg); animation: save-core-spin 12s linear infinite; }
+.save-core-nucleus {
+  position: absolute;
+  inset: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, #6fb0ff, #1a54cf 60%, #0c2c6e);
+  box-shadow: 0 0 26px rgba(47, 123, 255, .55), inset 0 0 12px rgba(255, 255, 255, .25);
+  color: #f2f8ff;
+}
+.save-core-nucleus svg { width: 20px; height: 20px; }
+.save-core-icon-check { opacity: 0; transform: scale(.6); transform-origin: center; transition: opacity .25s ease, transform .25s ease; }
+.save-core-icon-shield { transition: opacity .25s ease; }
+@keyframes save-core-breathe { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: .85; transform: scale(1.08); } }
+@keyframes save-core-spin { to { transform: rotateX(62deg) rotateZ(360deg); } }
+.save-core-ring-2[style], .save-core[data-state] .save-core-ring-2 { animation-direction: reverse; }
+
+/* IDLE (default): the breathing glow + slow orbit above already read as
+   "system awake, watching" — no extra rule needed. */
+
+/* READY: user has typed/pasted a well-formed serial — the core brightens
+   as a "go" signal before they even press submit. */
+.save-core[data-state="ready"] .save-core-glow { animation-duration: 1.6s; }
+.save-core[data-state="ready"] .save-core-nucleus { box-shadow: 0 0 34px rgba(47, 123, 255, .75), inset 0 0 12px rgba(255, 255, 255, .3); }
+
+/* VALIDATING: rings spin up, nucleus pulses — mirrors the real in-flight
+   POST to /api/profiles/session (see app.js loginWith()). */
+.save-core[data-state="validating"] .save-core-ring-1 { animation-duration: 1.6s; }
+.save-core[data-state="validating"] .save-core-ring-2 { animation-duration: 1.2s; }
+.save-core[data-state="validating"] .save-core-ring-3 { animation-duration: 2s; }
+.save-core[data-state="validating"] .save-core-glow { animation: save-core-breathe 1s ease-in-out infinite; }
+.save-core[data-state="validating"] .save-core-nucleus { animation: save-core-pulse .9s ease-in-out infinite; }
+@keyframes save-core-pulse { 0%, 100% { box-shadow: 0 0 26px rgba(47, 123, 255, .5), inset 0 0 12px rgba(255,255,255,.25); } 50% { box-shadow: 0 0 42px rgba(47, 123, 255, .85), inset 0 0 16px rgba(255,255,255,.4); } }
+
+/* SUCCESS: one confirmation burst, then the shield swaps to a check. */
+.save-core[data-state="success"] .save-core-glow { background: radial-gradient(circle, rgba(52, 211, 153, .5), transparent 68%); animation: save-core-success-burst .6s ease-out; }
+.save-core[data-state="success"] .save-core-nucleus { background: radial-gradient(circle at 35% 30%, #7bf3c2, #14a874 60%, #0a5c40); box-shadow: 0 0 30px rgba(52, 211, 153, .6), inset 0 0 12px rgba(255,255,255,.3); }
+.save-core[data-state="success"] .save-core-icon-shield { opacity: 0; }
+.save-core[data-state="success"] .save-core-icon-check { opacity: 1; transform: scale(1); }
+@keyframes save-core-success-burst { 0% { transform: scale(1); opacity: .6; } 45% { transform: scale(1.35); opacity: 1; } 100% { transform: scale(1); opacity: .7; } }
+
+/* ERROR: light dims and cools, a short shake — never a bare "Error". The
+   text next to it (app.js) always says what actually went wrong. */
+.save-core[data-state="error"] .save-core-glow { background: radial-gradient(circle, rgba(255, 84, 104, .32), transparent 68%); opacity: .5; }
+.save-core[data-state="error"] .save-core-nucleus { background: radial-gradient(circle at 35% 30%, #ff8f9c, #c72d42 60%, #6e1220); box-shadow: 0 0 20px rgba(255, 84, 104, .4), inset 0 0 12px rgba(255,255,255,.15); animation: save-core-shake .4s ease-in-out; }
+@keyframes save-core-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .save-core-glow, .save-core-ring, .save-core-nucleus { animation: none !important; }
+  .save-core[data-state="ready"] .save-core-nucleus,
+  .save-core[data-state="validating"] .save-core-nucleus { box-shadow: 0 0 30px rgba(47, 123, 255, .6), inset 0 0 12px rgba(255,255,255,.25); }
+}
+@media (max-width: 600px) {
+  .save-core { width: 84px; height: 84px; margin-bottom: 16px; }
+  .save-core-nucleus { inset: 26px; }
+}

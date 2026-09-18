@@ -389,6 +389,10 @@ function clean(v) {
 function validSerial(v) {
   return SERIAL_PATTERN.test(v);
 }
+const saveCore = document.querySelector("#save-core");
+function setCoreState(state) {
+  if (saveCore) saveCore.dataset.state = state;
+}
 function customerRecord() { return remoteProfile; }
 function profileKey() {
   return `vf-rewards-profile-v3-${session || "guest"}`;
@@ -440,10 +444,11 @@ function showApp(profileId) {
 }
 async function loginWith(serial, source = "manual") {
   const error = document.querySelector("#login-error");
-  if (!validSerial(serial)) { error.textContent = t[language].loginError; return false; }
+  if (!validSerial(serial)) { error.textContent = t[language].loginError; setCoreState("error"); window.setTimeout(() => setCoreState("idle"), 900); return false; }
   const button = document.querySelector('#login-form button[type="submit"]');
   if (button) button.disabled = true;
   error.textContent = "Verificando…";
+  setCoreState("validating");
   try {
     const response = await fetch("/api/profiles/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ serial }) });
     const data = await requireResponse(response);
@@ -451,10 +456,16 @@ async function loginWith(serial, source = "manual") {
     // points server-side in one atomic step — no separate /api/verifications
     // call is needed (or correct) for the serial that was just logged in with.
     applyRemoteProfile(data.profile);
-    showApp(data.profile.id);
     error.textContent = "";
+    setCoreState("success");
+    // Let the success state read before the login screen unmounts — this is
+    // the payoff moment of the whole authentication flow, not decoration.
+    await new Promise((resolve) => window.setTimeout(resolve, reduceMotion.matches ? 120 : 620));
+    showApp(data.profile.id);
     return true;
   } catch (failure) {
+    setCoreState("error");
+    window.setTimeout(() => setCoreState("idle"), 1200);
     lockSession(failure.message);
     return false;
   } finally { if (button) button.disabled = false; }
@@ -467,6 +478,7 @@ loginInput.addEventListener("input", () => {
   loginInput.value = clean(loginInput.value);
   loginCount.textContent = `${loginInput.value.length}`;
   document.querySelector("#login-error").textContent = "";
+  if (saveCore && saveCore.dataset.state !== "validating") setCoreState(validSerial(loginInput.value) ? "ready" : "idle");
 });
 document.querySelector("#logout").addEventListener("click", async () => {
   try {

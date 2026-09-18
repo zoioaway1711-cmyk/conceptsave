@@ -112,7 +112,7 @@ export function AuditClient() {
                     <TableCell className="text-muted-foreground">{[record.resource, record.resourceId].filter(Boolean).join(" #")}</TableCell>
                     <TableCell>
                       {record.result === "success" ? (
-                        <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Success</Badge>
+                        <Badge variant="outline" className="border-emerald-900/60 bg-emerald-950/70 text-emerald-400">Success</Badge>
                       ) : (
                         <Badge variant="destructive">Failure</Badge>
                       )}

@@ -18,39 +18,44 @@
   scrollbar-gutter: stable;
 }
 
+/* Save Concept — Cyber Premium: deep black + electric blue. The admin
+   console has exactly one theme now (no light/dark toggle) — see globals.css
+   history for the retired light Shadcn defaults. Every surface below is a
+   foreground/background PAIR; when changing one, change its partner too so
+   contrast never breaks. */
 :root {
-  --background: #f4f8fc;
-  --foreground: #102a4b;
-  --card: #ffffff;
-  --card-foreground: #102a4b;
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #0b54aa;
-  --primary-foreground: #ffffff;
-  --secondary: #eaf3fb;
-  --secondary-foreground: #163c68;
-  --muted: #eef5fc;
-  --muted-foreground: #68798c;
-  --accent: #e7f1fb;
-  --accent-foreground: #075ab8;
-  --destructive: #e7000b;
-  --border: #dce7f1;
-  --input: #d3dfeb;
-  --ring: #2783ca;
-  --chart-1: #f54900;
-  --chart-2: #009689;
-  --chart-3: #104e64;
-  --chart-4: #ffb900;
-  --chart-5: #fe9a00;
+  --background: #050810;
+  --foreground: #f2f6fc;
+  --card: #0b1220;
+  --card-foreground: #f2f6fc;
+  --popover: #101a2c;
+  --popover-foreground: #f2f6fc;
+  --primary: #2f7bff;
+  --primary-foreground: #f2f6fc;
+  --secondary: #101a2c;
+  --secondary-foreground: #f2f6fc;
+  --muted: #0b1220;
+  --muted-foreground: #8ca0be;
+  --accent: #16223a;
+  --accent-foreground: #f2f6fc;
+  --destructive: #ff5468;
+  --border: rgba(122, 162, 255, 0.14);
+  --input: rgba(122, 162, 255, 0.22);
+  --ring: #22d3ff;
+  --chart-1: #4c8fff;
+  --chart-2: #34d399;
+  --chart-3: #f5a623;
+  --chart-4: #22d3ff;
+  --chart-5: #a78bfa;
   --radius: 0.875rem;
-  --sidebar: #fafafa;
-  --sidebar-foreground: #171717;
-  --sidebar-primary: #171717;
-  --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #f5f5f5;
-  --sidebar-accent-foreground: #171717;
-  --sidebar-border: #e5e5e5;
-  --sidebar-ring: #a1a1a1;
+  --sidebar: #101a2c;
+  --sidebar-foreground: #f2f6fc;
+  --sidebar-primary: #2f7bff;
+  --sidebar-primary-foreground: #f2f6fc;
+  --sidebar-accent: #16223a;
+  --sidebar-accent-foreground: #f2f6fc;
+  --sidebar-border: rgba(122, 162, 255, 0.14);
+  --sidebar-ring: #22d3ff;
 }
 
 @theme inline {
@@ -94,42 +99,6 @@
     "Liberation Mono", "Courier New", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --card: #171717;
-    --card-foreground: #ededed;
-    --popover: #171717;
-    --popover-foreground: #ededed;
-    --primary: #ededed;
-    --primary-foreground: #171717;
-    --secondary: #262626;
-    --secondary-foreground: #ededed;
-    --muted: #262626;
-    --muted-foreground: #a1a1a1;
-    --accent: #262626;
-    --accent-foreground: #ededed;
-    --destructive: #ff6467;
-    --border: #ffffff1a;
-    --input: #ffffff26;
-    --ring: #737373;
-    --chart-1: #8e51ff;
-    --chart-2: #00bc7d;
-    --chart-3: #fe9a00;
-    --chart-4: #ad46ff;
-    --chart-5: #ff2056;
-    --sidebar: #171717;
-    --sidebar-foreground: #ededed;
-    --sidebar-primary: #8e51ff;
-    --sidebar-primary-foreground: #ededed;
-    --sidebar-accent: #262626;
-    --sidebar-accent-foreground: #ededed;
-    --sidebar-border: #ffffff1a;
-    --sidebar-ring: #737373;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
@@ -137,7 +106,7 @@ body {
   margin: 0;
 }
 
-::selection { background: #d7eafb; color: #071f4c; }
+::selection { background: rgba(47, 123, 255, 0.35); color: #f2f6fc; }
 
 .depth-stage {
   transform-style: preserve-3d;
@@ -150,11 +119,11 @@ body {
    materials, dashboard, live, login…) picks it up automatically instead of
    the flat default Shadcn card. */
 .glass-surface {
-  background: radial-gradient(circle at 85% 0%, #e4f1fc, transparent 45%), linear-gradient(155deg, #ffffff, #f3f8fd);
-  border-color: rgba(255, 255, 255, 0.85);
+  background: radial-gradient(circle at 85% 0%, rgba(47, 123, 255, 0.12), transparent 45%), linear-gradient(155deg, #0d1526, #0a0f1c);
+  border-color: rgba(122, 162, 255, 0.16);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  box-shadow: 0 24px 70px -20px rgba(11, 84, 170, 0.22), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.65), 0 0 40px rgba(47, 123, 255, 0.08), 0 1px 0 rgba(122, 162, 255, 0.08) inset;
 }
 
 /* Ambient blurred backdrop blobs behind the admin shell — mirrors the
@@ -179,20 +148,20 @@ body {
   left: -10rem;
   height: 26rem;
   width: 26rem;
-  background: rgba(215, 233, 248, 0.65);
+  background: rgba(47, 123, 255, 0.16);
 }
 .admin-ambient::after {
   bottom: -12rem;
   right: -8rem;
   height: 24rem;
   width: 24rem;
-  background: rgba(199, 223, 244, 0.55);
+  background: rgba(34, 211, 255, 0.08);
 }
 
 .schematic-grid {
   background-image:
-    linear-gradient(rgba(25, 100, 71, .055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(25, 100, 71, .055) 1px, transparent 1px);
+    linear-gradient(rgba(122, 162, 255, .07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(122, 162, 255, .07) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
 }

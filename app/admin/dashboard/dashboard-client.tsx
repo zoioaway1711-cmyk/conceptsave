@@ -153,7 +153,7 @@ export function DashboardClient({ canManageProfiles }: { canManageProfiles: bool
                     <TableCell>{profile.activeLicenses}</TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(profile.lastActive)}</TableCell>
                     <TableCell>
-                      {profile.blocked ? <Badge variant="destructive">Blocked</Badge> : <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Active</Badge>}
+                      {profile.blocked ? <Badge variant="destructive">Blocked</Badge> : <Badge variant="outline" className="border-emerald-900/60 bg-emerald-950/70 text-emerald-400">Active</Badge>}
                     </TableCell>
                   </TableRow>
                 ))}
