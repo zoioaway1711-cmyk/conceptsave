@@ -465,6 +465,15 @@ async function loginWith(serial, source = "manual") {
   try {
     const response = await fetch("/api/profiles/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ serial }) });
     const data = await requireResponse(response);
+    // session MUST be set before applyRemoteProfile — it calls saveProfile(),
+    // which keys the localStorage write off the current `session` value. On
+    // a first-ever login `session` is still "" at this point (only showApp()
+    // used to set it, further down), so the freshly-activated product was
+    // getting saved under the "guest" bucket instead of this customer's own
+    // key — showApp()'s later renderHistory()/renderRewards() would then
+    // read the (correct) customer key and find nothing there.
+    session = data.profile.id;
+    localStorage.setItem("vf-user-session", session);
     // The login endpoint already claims/validates the license and credits
     // points server-side in one atomic step — no separate /api/verifications
     // call is needed (or correct) for the serial that was just logged in with.
