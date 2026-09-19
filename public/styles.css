@@ -1482,12 +1482,8 @@ footer {
 .mini-mark {
   width: 35px;
   height: 35px;
-  border-radius: 11px;
-  background: #0b54aa;
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font: 800 12px Manrope;
+  object-fit: contain;
+  display: block;
 }
 .mobile-nav {
   display: none;
@@ -2162,6 +2158,35 @@ footer {
   width: 100%;
   aspect-ratio: 1/1;
   object-fit: cover;
+}
+/* Small translucent brand watermark on the demo/activation illustrations —
+   no solid white chip behind it (would show up as a visible white patch on
+   the product photo); just the mark itself with a soft shadow so it reads
+   against any background, never covering the QR Code or serial callout. */
+.demo-brand-mark {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 5px rgba(4, 35, 75, 0.55)) drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+  pointer-events: none;
+}
+.demo-flag {
+  display: inline-block;
+  font: 800 clamp(6px, 0.62vw, 8px) Manrope, sans-serif;
+  letter-spacing: 0.08em;
+  color: #eaf2ff;
+  text-shadow: 0 1px 3px rgba(4, 35, 75, 0.9);
+  background: rgba(7, 27, 66, 0.55);
+  backdrop-filter: blur(3px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 2px 6px;
+  margin-bottom: 3px;
+  white-space: nowrap;
 }
 .live-auth-label {
   position: absolute;

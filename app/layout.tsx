@@ -5,8 +5,9 @@ export const metadata: Metadata = {
   title: "Save Concept — Verificação de Autenticidade",
   description: "Portal Save Concept para verificação de seriais, benefícios e gestão segura de perfis.",
   icons: {
-    icon: "/app-icon.svg",
-    shortcut: "/app-icon.svg",
+    icon: "/save-concept-favicon.png",
+    shortcut: "/save-concept-favicon.png",
+    apple: "/save-concept-favicon.png",
   },
 };
 

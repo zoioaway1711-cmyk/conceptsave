@@ -47,6 +47,13 @@ export const materialCreateSchema = z.object({
   brand: z.string().trim().max(160).default(""),
 });
 
+export const materialUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  maker: z.string().trim().max(160).optional(),
+  brand: z.string().trim().max(160).optional(),
+  archived: z.boolean().optional(),
+});
+
 export const licenseCreateSchema = z.object({
   materialId: z.number().int().positive(),
   lot: z.string().trim().max(80).default(""),
@@ -56,6 +63,30 @@ export const licenseCreateSchema = z.object({
 export const licenseActionSchema = z.object({
   licenseId: z.number().int().positive(),
   action: z.enum(["revoke", "replace"]),
+});
+
+export const licenseUpdateSchema = z.object({
+  lot: z.string().trim().max(80).optional(),
+  expiresAt: z.string().datetime().nullable().optional(),
+});
+
+// One row from the imported serial sheet (SERIAL, LOTE, PRODUTO, VALIDADE
+// columns) — `serial` is intentionally NOT run through the `licenseSerial`
+// transform/refine used elsewhere: that refine rejects on invalid shape,
+// which is fine for a single customer-facing submission but would abort
+// the whole batch on one bad row here. The import route validates each
+// row's shape itself so it can report a per-row error instead.
+export const licenseImportRowSchema = z.object({
+  serial: z.string().trim().min(1).max(40),
+  product: z.string().trim().min(1).max(160),
+  lot: z.string().trim().max(80).default(""),
+  expiresAt: z.string().datetime().nullable().default(null),
+});
+
+export const licenseImportSchema = z.object({
+  rows: z.array(licenseImportRowSchema).min(1).max(1000),
+  maker: z.string().trim().max(160).default(""),
+  brand: z.string().trim().max(160).default(""),
 });
 
 /**

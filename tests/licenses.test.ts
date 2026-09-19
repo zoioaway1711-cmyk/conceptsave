@@ -6,7 +6,7 @@ import { seedLicense, seedMaterial } from "./helpers/seed";
 const env: Record<string, unknown> = { SESSION_SECRET: "s".repeat(32) };
 vi.mock("cloudflare:workers", () => ({ env }));
 
-const { createLicense, findLicenseByInput, effectiveStatus, revokeLicense, replaceLicense, claimLicense } = await import("../lib/licenses");
+const { createLicense, findLicenseByInput, effectiveStatus, revokeLicense, replaceLicense, claimLicense, importLicense, updateLicense } = await import("../lib/licenses");
 const { serialDigest, ANY_SERIAL_PATTERN } = await import("../lib/serial");
 
 let db: ReturnType<typeof createFakeD1>;
@@ -98,6 +98,60 @@ describe("findLicenseByInput", () => {
     // prefix text, only from the digest match found in `licenses`.
     const spoofed = await findLicenseByInput(db as never, "MATB-QQQQ-WWWW-EEEE-RRRR");
     expect(spoofed).toBeNull();
+  });
+});
+
+describe("importLicense", () => {
+  it("stores a caller-supplied serial (not generated) under its own prefix/suffix, and it resolves via the normal lookup", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "IMPX", name: "Imported Material" });
+    // Deliberately includes I/L/O/U — outside the ALPHABET used by
+    // generateSerial() — to prove the import path accepts a full A-Z0-9
+    // serial minted by an external source, not just this system's own
+    // ambiguity-avoiding subset.
+    const external = "SAVEC-WILO-UILO-AAAA-BBBB";
+    const { id, serial } = await importLicense(db as never, materialId, external, { lot: "LOT-1" });
+    expect(serial).toBe(external);
+    const row = db.raw.prepare("SELECT display_prefix AS displayPrefix, display_suffix AS displaySuffix, lot FROM licenses WHERE id=?").get(id) as { displayPrefix: string; displaySuffix: string; lot: string };
+    expect(row.displayPrefix).toBe("SAVEC");
+    expect(row.displaySuffix).toBe("BBBB");
+    expect(row.lot).toBe("LOT-1");
+    const found = await findLicenseByInput(db as never, external);
+    expect(found?.id).toBe(id);
+  });
+
+  it("rejects a malformed serial without writing anything", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "IMPX", name: "Imported Material" });
+    await expect(importLicense(db as never, materialId, "not-a-serial")).rejects.toThrow("invalid_serial_format");
+    const row = db.raw.prepare("SELECT COUNT(*) AS n FROM licenses").get() as { n: number };
+    expect(row.n).toBe(0);
+  });
+
+  it("surfaces a duplicate serial as duplicate_serial instead of silently regenerating it", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "IMPX", name: "Imported Material" });
+    const serial = "IMPX-AAAA-BBBB-CCCC-DDDD";
+    await importLicense(db as never, materialId, serial);
+    await expect(importLicense(db as never, materialId, serial)).rejects.toThrow("duplicate_serial");
+    const row = db.raw.prepare("SELECT COUNT(*) AS n FROM licenses").get() as { n: number };
+    expect(row.n).toBe(1);
+  });
+
+  it("rejects import against a material that doesn't exist", async () => {
+    await expect(importLicense(db as never, 999999, "ABCD-AAAA-BBBB-CCCC-DDDD")).rejects.toThrow("material_not_found");
+  });
+});
+
+describe("updateLicense", () => {
+  it("updates lot and expiry without touching the serial or status", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "EDIT", name: "Editable Material" });
+    const licenseId = await seedLicense(db, materialId, { serial: "EDIT-AAAA-BBBB-CCCC-DDDD" });
+    expect(await updateLicense(db as never, licenseId, { lot: "NEW-LOT", expiresAt: "2030-01-01T00:00:00.000Z" })).toBe(true);
+    const row = db.raw.prepare("SELECT lot, expires_at AS expiresAt, serial_digest AS digest FROM licenses WHERE id=?").get(licenseId) as { lot: string; expiresAt: string; digest: string };
+    expect(row.lot).toBe("NEW-LOT");
+    expect(row.expiresAt).toBe("2030-01-01T00:00:00.000Z");
+  });
+
+  it("returns false for a license id that doesn't exist", async () => {
+    expect(await updateLicense(db as never, 999999, { lot: "X" })).toBe(false);
   });
 });
 

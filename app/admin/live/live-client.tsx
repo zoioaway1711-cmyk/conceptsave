@@ -72,12 +72,12 @@ const EVENT_META: Record<string, { label: string; icon: ComponentType<{ classNam
 };
 
 const SEVERITY_STYLES: Record<string, { ring: string; icon: string; badge: string }> = {
-  info: { ring: "border-slate-800", icon: "bg-slate-800 text-slate-300", badge: "" },
+  info: { ring: "", icon: "bg-accent text-muted-foreground", badge: "" },
   warning: { ring: "border-amber-500/40 bg-amber-500/5", icon: "bg-amber-500/15 text-amber-400", badge: "border-amber-500/40 bg-amber-500/10 text-amber-400" },
   critical: { ring: "border-red-500/50 bg-red-500/10", icon: "bg-red-500/20 text-red-400", badge: "border-red-500/50 bg-red-500/10 text-red-400" },
 };
 
-export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
+export function LiveClient({ canInspectUsers, canManageProfiles }: { canInspectUsers: boolean; canManageProfiles: boolean }) {
   const reduceMotion = useReducedMotion();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
@@ -172,11 +172,11 @@ export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100 lg:p-8">
+    <div className="p-6 lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-widest text-slate-50">LIVE INTELLIGENCE</h1>
-          <p className="text-sm text-slate-400">Security operations · polled every few seconds</p>
+          <h1 className="text-xl font-bold tracking-widest text-foreground">LIVE INTELLIGENCE</h1>
+          <p className="text-sm text-muted-foreground">Security operations · polled every few seconds</p>
         </div>
         <ConnectionPill state={connState} />
       </div>
@@ -190,7 +190,7 @@ export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-          <TabsList className="bg-slate-900">
+          <TabsList>
             <TabsTrigger value="ALL">All</TabsTrigger>
             <TabsTrigger value="ACTIVATIONS">Activations</TabsTrigger>
             <TabsTrigger value="INVALID">Invalid</TabsTrigger>
@@ -198,7 +198,7 @@ export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
           </TabsList>
         </Tabs>
         <Select value={windowParam} onValueChange={(value) => setWindowParam(value as LiveWindow)}>
-          <SelectTrigger className="w-32 border-slate-800 bg-slate-900 text-slate-100">
+          <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -211,13 +211,13 @@ export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="border-slate-800 bg-slate-900/60 text-slate-100 xl:col-span-2">
-          <CardHeader className="border-b border-slate-800 [.border-b]:pb-3">
-            <CardTitle className="text-sm font-semibold tracking-wide text-slate-300">EVENT FEED</CardTitle>
+        <Card className="xl:col-span-2">
+          <CardHeader className="border-b [.border-b]:pb-3">
+            <CardTitle className="text-sm font-semibold tracking-wide text-muted-foreground">EVENT FEED</CardTitle>
           </CardHeader>
           <CardContent className="max-h-[70vh] space-y-2 overflow-y-auto pt-4">
             {events.length === 0 ? (
-              <p className="py-12 text-center text-sm text-slate-500">No live events yet.</p>
+              <p className="py-12 text-center text-sm text-muted-foreground">No live events yet.</p>
             ) : (
               <AnimatePresence initial={false}>
                 {events.map((event) => (
@@ -228,15 +228,15 @@ export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-800 bg-slate-900/60 text-slate-100">
-          <CardHeader className="border-b border-slate-800 [.border-b]:pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold tracking-wide text-slate-300">
+        <Card>
+          <CardHeader className="border-b [.border-b]:pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold tracking-wide text-muted-foreground">
               <Users className="size-4" /> ACTIVE SESSIONS
             </CardTitle>
           </CardHeader>
           <CardContent className="max-h-[70vh] space-y-1.5 overflow-y-auto pt-4">
             {sessions.length === 0 ? (
-              <p className="py-12 text-center text-sm text-slate-500">No active sessions.</p>
+              <p className="py-12 text-center text-sm text-muted-foreground">No active sessions.</p>
             ) : (
               sessions.map((session) => (
                 <button
@@ -245,15 +245,15 @@ export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
                   onClick={() => openInspector(session.profileId)}
                   disabled={!canInspectUsers || looksMasked(session.profileId)}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950/40 px-3 py-2 text-left text-xs transition-colors",
-                    canInspectUsers && !looksMasked(session.profileId) ? "hover:border-slate-600 hover:bg-slate-800/60" : "cursor-default",
+                    "flex w-full items-center justify-between rounded-md border bg-muted/20 px-3 py-2 text-left text-xs transition-colors",
+                    canInspectUsers && !looksMasked(session.profileId) ? "hover:bg-accent/60" : "cursor-default",
                   )}
                 >
                   <span className="flex items-center gap-2">
                     <PresenceDot presence={session.presence} />
                     <span className="font-mono">{session.profileId}</span>
                   </span>
-                  <span className="text-right text-slate-400">
+                  <span className="text-right text-muted-foreground">
                     <span className="block">{session.levelName}</span>
                     <span className="block">{session.points} pts</span>
                   </span>
@@ -264,7 +264,7 @@ export function LiveClient({ canInspectUsers }: { canInspectUsers: boolean }) {
         </Card>
       </div>
 
-      <UserInspector profileId={inspecting} onClose={() => setInspecting(null)} />
+      <UserInspector profileId={inspecting} canManageProfiles={canManageProfiles} onClose={() => setInspecting(null)} />
     </div>
   );
 }
@@ -284,20 +284,20 @@ function ConnectionPill({ state }: { state: ConnState }) {
 }
 
 function StatCard({ label, value, secondary, tone }: { label: string; value: number | string; secondary?: string; tone?: "warning" | "critical" }) {
-  const valueTone = tone === "critical" ? "text-red-400" : tone === "warning" ? "text-amber-400" : "text-slate-50";
+  const valueTone = tone === "critical" ? "text-red-400" : tone === "warning" ? "text-amber-400" : "text-foreground";
   return (
-    <Card className="border-slate-800 bg-slate-900/60 text-slate-100">
+    <Card>
       <CardContent className="py-3">
-        <div className="text-[11px] font-medium tracking-widest text-slate-500">{label}</div>
+        <div className="text-[11px] font-medium tracking-widest text-muted-foreground">{label}</div>
         <div className={cn("mt-1 text-2xl font-bold tabular-nums", valueTone)}>{value}</div>
-        {secondary ? <div className="mt-0.5 text-xs text-slate-500">{secondary}</div> : null}
+        {secondary ? <div className="mt-0.5 text-xs text-muted-foreground">{secondary}</div> : null}
       </CardContent>
     </Card>
   );
 }
 
 function PresenceDot({ presence }: { presence: string }) {
-  const color = presence === "online" ? "bg-emerald-400" : presence === "idle" ? "bg-amber-400" : "bg-slate-600";
+  const color = presence === "online" ? "bg-emerald-400" : presence === "idle" ? "bg-amber-400" : "bg-muted-foreground/50";
   return <span className={cn("size-2 rounded-full", color, presence === "online" && "animate-pulse")} />;
 }
 
@@ -323,15 +323,15 @@ function EventRow({ event, canInspectUsers, onInspect, reduceMotion }: { event: 
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <span className="font-medium text-slate-100">{meta.label}</span>
-            <span className="text-xs text-slate-500" title={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</span>
+            <span className="font-medium text-foreground">{meta.label}</span>
+            <span className="text-xs text-muted-foreground" title={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</span>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {event.materialId ? <span>Material #{event.materialId}</span> : null}
             {event.licenseId ? <span>License #{event.licenseId}</span> : null}
             {event.actorProfileId ? (
               actorClickable ? (
-                <button type="button" onClick={() => onInspect(event.actorProfileId)} className="font-mono text-slate-300 underline decoration-dotted underline-offset-2 hover:text-slate-100">
+                <button type="button" onClick={() => onInspect(event.actorProfileId)} className="font-mono text-foreground/80 underline decoration-dotted underline-offset-2 hover:text-foreground">
                   {event.actorProfileId}
                 </button>
               ) : (

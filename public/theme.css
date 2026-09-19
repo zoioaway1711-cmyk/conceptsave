@@ -12,14 +12,16 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --ui-bg: #071322;
-  --ui-surface: #101f33;
-  --ui-soft: #172b43;
-  --ui-text: #e8f0fc;
-  --ui-muted: #a9bad0;
-  --ui-border: #29415b;
-  --ui-accent: #7bc8ff;
-  --ui-shadow: 0 32px 90px #0005;
+  /* Matches the Save Concept "Cyber Premium" identity used by the admin
+     console (app/globals.css): deep black background, electric blue accent. */
+  --ui-bg: #050810;
+  --ui-surface: #0b1220;
+  --ui-soft: #101a2c;
+  --ui-text: #f2f6fc;
+  --ui-muted: #8ca0be;
+  --ui-border: #22314a;
+  --ui-accent: #4c8fff;
+  --ui-shadow: 0 32px 90px #0007;
   --ink: var(--ui-text);
   --cream: var(--ui-bg);
   --paper: var(--ui-surface);
@@ -45,9 +47,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: radial-gradient(ellipse at 8% 20%, #22bfda14, transparent 48%), radial-gradient(ellipse at 90% 85%, #287aff12, transparent 45%), var(--ui-bg);
 }
 .login-gate { padding: 104px 32px 88px; }
+/* Single column: the two-column showcase panel this grid used to pair
+   with .login-card was dropped from index.html by the Cyber Premium
+   redesign (d26a8d3), leaving .login-card as the grid's only child. With
+   grid-template-columns still declaring two tracks, that lone card was
+   auto-placed into the first (wider) track instead of the center of the
+   screen — this rule centers it directly instead. */
 .login-layout {
-  display: grid; grid-template-columns: 1.08fr 1fr; align-items: center;
-  gap: clamp(30px, 5vw, 80px); width: min(1100px, 100%); max-width: 1100px;
+  display: flex; justify-content: center;
+  width: min(460px, 100%);
 }
 .login-showcase { position: relative; align-self: stretch; display: flex; flex-direction: column; padding: 28px 0; }
 .showcase-eyebrow { display: flex; align-items: center; gap: 10px; color: var(--ui-accent); font: 800 10px Manrope, sans-serif; letter-spacing: .17em; }
@@ -91,7 +99,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 :root[data-theme="dark"] .login-error, :root[data-theme="dark"] .admin-login-error { color: #ffaaa2; }
 @keyframes showcase-float { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-12px) rotate(-2deg); } }
 @media (max-width: 900px) {
-  .login-layout { grid-template-columns: 1fr; max-width: 500px; gap: 24px; }
   .login-showcase { padding: 0 6px; }
   .login-showcase h2 { margin: 15px 0 10px; font-size: 34px; }
   .showcase-product, .showcase-footer { display: none; }
@@ -234,6 +241,44 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .topbar .account-dropdown .header-level,.topbar .account-dropdown .header-benefits {display:flex;flex-direction:row;justify-content:space-between;align-items:center;padding:10px;border:0;background:var(--ui-soft);border-radius:8px;color:var(--ui-text);}
 .topbar .account-dropdown .header-level b,.topbar .account-dropdown small {color:var(--ui-text);}
 .topbar .account-dropdown #logout {display:block;width:100%;margin:0;padding:10px;border:0;border-radius:8px;background:var(--ui-soft);color:var(--ui-text);}
+.profile-avatar {display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--ui-soft);border:1px solid var(--ui-border);color:var(--ui-accent);flex-shrink:0;}
+.profile-avatar svg {width:17px;height:17px;}
+.profile-menu-list {list-style:none;margin:0;padding:0;display:grid;gap:6px;}
+
+/* Instructional hover tooltip for QR-Code touchpoints — CSS-only, not the
+   native title="" tooltip, which is slow (~1s delay) and browser-styled. */
+[data-tooltip] {position:relative;}
+[data-tooltip]::after {
+  content:attr(data-tooltip);
+  position:absolute;
+  left:50%;
+  bottom:calc(100% + 12px);
+  transform:translateX(-50%) translateY(4px);
+  width:max-content;
+  max-width:220px;
+  padding:9px 12px;
+  border-radius:10px;
+  border:1px solid var(--ui-border);
+  background:var(--ui-surface);
+  color:var(--ui-text);
+  box-shadow:0 12px 30px #0006;
+  font:600 11.5px/1.45 Manrope, sans-serif;
+  text-align:center;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity .15s ease, transform .15s ease, visibility .15s;
+  z-index:70;
+}
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity:1;
+  visibility:visible;
+  transform:translateX(-50%) translateY(0);
+}
+@media (max-width:480px) {
+  [data-tooltip]::after {max-width:min(220px, 78vw);}
+}
 .topbar .account-controls #install-app {display:block;width:auto;min-height:32px;height:32px;padding:0 10px;font-size:11px;border:1px solid var(--ui-border);border-radius:9px;background:var(--ui-soft);color:var(--ui-text);box-shadow:none;white-space:nowrap;margin:0;}
 .save-footer {display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:32px;background:var(--ui-surface);color:var(--ui-muted);border-top:1px solid var(--ui-border);padding:32px clamp(20px,5vw,70px);}
 .save-footer-brand {display:flex;align-items:center;gap:12px;}

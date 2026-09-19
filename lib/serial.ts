@@ -34,8 +34,17 @@ export function serialPattern(prefix: string) {
   return new RegExp(`^${prefix}(?:-${SEGMENT_GROUP}){${SEGMENT_COUNT}}$`);
 }
 
-/** Any well-formed serial, regardless of prefix — used to validate shape before a DB lookup. */
-export const ANY_SERIAL_PATTERN = new RegExp(`^[A-Z0-9]{2,10}(?:-${SEGMENT_GROUP}){${SEGMENT_COUNT}}$`);
+/**
+ * Any well-formed serial, regardless of prefix — used to validate shape
+ * before a DB lookup. Deliberately broader than `SEGMENT_GROUP` (which
+ * excludes I/L/O/U to keep FRESHLY GENERATED serials unambiguous): this
+ * also has to accept serials minted outside `generateSerial()` — e.g. a
+ * batch imported from an external serial sheet via `importLicense()` —
+ * whose characters aren't guaranteed to avoid that same subset. Rejecting
+ * those here would make a validly-issued, physically-printed serial fail
+ * every future lookup.
+ */
+export const ANY_SERIAL_PATTERN = new RegExp(`^[A-Z0-9]{2,10}(?:-[A-Z0-9]{${SEGMENT_LENGTH}}){${SEGMENT_COUNT}}$`);
 
 function randomSegment(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(SEGMENT_LENGTH));
@@ -83,4 +92,52 @@ export function maskDisplaySerial(displayPrefix: string, displaySuffix: string):
 
 export function displaySuffixOf(serial: string): string {
   return serial.slice(-SEGMENT_LENGTH);
+}
+
+/**
+ * AES-256-GCM key for the RECOVERABLE serial copy (`licenses.serial_encrypted`)
+ * — separate purpose from `licenseHmacKey()`'s one-way HMAC digest, so it's
+ * derived via HKDF with its own domain-separating label from the same
+ * SESSION_SECRET (no new env var to provision, matching serialDigest()'s
+ * convention above).
+ */
+async function licenseEncryptionKey() {
+  const secret = (env as unknown as { SESSION_SECRET?: string }).SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET não configurado");
+  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: new TextEncoder().encode("license.serial_encryption") },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+/**
+ * Encrypts a serial for storage in `licenses.serial_encrypted` — the only
+ * place a full serial is recoverable after issuance, deliberately separate
+ * from the masked listings and the one-time SHOW-ONCE reveal. Exists so
+ * support can pull up the EXACT serial a customer already has (e.g.
+ * already printed on their product) instead of only being able to revoke
+ * and mint a new one. Every decrypt is gated behind admin auth and
+ * audit-logged by the caller (see /api/admin/licenses/[id] "reveal").
+ */
+export async function encryptSerial(serial: string): Promise<string> {
+  const key = await licenseEncryptionKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(serial)));
+  const combined = new Uint8Array(iv.length + ciphertext.length);
+  combined.set(iv, 0);
+  combined.set(ciphertext, iv.length);
+  return btoa(String.fromCharCode(...combined));
+}
+
+export async function decryptSerial(encoded: string): Promise<string> {
+  const key = await licenseEncryptionKey();
+  const combined = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+  return new TextDecoder().decode(plaintext);
 }

@@ -39,3 +39,26 @@ export async function getMaterial(db: D1Database, id: number): Promise<Material 
   ).bind(id).first<{ id: number; slug: string; prefixCode: string; name: string; maker: string; brand: string; archived: number; createdAt: string }>();
   return row ? { ...row, archived: Boolean(row.archived) } : null;
 }
+
+/** Looks a material up by its slugified name — used by the bulk import flow to find-or-create one material per distinct product name instead of duplicating it on every re-run. */
+export async function getMaterialBySlug(db: D1Database, slug: string): Promise<Material | null> {
+  const row = await db.prepare(
+    "SELECT id, slug, prefix_code AS prefixCode, name, maker, brand, archived, created_at AS createdAt FROM materials WHERE slug=?",
+  ).bind(slug).first<{ id: number; slug: string; prefixCode: string; name: string; maker: string; brand: string; archived: number; createdAt: string }>();
+  return row ? { ...row, archived: Boolean(row.archived) } : null;
+}
+
+export { slugify };
+
+export async function updateMaterial(db: D1Database, id: number, patch: { name?: string; maker?: string; brand?: string; archived?: boolean }): Promise<Material | null> {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (patch.name !== undefined) { sets.push("name=?"); values.push(patch.name.trim()); }
+  if (patch.maker !== undefined) { sets.push("maker=?"); values.push(patch.maker.trim()); }
+  if (patch.brand !== undefined) { sets.push("brand=?"); values.push(patch.brand.trim()); }
+  if (patch.archived !== undefined) { sets.push("archived=?"); values.push(patch.archived ? 1 : 0); }
+  if (sets.length === 0) return getMaterial(db, id);
+  values.push(id);
+  await db.prepare(`UPDATE materials SET ${sets.join(", ")} WHERE id=?`).bind(...values).run();
+  return getMaterial(db, id);
+}

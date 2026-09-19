@@ -2,6 +2,17 @@
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 
+/* FlyonUI: only the CSS component/utility layer (btn, card, badge, alert…).
+   JS behaviors (accordion, dropdown, modal…) are intentionally NOT loaded —
+   this admin console already uses Radix UI (components/ui/*) for all
+   interactive behavior, and loading FlyonUI's JS on top would double up
+   and fight Radix for the same elements. `themes: dark` picks FlyonUI's
+   closest built-in dark base; every color token is then overridden below
+   to the exact Cyber Premium palette instead of FlyonUI's own dark colors. */
+@plugin "flyonui" {
+  themes: dark --default;
+}
+
 @utility scrollbar-thin {
   scrollbar-width: thin;
 }
@@ -56,6 +67,41 @@
   --sidebar-accent-foreground: #f2f6fc;
   --sidebar-border: rgba(122, 162, 255, 0.14);
   --sidebar-ring: #22d3ff;
+
+  /* FlyonUI theme tokens — same Cyber Premium palette as above, just under
+     the variable names FlyonUI's own component CSS (btn, card, badge,
+     alert…) reads. Keeping every color pair mapped to an EXISTING brand
+     value above (never a new hue) is what keeps FlyonUI components visually
+     identical to the hand-built shadcn ones instead of introducing a
+     second, slightly-off color system. */
+  --color-base-100: #0b1220;
+  --color-base-200: #050810;
+  --color-base-300: #02040a;
+  --color-base-content: #f2f6fc;
+  --color-primary: #2f7bff;
+  --color-primary-content: #f2f6fc;
+  --color-secondary: #22d3ff;
+  --color-secondary-content: #04101f;
+  --color-accent: #22d3ff;
+  --color-accent-content: #04101f;
+  --color-neutral: #101a2c;
+  --color-neutral-content: #f2f6fc;
+  --color-info: #22d3ff;
+  --color-info-content: #04101f;
+  --color-success: #34d399;
+  --color-success-content: #04140d;
+  --color-warning: #f5a623;
+  --color-warning-content: #241804;
+  --color-error: #ff5468;
+  --color-error-content: #2a0509;
+  --radius-selector: 0.875rem;
+  --radius-field: 0.875rem;
+  --radius-box: 0.875rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
 }
 
 @theme inline {

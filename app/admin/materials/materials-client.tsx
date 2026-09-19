@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Package, Plus, Search, Ticket } from "lucide-react";
+import { Package, Pencil, Plus, Search, Ticket, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
-import { apiFetch, apiPost } from "../_lib/api";
+import { apiFetch, apiPatch, apiPost } from "../_lib/api";
 
 type Material = { id: number; slug: string; prefixCode: string; name: string; maker: string; brand: string; archived: boolean; createdAt: string };
 
@@ -23,6 +23,7 @@ export function MaterialsClient() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Material | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,14 +52,19 @@ export function MaterialsClient() {
           <h1 className="text-2xl font-semibold tracking-tight">Materials</h1>
           <p className="text-sm text-muted-foreground">Materials are what licenses are minted for — a course, a SKU, a content pack.</p>
         </div>
-        <NewMaterialDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          onCreated={(material) => {
-            setMaterials((prev) => [material, ...prev]);
-            setDialogOpen(false);
-          }}
-        />
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/admin/licenses/import"><Upload className="size-4" /> Importar produtos</Link>
+          </Button>
+          <NewMaterialDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            onCreated={(material) => {
+              setMaterials((prev) => [material, ...prev]);
+              setDialogOpen(false);
+            }}
+          />
+        </div>
       </div>
 
       <Card>
@@ -101,7 +107,7 @@ export function MaterialsClient() {
                   <TableHead>Brand</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Licenses</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -114,11 +120,16 @@ export function MaterialsClient() {
                     <TableCell>{material.archived ? <Badge variant="outline">Archived</Badge> : <Badge variant="outline" className="border-emerald-900/60 bg-emerald-950/70 text-emerald-400">Active</Badge>}</TableCell>
                     <TableCell className="text-muted-foreground">{new Date(material.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/admin/licenses?materialId=${material.id}`}>
-                          <Ticket className="size-4" /> Manage licenses
-                        </Link>
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setEditing(material)}>
+                          <Pencil className="size-4" /> Edit
+                        </Button>
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/admin/licenses?materialId=${material.id}`}>
+                            <Ticket className="size-4" /> Manage licenses
+                          </Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -127,7 +138,82 @@ export function MaterialsClient() {
           )}
         </CardContent>
       </Card>
+
+      <EditMaterialDialog
+        material={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(updated) => {
+          setMaterials((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+          setEditing(null);
+        }}
+      />
     </div>
+  );
+}
+
+function EditMaterialDialog({ material, onClose, onSaved }: { material: Material | null; onClose: () => void; onSaved: (material: Material) => void }) {
+  return (
+    <Dialog open={Boolean(material)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        {material ? <EditMaterialForm key={material.id} material={material} onSaved={onSaved} /> : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditMaterialForm({ material, onSaved }: { material: Material; onSaved: (material: Material) => void }) {
+  const [name, setName] = useState(material.name);
+  const [maker, setMaker] = useState(material.maker);
+  const [brand, setBrand] = useState(material.brand);
+  const [archived, setArchived] = useState(material.archived);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const result = await apiPatch<{ material: Material }>(`/api/admin/materials/${material.id}`, { name, maker, brand, archived });
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    toast.success("Material updated");
+    onSaved(result.data.material);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <DialogHeader>
+        <DialogTitle>Edit material</DialogTitle>
+        <DialogDescription>Prefix code ({material.prefixCode}) is fixed once licenses exist under it.</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-material-name">Name</Label>
+          <Input id="edit-material-name" required maxLength={160} value={name} onChange={(event) => setName(event.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-material-maker">Maker</Label>
+            <Input id="edit-material-maker" maxLength={160} value={maker} onChange={(event) => setMaker(event.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-material-brand">Brand</Label>
+            <Input id="edit-material-brand" maxLength={160} value={brand} onChange={(event) => setBrand(event.target.value)} />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={archived} onChange={(event) => setArchived(event.target.checked)} />
+          Archived (hidden from new-license pickers)
+        </label>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      </div>
+      <DialogFooter>
+        <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : "Save changes"}</Button>
+      </DialogFooter>
+    </form>
   );
 }
 

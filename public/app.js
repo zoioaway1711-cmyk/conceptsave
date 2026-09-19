@@ -42,7 +42,7 @@ function applyRemoteProfile(profile) {
   remoteProfile = profile;
   const claimed = Object.fromEntries((profile.benefits || []).map(item => [item.threshold, item]));
   const licenses = profile.licenses || [];
-  records = licenses.map(license => ({ serial: license.serial, name: license.material?.name || "", maker: license.material?.brand || "", lot: license.lot || "" }));
+  records = licenses.map(license => ({ serial: license.serial, name: license.material?.name || "", maker: license.material?.brand || "", lot: license.lot || "", expiry: license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : "" }));
   const verifiedAt = {};
   licenses.forEach(license => { if (license.activatedAt) verifiedAt[license.serial] = license.activatedAt; });
   saveProfile({ verified: licenses.filter(license => license.status === "active").map(license => license.serial), verifiedAt, claimed });
@@ -290,6 +290,9 @@ Object.assign(t.pt, {
   levelShort: "Nível",
   benefitsShort: "benefícios",
   logout: "Sair",
+  profileLabel: "Perfil",
+  profileMenuTitle: "PERFIL DO UTILIZADOR",
+  profileMenuHint: "Acesso pelo produto validado",
   supportButton: "Ajuda",
   supportTitle: "Como podemos ajudar?",
   supportStep1Title: "Encontre o selo",
@@ -327,6 +330,9 @@ Object.assign(t.en, {
   levelShort: "Level",
   benefitsShort: "benefits",
   logout: "Sign out",
+  profileLabel: "Profile",
+  profileMenuTitle: "USER PROFILE",
+  profileMenuHint: "Access via validated product",
   supportButton: "Help",
   supportTitle: "How can we help?",
   supportStep1Title: "Find the seal",
@@ -366,6 +372,9 @@ Object.assign(t.es, {
   levelShort: "Nivel",
   benefitsShort: "beneficios",
   logout: "Salir",
+  profileLabel: "Perfil",
+  profileMenuTitle: "PERFIL DEL USUARIO",
+  profileMenuHint: "Acceso mediante el producto validado",
   supportButton: "Ayuda",
   supportTitle: "¿Cómo podemos ayudarte?",
   supportStep1Title: "Encuentra el sello",
@@ -377,12 +386,16 @@ Object.assign(t.es, {
   supportScan: "Abrir lector de QR",
 });
 // License format: PREFIX-XXXX-XXXX-XXXX-XXXX (prefix: 2-10 letters/digits,
-// identification only; each segment: 4 chars from a 32-symbol alphabet that
-// excludes I/L/O/U to avoid visual ambiguity — see lib/serial.ts).
-const SERIAL_PATTERN = /^[A-Z0-9]{2,10}(?:-[0-9A-HJKMNPQRSTVWXYZ]{4}){4}$/;
+// identification only; each segment: 4 chars). Freshly generated serials
+// use a 32-symbol alphabet that excludes I/L/O/U to avoid visual ambiguity
+// (see lib/serial.ts), but this pattern accepts the full A-Z0-9 range so
+// serials imported from an external batch (which aren't guaranteed to
+// avoid that subset) still validate — must stay in sync with
+// lib/serial.ts's ANY_SERIAL_PATTERN.
+const SERIAL_PATTERN = /^[A-Z0-9]{2,10}(?:-[A-Z0-9]{4}){4}$/;
 // Same shape, unanchored — for pulling a code out of a scanned QR payload
 // or a `?serial=` URL rather than validating a whole input value.
-const SERIAL_PATTERN_LOOSE = /[A-Z0-9]{2,10}(?:-[0-9A-HJKMNPQRSTVWXYZ]{4}){4}/;
+const SERIAL_PATTERN_LOOSE = /[A-Z0-9]{2,10}(?:-[A-Z0-9]{4}){4}/;
 function clean(v) {
   return v.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 30);
 }
@@ -487,6 +500,18 @@ document.querySelector("#logout").addEventListener("click", async () => {
     location.reload();
   } catch (failure) { lockSession(failure.message); }
 });
+const accountMenu = document.querySelector("#account-menu");
+if (accountMenu) {
+  document.addEventListener("click", (event) => {
+    if (accountMenu.open && !accountMenu.contains(event.target)) accountMenu.removeAttribute("open");
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && accountMenu.open) accountMenu.removeAttribute("open");
+  });
+  accountMenu.querySelector(".account-dropdown")?.addEventListener("click", (event) => {
+    if (event.target.closest("a, button")) accountMenu.removeAttribute("open");
+  });
+}
 function renderHistory() {
   const p = session ? loadProfile() : { verified: [], verifiedAt: {} },
     items = p.verified
@@ -496,6 +521,7 @@ function renderHistory() {
           name: "—",
           maker: "",
           lot: "—",
+          expiry: "",
           status: "authentic",
         };
         return { ...item, timestamp: p.verifiedAt[serial] };
@@ -506,10 +532,10 @@ function renderHistory() {
     ? items
         .map(
           (x) =>
-            `<tr><td><strong>${escapeHtml(x.serial)}</strong></td><td>${escapeHtml(x.name)}<small style="display:block;color:#718095">${escapeHtml(x.maker || "")}</small></td><td>${escapeHtml(x.lot || "—")}</td><td><time datetime="${escapeHtml(x.timestamp)}">${new Date(x.timestamp).toLocaleString(t[language].locale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</time></td><td><span class="status-pill authentic">${t[language].valid}</span></td></tr>`,
+            `<tr><td><strong>${escapeHtml(x.serial)}</strong></td><td>${escapeHtml(x.name)}<small style="display:block;color:#718095">${escapeHtml(x.maker || "")}</small></td><td>${escapeHtml(x.lot || "—")}</td><td>${escapeHtml(x.expiry || "—")}</td><td><time datetime="${escapeHtml(x.timestamp)}">${new Date(x.timestamp).toLocaleString(t[language].locale, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</time></td><td><span class="status-pill authentic">${t[language].valid}</span></td></tr>`,
         )
         .join("")
-    : `<tr class="empty-row"><td colspan="5">${t[language].empty}</td></tr>`;
+    : `<tr class="empty-row"><td colspan="6">${t[language].empty}</td></tr>`;
 }
 function setLanguage(lang) {
   language = lang;
@@ -591,7 +617,12 @@ async function verify(serial, source = "manual") {
     if (data.status === "not_found") {
       result.className = "result show warning";
       result.textContent = t[language].missing;
-    } else if (data.status !== "authentic") {
+    } else if (data.status !== "active") {
+      // The server's real status values are "active" | "expired" | "revoked"
+      // | "unavailable" (never "authentic" — that was a leftover from an
+      // older API shape and made every successful activation fall through
+      // to the "blocked" branch below, hiding the product/lot/expiry that
+      // WAS returned in `data.product`).
       result.className = "result show invalid";
       result.textContent = t[language].blocked;
     } else {
@@ -982,10 +1013,30 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") setHelpOpen(false);
 });
-// The old "35172" demo serial only existed under the retired digit-serial
-// catalog and has no equivalent here — license codes are minted on demand
-// (SHOW ONCE) and can't be baked into a static demo QR, so this decorative
-// code was removed rather than left pointing at something invalid.
+// Demo QR Codes for the "where's my serial" illustrations. Real license
+// serials are minted on demand and shown to the customer exactly once
+// (SHOW ONCE), so they can never be baked into a static demo image without
+// either exposing a real one or pointing at something invalid. Instead
+// these boxes render a fixed, fictitious code in the real serial format —
+// "DEMO-7X4Q" pairs with the "DEMONSTRAÇÃO" flag next to it, so it reads
+// like a real serial (for visual accuracy) but can never resolve to an
+// actual product. Exists purely to show WHERE the QR Code and serial sit
+// on the packaging.
+function renderDemoQr(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el || typeof QRCode === "undefined") return;
+  el.innerHTML = "";
+  new QRCode(el, {
+    text: "DEMO-7X4Q-NAO-USAR-DEMONSTRACAO",
+    width: 128,
+    height: 128,
+    colorDark: "#071b42",
+    colorLight: "#ffffff",
+  });
+}
+renderDemoQr("login-demo-qr");
+renderDemoQr("signature-demo-qr");
+
 const serialFromUrl = new URLSearchParams(location.search).get("serial");
 async function restoreSession() {
   const storedSession = session;
@@ -1078,7 +1129,6 @@ if (!reduceMotion.matches && "IntersectionObserver" in window) {
 
 const signatureVial = document.querySelector("#signature-vial");
 const vialFlipButton = document.querySelector("#vial-flip");
-// See the note above the removed #login-demo-qr block — same reasoning.
 if (signatureVial && vialFlipButton) {
   const setVialSide = (flipped) => {
     signatureVial.classList.toggle("is-flipped", flipped);

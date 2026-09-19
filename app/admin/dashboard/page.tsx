@@ -5,5 +5,10 @@ import { DashboardClient } from "./dashboard-client";
 export default async function DashboardPage() {
   const admin = await requireViewer();
   if (!hasPermission(admin, "admin.dashboard.view")) return <NoAccess permission="admin.dashboard.view" />;
-  return <DashboardClient canManageProfiles={hasPermission(admin, "admin.profiles.manage")} />;
+  return (
+    <DashboardClient
+      canManageProfiles={hasPermission(admin, "admin.profiles.manage")}
+      canInspectUsers={hasPermission(admin, "admin.users.inspect")}
+    />
+  );
 }

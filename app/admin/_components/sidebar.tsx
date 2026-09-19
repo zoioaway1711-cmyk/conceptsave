@@ -1,9 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ComponentType } from "react";
-import { Activity, FileClock, LayoutDashboard, LogOut, Package, ShieldCheck, Ticket, Users } from "lucide-react";
+import { Activity, FileClock, LayoutDashboard, LogOut, Package, Ticket, Upload, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Permission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", permission: "admin.dashboard.view", icon: LayoutDashboard },
   { href: "/admin/materials", label: "Materials", permission: "admin.materials.manage", icon: Package },
   { href: "/admin/licenses", label: "Licenses", permission: "admin.licenses.manage", icon: Ticket },
+  { href: "/admin/licenses/import", label: "Import products", permission: "admin.licenses.manage", icon: Upload },
   { href: "/admin/live", label: "Live Intelligence", permission: "admin.live.view", icon: Activity },
   { href: "/admin/audit", label: "Audit Log", permission: "admin.audit.view", icon: FileClock },
   { href: "/admin/admins", label: "Admins", permission: "admin.admins.manage", icon: Users },
@@ -38,8 +40,8 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
   return (
     <aside className="relative flex h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="flex items-center gap-2.5 border-b border-sidebar-border px-5 py-4">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary/15 text-primary shadow-[0_0_20px_rgba(47,123,255,0.25)]">
-          <ShieldCheck className="size-4" />
+        <span className="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-primary/15 shadow-[0_0_20px_rgba(47,123,255,0.25)]">
+          <Image src="/save-concept-favicon.png" alt="Save Concept" width={32} height={32} className="size-full object-cover" priority />
         </span>
         <div className="leading-tight">
           <span className="block text-sm font-semibold tracking-tight">VerificaFarma</span>

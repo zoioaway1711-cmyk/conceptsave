@@ -122,15 +122,23 @@ export const materials = sqliteTable("materials", {
 }));
 
 // A license is one issued serial/token instance of a material. The
-// plaintext serial is NEVER stored — only its HMAC digest (for exact-match
-// lookup) plus the non-secret display prefix/suffix for masked display
-// (`CURA-••••-••••-••••-3HZQ`). `ownerProfileId` is set on first activation
-// (first-claim-wins, mirroring the old serial-as-proof-of-purchase model)
-// and is what actually grants entitlement — never the serial's prefix.
+// serial is never stored in plaintext — only its HMAC digest (for
+// exact-match lookup), the non-secret display prefix/suffix for masked
+// display (`CURA-••••-••••-••••-3HZQ`), and, separately, an AES-GCM
+// ENCRYPTED copy (`serialEncrypted`) that only an authenticated admin can
+// decrypt on demand (see lib/serial.ts encryptSerial/decryptSerial and the
+// "reveal" action on /api/admin/licenses/[id]) — e.g. to resend a
+// customer's exact, already-printed serial when support needs it. Every
+// reveal is audit-logged. `serialEncrypted` is nullable because licenses
+// issued before this column existed have no encrypted copy to recover.
+// `ownerProfileId` is set on first activation (first-claim-wins, mirroring
+// the old serial-as-proof-of-purchase model) and is what actually grants
+// entitlement — never the serial's prefix.
 export const licenses = sqliteTable("licenses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   materialId: integer("material_id").notNull().references(() => materials.id),
   serialDigest: text("serial_digest").notNull(),
+  serialEncrypted: text("serial_encrypted"),
   displayPrefix: text("display_prefix").notNull(),
   displaySuffix: text("display_suffix").notNull(),
   lot: text("lot").notNull().default(""),

@@ -1,4 +1,4 @@
-const CACHE = 'save-concept-v31';
+const CACHE = 'save-concept-v33';
 const ASSETS = ['./index.html', './styles.css', './modern.css', './app.js', './catalog-data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './save-concept-tirzepatide-3d.png', './save-concept-vial-signature-v1.png', './save-concept-vial-back-v1.png', './login-product-back-v2.png', './save-concept-mark-v2.png'];
 const assetUrls = new Set(ASSETS.map(asset => new URL(asset, self.location).href));
 

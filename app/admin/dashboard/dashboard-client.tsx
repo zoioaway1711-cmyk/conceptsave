@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { apiFetch, apiPost } from "../_lib/api";
+import { UserInspector } from "../live/user-inspector";
 
 type Profile = {
   id: string;
@@ -34,13 +35,14 @@ type Profile = {
 
 type Filter = "all" | "active" | "blocked";
 
-export function DashboardClient({ canManageProfiles }: { canManageProfiles: boolean }) {
+export function DashboardClient({ canManageProfiles, canInspectUsers }: { canManageProfiles: boolean; canInspectUsers: boolean }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<Profile | null>(null);
+  const [inspecting, setInspecting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,7 +148,11 @@ export function DashboardClient({ canManageProfiles }: { canManageProfiles: bool
               </TableHeader>
               <TableBody>
                 {filtered.map((profile) => (
-                  <TableRow key={profile.id} className="cursor-pointer" onClick={() => setSelected(profile)}>
+                  <TableRow
+                    key={profile.id}
+                    className="cursor-pointer"
+                    onClick={() => (canInspectUsers ? setInspecting(profile.id) : setSelected(profile))}
+                  >
                     <TableCell className="font-mono text-xs">{profile.id}</TableCell>
                     <TableCell>{profile.levelName}</TableCell>
                     <TableCell>{profile.points}</TableCell>
@@ -163,13 +169,22 @@ export function DashboardClient({ canManageProfiles }: { canManageProfiles: bool
         </CardContent>
       </Card>
 
-      <ProfileSheet
+      <ProfileDialog
         profile={selected}
         canManage={canManageProfiles}
         onClose={() => setSelected(null)}
         onSaved={(updated) => {
           setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           setSelected(null);
+        }}
+      />
+
+      <UserInspector
+        profileId={inspecting}
+        canManageProfiles={canManageProfiles}
+        onClose={() => {
+          setInspecting(null);
+          void load();
         }}
       />
     </div>
@@ -201,14 +216,14 @@ function formatDate(value: string | null) {
   }
 }
 
-function ProfileSheet({ profile, canManage, onClose, onSaved }: { profile: Profile | null; canManage: boolean; onClose: () => void; onSaved: (profile: Profile) => void }) {
+function ProfileDialog({ profile, canManage, onClose, onSaved }: { profile: Profile | null; canManage: boolean; onClose: () => void; onSaved: (profile: Profile) => void }) {
   return (
-    <Sheet open={Boolean(profile)} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent>
+    <Dialog open={Boolean(profile)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         {/* Keyed by profile.id so switching to a different profile remounts the form (fresh local state from props) instead of syncing via an effect. */}
         {profile ? <ProfileForm key={profile.id} profile={profile} canManage={canManage} onSaved={onSaved} /> : null}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -234,11 +249,11 @@ function ProfileForm({ profile, canManage, onSaved }: { profile: Profile; canMan
 
   return (
     <>
-      <SheetHeader>
-        <SheetTitle className="font-mono text-sm">{profile.id}</SheetTitle>
-        <SheetDescription>First seen {formatDate(profile.firstSeen)} · Language {profile.preferredLanguage}</SheetDescription>
-      </SheetHeader>
-      <div className="space-y-4 px-4">
+      <DialogHeader>
+        <DialogTitle className="font-mono text-sm">{profile.id}</DialogTitle>
+        <DialogDescription>First seen {formatDate(profile.firstSeen)} · Language {profile.preferredLanguage}</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-md border p-3">
             <div className="text-xs text-muted-foreground">Active licenses</div>
@@ -283,9 +298,9 @@ function ProfileForm({ profile, canManage, onSaved }: { profile: Profile; canMan
         )}
       </div>
       {canManage ? (
-        <SheetFooter>
+        <DialogFooter>
           <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
-        </SheetFooter>
+        </DialogFooter>
       ) : null}
     </>
   );

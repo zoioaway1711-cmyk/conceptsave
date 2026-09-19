@@ -10,14 +10,26 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Save Concept" />
-    <meta name="theme-color" content="#071f4c" />
+    <meta name="theme-color" content="#050810" />
     <meta
       name="description"
       content="Verifique a autenticidade e liberação de produtos Save Concept pelo número serial."
     />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <link rel="icon" type="image/png" href="./save-concept-favicon.png" />
+    <link rel="apple-touch-icon" href="./save-concept-favicon.png" />
     <title>Save Concept — Verificação de produto</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Save Concept" />
+    <meta property="og:title" content="Save Concept — Portal de Autenticidade" />
+    <meta
+      property="og:description"
+      content="Verifique a autenticidade e liberação de produtos Save Concept pelo número serial."
+    />
+    <meta property="og:image" content="./save-concept-share.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Save Concept — Portal de Autenticidade" />
+    <meta name="twitter:image" content="./save-concept-share.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -26,9 +38,12 @@
     />
     <link rel="stylesheet" href="./styles.css?v=25" />
     <link rel="stylesheet" href="./modern.css?v=2" />
+    <script src="./theme.js?v=2"></script>
+    <link rel="stylesheet" href="./theme.css?v=58" />
   </head>
   <body>
     <div class="scroll-signature" id="scroll-signature" aria-hidden="true"><i></i></div>
+    <button class="theme-toggle" type="button" aria-label="Alternar tema" aria-pressed="false"><span aria-hidden="true">◐</span><span data-theme-label>Tema</span></button>
     <section class="login-gate" id="login-gate" aria-labelledby="login-title">
       <div class="login-brand">
         <img src="./save-concept-mark-v2.png" alt="Save Concept" />
@@ -115,9 +130,11 @@
                   src="./login-product-back-v2.png"
                   alt="Parte traseira do produto Save Concept com a localização do QR Code e do serial"
                 />
+                <img class="demo-brand-mark" src="./save-concept-mark-v2.png" alt="" aria-hidden="true" />
                 <div class="live-auth-label">
+                  <span class="demo-flag">DEMONSTRAÇÃO</span>
                   <div id="login-demo-qr"></div>
-                  <strong>35172</strong>
+                  <strong>DEMO-7X4Q</strong>
                 </div>
                 <figcaption>
                   <span>1</span>
@@ -165,6 +182,7 @@
             class="scan-button login-scan"
             id="login-scanner"
             type="button"
+            data-tooltip="Vire a embalagem: o QR Code e o número de série completo ficam no verso do produto."
           >
             <span class="qr-icon" aria-hidden="true"></span>
             <span class="visually-hidden" id="login-qr-label">Entrar com QR Code</span>
@@ -182,10 +200,8 @@
           ><img src="./save-concept-mark-v2.png" alt=""
         /></a>
         <nav aria-label="Navegação principal">
-          <a class="active" href="#verificar" data-i18n="navVerify"
-            >Verificar</a
-          >
-          <a href="#historico" data-i18n="navHistory">Histórico</a>
+          <a class="active" href="#historico" data-i18n="navHistory">Histórico</a>
+          <a href="#verificar" data-i18n="navVerify">Verificar</a>
           <a href="#bonus">Bónus</a>
         </nav>
         <div class="language-switcher" aria-label="Idioma">
@@ -222,26 +238,81 @@
         >
           Instalar app
         </button>
-        <div class="user-account-summary">
-          <div class="account-id">
-            <small>ID</small><strong id="user-serial"></strong>
+        <details class="user-account-summary" id="account-menu">
+          <summary class="account-id" aria-label="Abrir perfil do utilizador">
+            <span class="profile-avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8.6" r="3.5" stroke="currentColor" stroke-width="1.6" />
+                <path d="M4.8 19.3c1.4-3.5 4.2-5.2 7.2-5.2s5.8 1.7 7.2 5.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              </svg>
+            </span>
+            <span class="profile-identity">
+              <strong id="user-serial"></strong>
+              <small data-i18n="profileLabel">Perfil</small>
+            </span>
+          </summary>
+          <div class="account-dropdown">
+            <div class="profile-menu-title">
+              <span data-i18n="profileMenuTitle">PERFIL DO UTILIZADOR</span>
+              <span data-i18n="profileMenuHint">Acesso pelo produto validado</span>
+            </div>
+            <ul class="profile-menu-list">
+              <li class="header-level">
+                <small data-i18n="levelShort">Nível</small>
+                <b id="header-level">Essencial</b>
+              </li>
+              <li>
+                <a class="header-benefits" href="#bonus">
+                  <b id="header-benefits-count">0</b>
+                  <small data-i18n="benefitsShort">benefícios</small>
+                </a>
+              </li>
+              <li>
+                <button class="user-session" id="logout" type="button">
+                  <small data-i18n="logout">Sair</small>
+                </button>
+              </li>
+            </ul>
           </div>
-          <div class="account-status">
-            <span class="header-level"
-              ><small data-i18n="levelShort">Nível</small
-              ><b id="header-level">Essencial</b></span
-            ><a class="header-benefits" href="#bonus"
-              ><b id="header-benefits-count">0</b
-              ><small data-i18n="benefitsShort">benefícios</small></a
-            >
-          </div>
-          <button class="user-session" id="logout" type="button">
-            <small data-i18n="logout">Sair</small>
-          </button>
-        </div>
+        </details>
       </header>
 
       <main>
+        <section class="history" id="historico">
+          <div class="section-title">
+            <div>
+              <span data-i18n="recent">PRODUTOS ATIVOS</span>
+              <h2 data-i18n="historyTitle">Todos os seus produtos</h2>
+              <p class="history-note" data-i18n="historyNote">
+                O seu histórico fica guardado e não pode ser apagado.
+              </p>
+            </div>
+            <div class="history-total">
+              <strong id="history-count">0</strong
+              ><span data-i18n="historyCountLabel">verificados</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Serial</th>
+                  <th data-i18n="productColumn">Produto Save Concept</th>
+                  <th data-i18n="batch">Lote</th>
+                  <th data-i18n="expiry">Validade</th>
+                  <th data-i18n="verifiedDate">Data da verificação</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="history-body">
+                <tr class="empty-row">
+                  <td colspan="6">Suas consultas aparecerão aqui.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="hero" id="verificar">
           <div class="product-panel">
             <div class="product-copy">
@@ -262,6 +333,7 @@
                 id="vial-flip"
                 type="button"
                 aria-label="Virar a ampola para ver o QR Code e o serial"
+                data-tooltip="Passe o rato para ver o verso da embalagem: QR Code e número de série completo."
                 aria-pressed="false"
               >
                 <span class="vial-flip-inner">
@@ -280,9 +352,11 @@
                       width="1024"
                       height="1536"
                     />
+                    <img class="demo-brand-mark" src="./save-concept-mark-v2.png" alt="" aria-hidden="true" />
                     <span class="vial-auth-label">
+                      <span class="demo-flag">DEMONSTRAÇÃO</span>
                       <span id="signature-demo-qr"></span>
-                      <strong>35172</strong>
+                      <strong>DEMO-7X4Q</strong>
                     </span>
                   </span>
                 </span>
@@ -335,6 +409,7 @@
                   id="open-scanner"
                   type="button"
                   aria-haspopup="dialog"
+                  data-tooltip="Vire a embalagem: o QR Code e o número de série completo ficam no verso do produto."
                 >
                   <span class="qr-icon" aria-hidden="true"></span>
                   <span class="visually-hidden" data-i18n="scanQr">Ler QR Code</span>
@@ -354,40 +429,6 @@
               class="share-status"
               aria-live="polite"
             ></div>
-          </div>
-        </section>
-
-        <section class="history" id="historico">
-          <div class="section-title">
-            <div>
-              <span data-i18n="recent">PRODUTOS ATIVOS</span>
-              <h2 data-i18n="historyTitle">Todos os seus produtos</h2>
-              <p class="history-note" data-i18n="historyNote">
-                O seu histórico fica guardado e não pode ser apagado.
-              </p>
-            </div>
-            <div class="history-total">
-              <strong id="history-count">0</strong
-              ><span data-i18n="historyCountLabel">verificados</span>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Serial</th>
-                  <th data-i18n="productColumn">Produto Save Concept</th>
-                  <th data-i18n="batch">Lote</th>
-                  <th data-i18n="verifiedDate">Data da verificação</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="history-body">
-                <tr class="empty-row">
-                  <td colspan="5">Suas consultas aparecerão aqui.</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </section>
 
@@ -481,15 +522,15 @@
       </footer>
     </div>
     <nav class="mobile-nav" aria-label="Navegação mobile">
-      <a href="#verificar"
-        ><span aria-hidden="true">✓</span><small>Validar</small></a
-      >
-      <button type="button" id="mobile-scanner">
-        <span aria-hidden="true">▦</span><small>Escanear</small>
-      </button>
       <a href="#historico"
         ><span aria-hidden="true">◷</span><small>Histórico</small></a
       >
+      <a href="#verificar"
+        ><span aria-hidden="true">✓</span><small>Validar</small></a
+      >
+      <button type="button" id="mobile-scanner" data-tooltip="Vire a embalagem: o QR Code e o número de série completo ficam no verso do produto.">
+        <span aria-hidden="true">▦</span><small>Escanear</small>
+      </button>
       <a href="#bonus"><span aria-hidden="true">★</span><small>Bónus</small></a>
     </nav>
     <button
@@ -541,8 +582,8 @@
       </div>
       <div class="qr-sheet">
         <div class="qr-brand">
-          <span class="mini-mark">SC</span
-          ><strong>save<br /><small>concept®</small></strong>
+          <img class="mini-mark" src="./save-concept-mark-v2.png" alt="" aria-hidden="true" />
+          <strong>save<br /><small>concept®</small></strong>
         </div>
         <div id="qr-canvas"></div>
         <span>SERIAL SAVE CONCEPT</span><strong id="qr-serial">000000</strong
@@ -581,6 +622,6 @@
     <script src="./catalog-data.js?v=23"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="./app.js?v=29"></script>
+    <script src="./app.js?v=30"></script>
   </body>
 </html>

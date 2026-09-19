@@ -1,4 +1,4 @@
-import { ANY_SERIAL_PATTERN, displaySuffixOf, generateSerial, normalizeSerial, serialDigest } from "./serial";
+import { ANY_SERIAL_PATTERN, decryptSerial, displaySuffixOf, encryptSerial, generateSerial, normalizeSerial, serialDigest } from "./serial";
 import { getMaterial } from "./materials";
 
 export type LicenseRow = {
@@ -35,8 +35,11 @@ const LICENSE_COLUMNS = "id, material_id AS materialId, display_prefix AS displa
  * concurrent generation) — relies on the `idx_licenses_digest` UNIQUE
  * index and retries with a fresh random value on collision, which at this
  * format's 80 bits of entropy will in practice never actually happen.
- * Returns the plaintext serial exactly once — callers must not persist it
- * anywhere; only `displayPrefix`/`displaySuffix` survive after this call.
+ * Returns the plaintext serial directly to the caller (shown once in the
+ * UI) — callers must not persist it themselves. The DB only ever stores
+ * the one-way digest, the display prefix/suffix, and a separate AES-GCM
+ * ENCRYPTED copy (`serial_encrypted`) recoverable only via
+ * `revealLicenseSerial()` below, gated behind admin auth.
  */
 export async function createLicense(db: D1Database, materialId: number, opts: { lot?: string; expiresAt?: string | null } = {}, maxAttempts = 5): Promise<{ id: number; serial: string }> {
   const material = await getMaterial(db, materialId);
@@ -45,10 +48,11 @@ export async function createLicense(db: D1Database, materialId: number, opts: { 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const serial = generateSerial(material.prefixCode);
     const digest = await serialDigest(serial);
+    const encrypted = await encryptSerial(serial);
     try {
       const row = await db.prepare(
-        "INSERT INTO licenses (material_id, serial_digest, display_prefix, display_suffix, lot, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?) RETURNING id",
-      ).bind(materialId, digest, material.prefixCode, displaySuffixOf(serial), opts.lot ?? "", opts.expiresAt ?? null, now).first<{ id: number }>();
+        "INSERT INTO licenses (material_id, serial_digest, serial_encrypted, display_prefix, display_suffix, lot, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?) RETURNING id",
+      ).bind(materialId, digest, encrypted, material.prefixCode, displaySuffixOf(serial), opts.lot ?? "", opts.expiresAt ?? null, now).first<{ id: number }>();
       return { id: row!.id, serial };
     } catch (error) {
       if (isUniqueConstraintError(error)) continue; // digest collision — regenerate and retry
@@ -56,6 +60,36 @@ export async function createLicense(db: D1Database, materialId: number, opts: { 
     }
   }
   throw new Error("license_generation_failed");
+}
+
+/**
+ * Imports one license for a PRE-EXISTING plaintext serial (e.g. from a
+ * pre-printed batch on an external sheet) instead of generating a fresh
+ * random one. Unlike `createLicense`, a digest collision here is NOT
+ * silently retried with a new value — the caller supplied this exact
+ * serial (already possibly printed on packaging) and swapping it for a
+ * different one behind their back would desync the batch — so a collision
+ * is surfaced as `"duplicate_serial"` instead. displayPrefix/displaySuffix
+ * are taken from the SERIAL ITSELF (not the material's prefixCode, which
+ * may not match an externally-sourced serial's own prefix).
+ */
+export async function importLicense(db: D1Database, materialId: number, rawSerial: string, opts: { lot?: string; expiresAt?: string | null } = {}): Promise<{ id: number; serial: string }> {
+  const serial = normalizeSerial(rawSerial);
+  if (!ANY_SERIAL_PATTERN.test(serial)) throw new Error("invalid_serial_format");
+  const material = await getMaterial(db, materialId);
+  if (!material) throw new Error("material_not_found");
+  const digest = await serialDigest(serial);
+  const encrypted = await encryptSerial(serial);
+  const now = new Date().toISOString();
+  try {
+    const row = await db.prepare(
+      "INSERT INTO licenses (material_id, serial_digest, serial_encrypted, display_prefix, display_suffix, lot, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?) RETURNING id",
+    ).bind(materialId, digest, encrypted, serial.split("-")[0], displaySuffixOf(serial), opts.lot ?? "", opts.expiresAt ?? null, now).first<{ id: number }>();
+    return { id: row!.id, serial };
+  } catch (error) {
+    if (isUniqueConstraintError(error)) throw new Error("duplicate_serial");
+    throw error;
+  }
 }
 
 /** Format-checks and hashes raw user input, then looks up the license row. Never reveals whether the format was wrong vs. the digest didn't match — both are just "not found" to the caller. */
@@ -72,6 +106,22 @@ export async function getLicense(db: D1Database, id: number): Promise<LicenseRow
 }
 
 /**
+ * Decrypts and returns a license's full serial for support cases (e.g.
+ * resending the exact, already-printed serial a customer has). Deliberately
+ * a separate, narrowly-scoped query — `serial_encrypted` is never selected
+ * by `LICENSE_COLUMNS`/`LicenseRow`, so nothing else in the codebase can
+ * accidentally pull it into a listing or log. Returns `null` for licenses
+ * minted before this column existed (nothing to recover) as well as for a
+ * missing id. Callers MUST audit-log every successful reveal — this
+ * function only does the decryption, not the accountability trail.
+ */
+export async function revealLicenseSerial(db: D1Database, licenseId: number): Promise<string | null> {
+  const row = await db.prepare("SELECT serial_encrypted AS serialEncrypted FROM licenses WHERE id=?").bind(licenseId).first<{ serialEncrypted: string | null }>();
+  if (!row?.serialEncrypted) return null;
+  return decryptSerial(row.serialEncrypted);
+}
+
+/**
  * Atomically claims an unclaimed, active license for `profileId`. Guarded
  * entirely in the UPDATE's WHERE clause (never a separate
  * check-then-write), so two simultaneous claim attempts on the same
@@ -85,12 +135,24 @@ export async function claimLicense(db: D1Database, licenseId: number, profileId:
   return result.meta.changes > 0;
 }
 
+/** Edits the non-authorization metadata of a license (lot/expiry) — never the serial itself, which can only be reissued via `replaceLicense`. */
+export async function updateLicense(db: D1Database, licenseId: number, patch: { lot?: string; expiresAt?: string | null }): Promise<boolean> {
+  if (patch.lot === undefined && patch.expiresAt === undefined) return true;
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (patch.lot !== undefined) { sets.push("lot=?"); values.push(patch.lot); }
+  if (patch.expiresAt !== undefined) { sets.push("expires_at=?"); values.push(patch.expiresAt); }
+  values.push(licenseId);
+  const result = await db.prepare(`UPDATE licenses SET ${sets.join(", ")} WHERE id=?`).bind(...values).run();
+  return result.meta.changes > 0;
+}
+
 export async function revokeLicense(db: D1Database, licenseId: number, now = new Date().toISOString()): Promise<boolean> {
   const result = await db.prepare("UPDATE licenses SET status='revoked', revoked_at=? WHERE id=? AND status='active'").bind(now, licenseId).run();
   return result.meta.changes > 0;
 }
 
-/** REVOKE + GENERATE REPLACEMENT: never re-reveals the lost serial (it was never stored), issues a brand new one for the same material and, if the lost license had an owner, transfers entitlement to the new one immediately. */
+/** REVOKE + GENERATE REPLACEMENT: issues a brand new serial for the same material and, if the lost license had an owner, transfers entitlement to the new one immediately. Doesn't itself reveal the revoked license's old serial — call `revealLicenseSerial(db, licenseId)` separately if that's what's actually needed (e.g. the customer's product still has the old code printed on it). */
 export async function replaceLicense(db: D1Database, licenseId: number): Promise<{ id: number; serial: string } | null> {
   const existing = await getLicense(db, licenseId);
   if (!existing) return null;
