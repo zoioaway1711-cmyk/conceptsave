@@ -3,8 +3,13 @@
  * (available in Workers) — no external dependency. Encoded as
  * `pbkdf2$<iterations>$<saltHex>$<hashHex>` so the iteration count can be
  * raised later without invalidating existing hashes.
+ *
+ * 100,000 is the Cloudflare Workers runtime's own hard cap on PBKDF2 —
+ * `crypto.subtle.deriveBits` throws `NotSupportedError` above it (confirmed
+ * in production: "iteration counts above 100000 are not supported"). This
+ * is the max this runtime allows, not a security-driven choice.
  */
-const ITERATIONS = 210_000;
+const ITERATIONS = 100_000;
 const HASH_BITS = 256;
 
 function toHex(bytes: ArrayBuffer) {

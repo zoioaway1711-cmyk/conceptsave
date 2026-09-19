@@ -110,7 +110,7 @@ async function timingSafeEqual(a: string, b: string) {
 // A fixed dummy hash so the "username not found" path spends roughly the
 // same PBKDF2 time as the "wrong password" path — otherwise response
 // timing would leak which admin usernames exist.
-const DUMMY_HASH = "pbkdf2$210000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000";
+const DUMMY_HASH = "pbkdf2$100000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000";
 
 /**
  * Authenticates against `admin_users`. If that table is still empty and the

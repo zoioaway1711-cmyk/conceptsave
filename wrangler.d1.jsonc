@@ -1,0 +1,17 @@
+{
+  // Not used for deploy (that's the vinext/Cloudflare build pipeline's own
+  // generated dist/server/wrangler.json). This file exists solely so
+  // `wrangler d1 migrations ...` has a config to resolve the database
+  // binding and the migrations folder against, matching drizzle.config.ts's
+  // `out: "./drizzle"`.
+  "name": "verificafarma-migrations",
+  "compatibility_date": "2026-05-15",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "verificafarma-db",
+      "database_id": "2b6c5d64-f8c2-4fd6-8561-75927749037e",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}
