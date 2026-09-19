@@ -18,15 +18,51 @@ function vercelRedirect(request: NextRequest): NextResponse | null {
   return NextResponse.redirect(destination, 308);
 }
 
+// Base64 of 16 random bytes — a fresh value per request, never reused.
+function generateNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/**
+ * Per-request CSP with a nonce, replacing the old static header from
+ * next.config.ts's headers() (removed — a static config file can't mint a
+ * fresh nonce per request, and having BOTH a nonced middleware policy and
+ * a nonce-less static one active at once would have the browser enforce
+ * their INTERSECTION, silently dropping the nonce's effect anyway).
+ * 'strict-dynamic' lets Next's own nonce'd bootstrap script load the
+ * chunk/hydration scripts it needs without listing every hash — those
+ * child scripts are trusted because the script that loaded them was
+ * already trusted by the nonce, not because of their own origin/hash.
+ * Without this, React's client bundle never executes: the page still
+ * server-renders correctly (looks right), but every click/link handler is
+ * dead because no JS ever attached to the DOM.
+ */
+function cspHeaderValue(nonce: string): string {
+  return `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`;
+}
+
 export async function proxy(request: NextRequest) {
   const redirect = vercelRedirect(request);
   if (redirect) return redirect;
-  if (!request.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
+  const nonce = generateNonce();
+  const csp = cspHeaderValue(nonce);
+  if (!request.nextUrl.pathname.startsWith("/api/")) {
+    // Forward the nonce as a REQUEST header so Server Components can read
+    // it via next/headers, and Next auto-applies it to its own generated
+    // scripts when it sees this response header format.
+    const forwarded = new Headers(request.headers);
+    forwarded.set("x-nonce", nonce);
+    const response = NextResponse.next({ request: { headers: forwarded } });
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
+  }
   const headers = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": csp,
   };
   const reject = (error: string, status: number) => NextResponse.json({ error }, { status, headers });
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
