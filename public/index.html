@@ -202,7 +202,7 @@
         <nav aria-label="Navegação principal">
           <a class="active" href="#historico" data-i18n="navHistory">Histórico</a>
           <a href="#verificar" data-i18n="navVerify">Verificar</a>
-          <a href="#bonus">Bónus</a>
+          <a href="/clube-save">Bónus</a>
         </nav>
         <div class="language-switcher" aria-label="Idioma">
           <button
@@ -259,10 +259,10 @@
             <ul class="profile-menu-list">
               <li class="header-level">
                 <small data-i18n="levelShort">Nível</small>
-                <b id="header-level">Essencial</b>
+                <b id="header-level">Bronze</b>
               </li>
               <li>
-                <a class="header-benefits" href="#bonus">
+                <a class="header-benefits" href="/clube-save">
                   <b id="header-benefits-count">0</b>
                   <small data-i18n="benefitsShort">benefícios</small>
                 </a>
@@ -432,84 +432,32 @@
           </div>
         </section>
 
-        <section class="bonus-section" id="bonus" aria-labelledby="bonus-title">
+        <section class="bonus-section bonus-teaser" id="bonus" aria-labelledby="bonus-title">
           <div class="bonus-heading">
             <div>
               <span>CLUBE SAVE</span>
-              <h2 id="bonus-title" data-i18n="bonusTitle">Os seus bónus</h2>
+              <h2 id="bonus-title" data-i18n="bonusTitle">Suas premiações</h2>
               <p data-i18n="bonusIntro">
                 Cada produto original soma 100 pontos e aproxima-o do próximo
-                nível.
+                rank.
               </p>
             </div>
             <div class="level-badge">
               <small data-i18n="currentLevel">NÍVEL ATUAL</small
-              ><strong id="level-name">Essencial</strong
+              ><strong id="level-name">Bronze</strong
               ><span><b id="points-total">0</b> pts</span>
             </div>
           </div>
-          <div class="level-progress-head">
-            <span
-              ><b id="level-number">Nível 1</b> ·
-              <span id="level-range">0–1.000 pts</span></span
-            ><strong id="next-level-label">1.000 pts para Prata</strong>
-          </div>
           <div
             class="progress-track"
-            aria-label="Progresso para o próximo nível"
+            aria-label="Progresso para o próximo rank"
           >
             <span id="bonus-progress"></span>
           </div>
           <p class="progress-message" id="progress-message"></p>
-          <div class="rewards-grid">
-            <article data-reward="3">
-              <span>3 FRASCOS</span>
-              <h3>Envio grátis</h3>
-              <p>Envio gratuito no próximo pedido.</p>
-              <button type="button">Bloqueado</button>
-            </article>
-            <article data-reward="5">
-              <span>5 FRASCOS</span>
-              <h3>50% OFF</h3>
-              <p>Metade do preço no próximo pedido.</p>
-              <button type="button">Bloqueado</button>
-            </article>
-            <article class="featured" data-reward="10">
-              <span>10 FRASCOS</span>
-              <h3>Pague 1, leve 2</h3>
-              <p>Receba 1 frasco grátis do mesmo produto.</p>
-              <button type="button">Bloqueado</button>
-            </article>
-          </div>
-          <div
-            id="coupon-output"
-            class="coupon-output"
-            aria-live="polite"
-          ></div>
-          <section class="benefits-wallet" aria-labelledby="wallet-title">
-            <div class="wallet-head">
-              <div>
-                <span data-i18n="walletEyebrow">NA SUA CONTA</span>
-                <h3 id="wallet-title" data-i18n="walletTitle">
-                  Benefícios ativos
-                </h3>
-                <p data-i18n="walletIntro">
-                  Os benefícios resgatados ficam disponíveis aqui para utilizar
-                  no próximo pedido.
-                </p>
-              </div>
-              <strong
-                ><b id="active-benefits-count">0</b>
-                <span data-i18n="activeLabel">ativos</span></strong
-              >
-            </div>
-            <div class="active-benefits" id="active-benefits"></div>
-          </section>
-          <div
-            class="level-journey"
-            id="level-journey"
-            aria-label="Níveis do Clube Save"
-          ></div>
+          <a class="primary bonus-teaser-cta" id="open-clube-save" href="/clube-save">
+            <span data-i18n="openClubSave">Ver Clube SAVE completo</span><b aria-hidden="true">→</b>
+          </a>
         </section>
       </main>
 
@@ -531,7 +479,7 @@
       <button type="button" id="mobile-scanner" data-tooltip="Vire a embalagem: o QR Code e o número de série completo ficam no verso do produto.">
         <span aria-hidden="true">▦</span><small>Escanear</small>
       </button>
-      <a href="#bonus"><span aria-hidden="true">★</span><small>Bónus</small></a>
+      <a href="/clube-save"><span aria-hidden="true">★</span><small>Bónus</small></a>
     </nav>
     <button
       class="support-fab"

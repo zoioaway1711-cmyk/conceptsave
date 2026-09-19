@@ -268,9 +268,10 @@ Object.assign(t.pt, {
   historyCountLabel: "verificados",
   productColumn: "Produto Save Concept",
   verifiedDate: "Data da verificação",
-  bonusTitle: "Os seus bónus",
+  bonusTitle: "Suas premiações",
   bonusIntro:
-    "Cada produto original soma 100 pontos e aproxima-o do próximo nível.",
+    "Cada produto original soma 100 pontos e aproxima-o do próximo rank.",
+  openClubSave: "Ver Clube SAVE completo",
   currentLevel: "NÍVEL ATUAL",
   remaining: (n) =>
     `Faltam ${n} frascos diferentes para desbloquear o frasco grátis.`,
@@ -312,7 +313,8 @@ Object.assign(t.en, {
   verifiedDate: "Verification date",
   bonusTitle: "Your rewards",
   bonusIntro:
-    "Each genuine product adds 100 points and brings you closer to the next level.",
+    "Each genuine product adds 100 points and brings you closer to the next rank.",
+  openClubSave: "View full Clube SAVE",
   currentLevel: "CURRENT LEVEL",
   remaining: (n) => `${n} different bottles left to unlock the free bottle.`,
   ready:
@@ -350,9 +352,10 @@ Object.assign(t.es, {
   historyCountLabel: "verificados",
   productColumn: "Producto Save Concept",
   verifiedDate: "Fecha de verificación",
-  bonusTitle: "Tus beneficios",
+  bonusTitle: "Tus premiaciones",
   bonusIntro:
-    "Cada producto original suma 100 puntos y te acerca al siguiente nivel.",
+    "Cada producto original suma 100 puntos y te acerca al siguiente rango.",
+  openClubSave: "Ver Clube SAVE completo",
   currentLevel: "NIVEL ACTUAL",
   remaining: (n) =>
     `Faltan ${n} frascos diferentes para desbloquear el frasco gratis.`,
@@ -699,56 +702,21 @@ async function recordRemoteVerification(item) {
   applyRemoteProfile(data.profile);
   return data;
 }
-const LEVELS = [
-  {
-    name: { pt: "Essencial", en: "Essential", es: "Esencial" },
-    points: 0,
-    prize: {
-      pt: "Envio grátis, 50% OFF e 1 frasco grátis",
-      en: "Free shipping, 50% off and 1 free bottle",
-      es: "Envío gratis, 50% OFF y 1 frasco gratis",
-    },
-  },
-  {
-    name: { pt: "Prata", en: "Silver", es: "Plata" },
-    points: 1000,
-    prize: {
-      pt: "Ciclos com até 2 frascos grátis",
-      en: "Cycles with up to 2 free bottles",
-      es: "Ciclos con hasta 2 frascos gratis",
-    },
-  },
-  {
-    name: { pt: "Ouro", en: "Gold", es: "Oro" },
-    points: 2000,
-    prize: {
-      pt: "Ciclos com até 3 frascos grátis",
-      en: "Cycles with up to 3 free bottles",
-      es: "Ciclos con hasta 3 frascos gratis",
-    },
-  },
-  {
-    name: { pt: "Platina", en: "Platinum", es: "Platino" },
-    points: 3000,
-    prize: {
-      pt: "Envio expresso e prémios premium",
-      en: "Express shipping and premium rewards",
-      es: "Envío exprés y premios premium",
-    },
-  },
-  {
-    name: { pt: "Diamante", en: "Diamond", es: "Diamante" },
-    points: 5000,
-    prize: {
-      pt: "Pague 1, leve 3 e atendimento VIP",
-      en: "Buy 1, get 3 and VIP support",
-      es: "Paga 1, lleva 3 y atención VIP",
-    },
-  },
+// Minimal mirror of the RANKS table in lib/rank.ts (the full Clube SAVE
+// experience — journey, premiações, resgate — now lives at /clube-save,
+// a React page; this vanilla runtime has no bundler to share that module
+// with, so only the small bit this teaser needs is duplicated here. Keep
+// both tables' names/points in sync if they ever change.
+const RANKS = [
+  { name: { pt: "Bronze", en: "Bronze", es: "Bronce" }, points: 0 },
+  { name: { pt: "Prata", en: "Silver", es: "Plata" }, points: 1000 },
+  { name: { pt: "Ouro", en: "Gold", es: "Oro" }, points: 2000 },
+  { name: { pt: "Platina", en: "Platinum", es: "Platino" }, points: 3000 },
+  { name: { pt: "Diamante", en: "Diamond", es: "Diamante" }, points: 5000 },
 ];
-function getLevelIndex(points) {
+function getRankIndex(points) {
   let index = 0;
-  LEVELS.forEach((entry, i) => {
+  RANKS.forEach((entry, i) => {
     if (points >= entry.points) index = i;
   });
   return index;
@@ -766,124 +734,38 @@ async function syncCustomerProfile(p) {
     applyRemoteProfile(latest.profile);
   }
 }
-function rewardCode(level) {
-  return `SAVE${level === 10 ? "FRASCO" : level === 5 ? "50" : "FRETE"}-${session.slice(-4)}`;
-}
+// Compact "Clube SAVE" teaser on the portal home — the real rank journey,
+// premiações grid and resgate flow live at /clube-save (see app/clube-save).
+// Uses the server's real active-license count (remoteProfile.licenses),
+// not the legacy local p.verified array, which stopped tracking new
+// verifications after the v2→v3 migration and understated returning
+// customers' points.
 function renderRewards() {
-  const p = loadProfile(),
-    n = p.verified.length,
-    customer = customerRecord(),
+  const customer = customerRecord(),
     rankOverride = Number(customer?.rankOverride || 0),
-    basePoints = n * 100,
-    levelIndex = rankOverride
-      ? Math.max(0, Math.min(LEVELS.length - 1, rankOverride - 1))
-      : getLevelIndex(basePoints),
-    points = Math.max(basePoints, LEVELS[levelIndex].points),
-    level = LEVELS[levelIndex],
-    next = LEVELS[levelIndex + 1];
+    activeLicenseCount = (customer?.licenses || []).filter((l) => l.status === "active").length,
+    basePoints = activeLicenseCount * 100,
+    rankIndex = rankOverride
+      ? Math.max(0, Math.min(RANKS.length - 1, rankOverride - 1))
+      : getRankIndex(basePoints),
+    points = Math.max(basePoints, RANKS[rankIndex].points),
+    rank = RANKS[rankIndex],
+    next = RANKS[rankIndex + 1];
   document.querySelector("#points-total").textContent = points.toLocaleString(
     t[language].locale,
   );
-  document.querySelector("#level-name").textContent = level.name[language];
-  document.querySelector("#header-level").textContent = level.name[language];
-  document.querySelector("#level-number").textContent =
-    `${language === "en" ? "Level" : language === "es" ? "Nivel" : "Nível"} ${levelIndex + 1}`;
-  document.querySelector("#level-range").textContent = next
-    ? `${level.points.toLocaleString(t[language].locale)}–${next.points.toLocaleString(t[language].locale)} pts`
-    : `${level.points.toLocaleString(t[language].locale)}+ pts`;
-  document.querySelector("#next-level-label").textContent = next
+  document.querySelector("#level-name").textContent = rank.name[language];
+  document.querySelector("#header-level").textContent = rank.name[language];
+  document.querySelector("#bonus-progress").style.width = next
+    ? `${Math.min(100, ((points - rank.points) / (next.points - rank.points)) * 100)}%`
+    : "100%";
+  document.querySelector("#progress-message").textContent = next
     ? t[language].nextPoints(next.points - points, next.name[language])
     : t[language].maxLevel;
-  document.querySelector("#bonus-progress").style.width = next
-    ? `${Math.min(100, ((points - level.points) / (next.points - level.points)) * 100)}%`
-    : "100%";
-  document.querySelector("#progress-message").textContent =
-    n >= 10 ? t[language].ready : t[language].remaining(10 - n);
-  document.querySelectorAll("[data-reward]").forEach((card) => {
-    const threshold = Number(card.dataset.reward),
-      button = card.querySelector("button"),
-      unlocked = n >= threshold,
-      claimed = p.claimed[threshold];
-    card.classList.toggle("unlocked", unlocked);
-    card.classList.toggle("claimed", !!claimed);
-    button.disabled = !unlocked || !!claimed;
-    button.textContent = claimed
-      ? t[language].activated
-      : unlocked
-        ? t[language].redeem
-        : language === "en"
-          ? "Locked"
-          : language === "es"
-            ? "Bloqueado"
-            : "Bloqueado";
-  });
-  document.querySelector("#level-journey").innerHTML = LEVELS.map(
-    (x, i) =>
-      `<article class="${i < levelIndex ? "complete" : i === levelIndex ? "current" : ""}"><span>${i < levelIndex ? "✓" : i + 1}</span><div><small>${language === "en" ? "LEVEL" : language === "es" ? "NIVEL" : "NÍVEL"} ${i + 1}</small><strong>${x.name[language]}</strong><p>${x.prize[language]}</p></div><b>${x.points.toLocaleString(t[language].locale)} pts</b></article>`,
-  ).join("");
-  let migrated = false;
-  const claimed = Object.entries(p.claimed).map(([key, value]) => {
-    const card = document.querySelector(`[data-reward="${key}"]`),
-      item =
-        typeof value === "string"
-          ? {
-              code: value,
-              title: card?.querySelector("h3")?.textContent || value,
-              activatedAt: new Date().toISOString(),
-            }
-          : value;
-    if (typeof value === "string") {
-      p.claimed[key] = item;
-      migrated = true;
-    }
-    return [key, item];
-  });
-  if (migrated) saveProfile(p);
-  document.querySelector("#active-benefits-count").textContent = claimed.length;
-  document.querySelector("#header-benefits-count").textContent = claimed.length;
-  document.querySelector("#active-benefits").innerHTML = claimed.length
-    ? claimed
-        .map(
-          ([, item]) =>
-            `<article><span class="benefit-check">✓</span><div><small>${t[language].activated} · ${new Date(item.activatedAt).toLocaleDateString(t[language].locale)}</small><strong>${escapeHtml(item.title)}</strong><code>${escapeHtml(item.code)}</code></div><button type="button" data-copy-code="${escapeHtml(item.code)}">${t[language].copyCode}</button></article>`,
-        )
-        .join("")
-    : `<div class="wallet-empty">${t[language].walletEmpty}</div>`;
-}
-document.querySelector(".rewards-grid").addEventListener("click", async (e) => {
-  const button = e.target.closest("button"),
-    card = button?.closest("[data-reward]");
-  if (!card || button.disabled) return;
   const p = loadProfile(),
-    level = Number(card.dataset.reward),
-    code = rewardCode(level);
-  p.claimed[level] = {
-    code,
-    title: card.querySelector("h3").textContent,
-    activatedAt: new Date().toISOString(),
-  };
-  const out = document.querySelector("#coupon-output");
-  out.className = "coupon-output show";
-  button.disabled = true;
-  try {
-    await syncCustomerProfile(p);
-    renderRewards();
-    if (!loadProfile().claimed[level]) throw new Error("Benefício indisponível para este perfil.");
-    out.innerHTML = `<span>${t[language].activated}</span><strong>${escapeHtml(code)}</strong>`;
-  } catch (failure) { out.textContent = failure.message; button.disabled = false; }
-});
-document
-  .querySelector("#active-benefits")
-  .addEventListener("click", async (e) => {
-    const button = e.target.closest("[data-copy-code]");
-    if (!button) return;
-    try {
-      await navigator.clipboard.writeText(button.dataset.copyCode);
-      button.textContent = t[language].copied;
-    } catch {
-      button.textContent = button.dataset.copyCode;
-    }
-  });
+    claimedCount = Object.keys(p.claimed || {}).length;
+  document.querySelector("#header-benefits-count").textContent = claimedCount;
+}
 const dialog = document.querySelector("#scanner-dialog"),
   video = document.querySelector("#scanner-video"),
   scannerStatus = document.querySelector("#scanner-status");

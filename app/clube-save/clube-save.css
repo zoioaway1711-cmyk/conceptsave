@@ -1,0 +1,98 @@
+/*
+ * Scoped "neon blue + black" theme for the customer-facing Clube SAVE page —
+ * mirrors the same Cyber Premium palette already used by the admin shell
+ * (app/globals.css :root tokens, --background/--primary/--ring/.glass-surface/
+ * .admin-ambient) so both apps read as the same product, just themed for a
+ * different section. Every rule here is scoped under .cs-theme so it can
+ * never leak into /admin or the public portal, which share this build.
+ */
+.cs-theme {
+  --cs-ink: #f2f6fc;
+  --cs-primary: #2f7bff;
+  --cs-primary-dark: #0b54aa;
+  --cs-cyan: #22d3ff;
+  --cs-gold: #f5a623;
+  --cs-mint: rgba(47, 123, 255, 0.16);
+  --cs-paper: #0b1220;
+  --cs-surface-2: #101a2c;
+  --cs-line: rgba(122, 162, 255, 0.18);
+  --cs-muted: #8ca0be;
+  --cs-track: #101a2c;
+  --cs-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.65), 0 0 40px rgba(47, 123, 255, 0.12);
+  --cs-glow: 0 0 40px rgba(47, 123, 255, 0.22);
+
+  position: relative;
+  min-height: 100vh;
+  color: var(--cs-ink);
+  isolation: isolate;
+  /* Same deep-black + electric-blue grid/glow language as the admin shell
+     (.admin-ambient) and the public portal's dark variant — a faint
+     blueprint grid under two neon glows over near-black. */
+  background:
+    radial-gradient(circle at 12% -8%, rgba(47, 123, 255, 0.22), transparent 38%),
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 255, 0.16), transparent 34%),
+    linear-gradient(rgba(122, 162, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(122, 162, 255, 0.05) 1px, transparent 1px),
+    #050810;
+  background-size:
+    auto,
+    auto,
+    32px 32px,
+    32px 32px,
+    auto;
+}
+
+.cs-theme ::selection {
+  background: rgba(47, 123, 255, 0.35);
+  color: #f2f6fc;
+}
+
+/* Two blurred neon-blue/cyan blobs behind the content — purely decorative,
+   never intercepts clicks, mirrors .admin-ambient exactly. */
+.cs-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.cs-ambient::before,
+.cs-ambient::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+}
+.cs-ambient::before {
+  top: -9rem;
+  right: -8rem;
+  height: 26rem;
+  width: 26rem;
+  background: rgba(47, 123, 255, 0.22);
+}
+.cs-ambient::after {
+  bottom: -12rem;
+  left: -10rem;
+  height: 24rem;
+  width: 24rem;
+  background: rgba(34, 211, 255, 0.14);
+}
+
+.cs-theme main {
+  position: relative;
+  z-index: 1;
+}
+
+/* Glass card surface — same recipe as app/globals.css's .glass-surface
+   (dark gradient + blurred backdrop + neon-tinted border/shadow), reused
+   here under its own class so this page never has to import globals.css's
+   admin-only class. */
+.cs-glass {
+  background:
+    radial-gradient(circle at 85% 0%, rgba(47, 123, 255, 0.14), transparent 45%),
+    linear-gradient(155deg, #0d1526, #0a0f1c);
+  border-color: var(--cs-line);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--cs-shadow), 0 1px 0 rgba(122, 162, 255, 0.08) inset;
+}

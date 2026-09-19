@@ -1970,6 +1970,13 @@ footer {
   color: #c8d9ea;
   font-size: 13px;
 }
+/* Compact Clube SAVE teaser CTA (the full rank journey/premiações now live
+   at /clube-save) — reuses .primary's button look, just adds spacing since
+   it now sits directly under .progress-message instead of a rewards grid. */
+.bonus-teaser-cta {
+  margin-top: 22px;
+  text-decoration: none;
+}
 .rewards-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
