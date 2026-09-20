@@ -50,7 +50,7 @@ export function LoginForm() {
         setError(ERROR_MESSAGES[data.error ?? ""] ?? "Não foi possível entrar. Tente novamente.");
         return;
       }
-      router.push("/admin/dashboard");
+      router.push("/sc-629f1dc76b/dashboard");
       router.refresh();
     } catch {
       setError("Erro de rede. Verifique sua conexão e tente novamente.");

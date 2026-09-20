@@ -25,7 +25,7 @@ export function HeroScrollDemo() {
             <span className="hidden sm:inline">VerificaFarma</span>
           </Link>
           <div className="flex items-center gap-2">
-            <Link href="/usuarios" className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-bold text-[#36556f] transition hover:bg-white sm:px-4">Usuários</Link>
+            {/* No public nav link ever points at the admin panel — see SECURITY.md. */}
             <Link href="/index.html" className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#0b54aa] px-5 text-sm font-bold text-white transition hover:bg-[#073e82]">
               Verificar <ArrowRight aria-hidden="true" size={17} />
             </Link>

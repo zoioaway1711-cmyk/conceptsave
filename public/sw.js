@@ -17,13 +17,18 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Consultas e páginas administrativas precisam sempre de uma resposta atual do servidor.
-  if (url.pathname.startsWith('/api/') || url.pathname === '/usuarios' || url.pathname.startsWith('/usuarios/') || url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
+  // Consultas de API precisam sempre de uma resposta atual do servidor.
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(event.request, { cache: 'no-store' }));
     return;
   }
 
-  // Somente arquivos públicos conhecidos podem ser armazenados para uso offline.
+  // Somente arquivos públicos conhecidos podem ser armazenados para uso
+  // offline (allowlist explícita abaixo) — qualquer outro caminho, incluindo
+  // o painel admin, nem é interceptado por este service worker: cai direto
+  // para o fetch normal do navegador, então o caminho do admin nunca
+  // precisa aparecer, em texto puro, neste arquivo público e legível por
+  // qualquer visitante.
   const assetUrl = new URL(url.pathname, url.origin).href;
   if (!assetUrls.has(assetUrl)) return;
   event.respondWith(fetch(event.request).then(response => {

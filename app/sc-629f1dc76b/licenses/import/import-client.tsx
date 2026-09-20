@@ -134,7 +134,7 @@ export function ImportClient() {
           <p className="text-sm text-muted-foreground">Cria os produtos (materials) e as licenças a partir de uma lista com serial, lote, produto e validade — e gera o QR Code de cada um.</p>
         </div>
         <Button asChild variant="outline">
-          <Link href="/admin/licenses"><ArrowLeft className="size-4" /> Voltar para licenças</Link>
+          <Link href="/sc-629f1dc76b/licenses"><ArrowLeft className="size-4" /> Voltar para licenças</Link>
         </Button>
       </div>
 

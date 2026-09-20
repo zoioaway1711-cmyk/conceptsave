@@ -54,7 +54,7 @@ export function MaterialsClient() {
         </div>
         <div className="flex items-center gap-2">
           <Button asChild variant="outline">
-            <Link href="/admin/licenses/import"><Upload className="size-4" /> Importar produtos</Link>
+            <Link href="/sc-629f1dc76b/licenses/import"><Upload className="size-4" /> Importar produtos</Link>
           </Button>
           <NewMaterialDialog
             open={dialogOpen}
@@ -125,7 +125,7 @@ export function MaterialsClient() {
                           <Pencil className="size-4" /> Edit
                         </Button>
                         <Button asChild variant="outline" size="sm">
-                          <Link href={`/admin/licenses?materialId=${material.id}`}>
+                          <Link href={`/sc-629f1dc76b/licenses?materialId=${material.id}`}>
                             <Ticket className="size-4" /> Manage licenses
                           </Link>
                         </Button>

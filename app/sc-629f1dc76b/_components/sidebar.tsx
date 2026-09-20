@@ -12,13 +12,13 @@ import { Button } from "@/components/ui/button";
 type NavItem = { href: string; label: string; permission: Permission; icon: ComponentType<{ className?: string }> };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/admin/dashboard", label: "Dashboard", permission: "admin.dashboard.view", icon: LayoutDashboard },
-  { href: "/admin/materials", label: "Materials", permission: "admin.materials.manage", icon: Package },
-  { href: "/admin/licenses", label: "Licenses", permission: "admin.licenses.manage", icon: Ticket },
-  { href: "/admin/licenses/import", label: "Import products", permission: "admin.licenses.manage", icon: Upload },
-  { href: "/admin/live", label: "Live Intelligence", permission: "admin.live.view", icon: Activity },
-  { href: "/admin/audit", label: "Audit Log", permission: "admin.audit.view", icon: FileClock },
-  { href: "/admin/admins", label: "Admins", permission: "admin.admins.manage", icon: Users },
+  { href: "/sc-629f1dc76b/dashboard", label: "Dashboard", permission: "admin.dashboard.view", icon: LayoutDashboard },
+  { href: "/sc-629f1dc76b/materials", label: "Materials", permission: "admin.materials.manage", icon: Package },
+  { href: "/sc-629f1dc76b/licenses", label: "Licenses", permission: "admin.licenses.manage", icon: Ticket },
+  { href: "/sc-629f1dc76b/licenses/import", label: "Import products", permission: "admin.licenses.manage", icon: Upload },
+  { href: "/sc-629f1dc76b/live", label: "Live Intelligence", permission: "admin.live.view", icon: Activity },
+  { href: "/sc-629f1dc76b/audit", label: "Audit Log", permission: "admin.audit.view", icon: FileClock },
+  { href: "/sc-629f1dc76b/admins", label: "Admins", permission: "admin.admins.manage", icon: Users },
 ];
 
 export function AdminSidebar({ username, permissions }: { username: string; permissions: Permission[] }) {
@@ -32,7 +32,7 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
     try {
       await fetch("/api/admin/session", { method: "DELETE", credentials: "same-origin" });
     } finally {
-      router.push("/admin");
+      router.push("/sc-629f1dc76b");
       router.refresh();
     }
   }

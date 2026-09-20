@@ -18,7 +18,7 @@ export async function getViewer(): Promise<AdminUser | null> {
 /** For protected pages: redirects to the login page when there is no valid admin session at all. */
 export async function requireViewer(): Promise<AdminUser> {
   const admin = await getViewer();
-  if (!admin) redirect("/admin");
+  if (!admin) redirect("/sc-629f1dc76b");
   return admin;
 }
 
