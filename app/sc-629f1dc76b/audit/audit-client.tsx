@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileClock, Search } from "lucide-react";
+import { Download, FileClock, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { apiFetch } from "../_lib/api";
+import { downloadCsv } from "../_lib/csv";
 
 type AuditRecord = { id: number; actor: string; action: string; resource: string | null; resourceId: string | null; result: "success" | "failure"; ip: string; metadata: Record<string, unknown>; createdAt: string };
 
@@ -44,6 +45,20 @@ export function AuditClient() {
     });
   }, [records, query, resultFilter]);
 
+  function exportCsv() {
+    downloadCsv(`audit-log-${new Date().toISOString().slice(0, 10)}.csv`, filtered.map((record) => ({
+      id: record.id,
+      data: record.createdAt,
+      ator: record.actor,
+      acao: record.action,
+      recurso: record.resource ?? "",
+      recurso_id: record.resourceId ?? "",
+      resultado: record.result,
+      ip: record.ip,
+      metadata: JSON.stringify(record.metadata ?? {}),
+    })));
+  }
+
   return (
     <div className="space-y-6 p-6 lg:p-8">
       <div>
@@ -70,6 +85,9 @@ export function AuditClient() {
                 <SelectItem value="failure">Failure</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
+              <Download className="size-4" /> Exportar CSV
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="pt-4">

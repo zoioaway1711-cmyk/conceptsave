@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState, type ComponentType, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, Pencil, Plus, RefreshCw, Ticket, Trash2 } from "lucide-react";
+import { Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Search, Ticket, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,6 +20,7 @@ import { apiFetch, apiPatch, apiPost } from "../_lib/api";
 import { UserInspector } from "../live/user-inspector";
 import { looksMasked } from "../live/format";
 import { RevealSerialDialog } from "./reveal-dialog";
+import { downloadCsv } from "../_lib/csv";
 
 type Material = { id: number; slug: string; prefixCode: string; name: string; maker: string; brand: string; archived: boolean; createdAt: string };
 type License = {
@@ -45,6 +47,12 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
   const [inspecting, setInspecting] = useState<string | null>(null);
   const [editing, setEditing] = useState<License | null>(null);
   const [activationFilter, setActivationFilter] = useState<"all" | "generated" | "activated">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "revoked">("all");
+  const [lotQuery, setLotQuery] = useState("");
+  const [activatedFrom, setActivatedFrom] = useState("");
+  const [activatedTo, setActivatedTo] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkRevoking, setBulkRevoking] = useState(false);
   // Full serials fetched on demand via the "reveal" action — decrypted
   // server-side and audit-logged on every fetch. Kept only in memory,
   // discarded (not just hidden) when the eye is toggled off again, so
@@ -112,10 +120,81 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
   // Revoked/expired licenses show up under whichever bucket they were in
   // before that happened, same as the underlying activatedAt fact.
   const filteredLicenses = useMemo(() => {
-    if (activationFilter === "generated") return licenses.filter((l) => !l.activatedAt);
-    if (activationFilter === "activated") return licenses.filter((l) => Boolean(l.activatedAt));
-    return licenses;
-  }, [licenses, activationFilter]);
+    const lotTerm = lotQuery.trim().toLowerCase();
+    const fromTime = activatedFrom ? new Date(activatedFrom).getTime() : null;
+    // Inclusive end-of-day, so picking the same day for "from" and "to" doesn't exclude everything activated that day.
+    const toTime = activatedTo ? new Date(activatedTo).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
+    return licenses.filter((license) => {
+      if (activationFilter === "generated" && license.activatedAt) return false;
+      if (activationFilter === "activated" && !license.activatedAt) return false;
+      if (statusFilter !== "all" && license.status !== statusFilter) return false;
+      if (lotTerm && !license.lot.toLowerCase().includes(lotTerm)) return false;
+      if (fromTime !== null || toTime !== null) {
+        if (!license.activatedAt) return false;
+        const activatedTime = new Date(license.activatedAt).getTime();
+        if (fromTime !== null && activatedTime < fromTime) return false;
+        if (toTime !== null && activatedTime > toTime) return false;
+      }
+      return true;
+    });
+  }, [licenses, activationFilter, statusFilter, lotQuery, activatedFrom, activatedTo]);
+
+  // Selection is keyed by id, but clamped to what's currently visible —
+  // switching material/filters never leaves a stale, invisible license
+  // silently included in the next bulk action.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSelectedIds((prev) => {
+        const visible = new Set(filteredLicenses.map((l) => l.id));
+        const next = new Set([...prev].filter((id) => visible.has(id)));
+        return next.size === prev.size ? prev : next;
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [filteredLicenses]);
+
+  function toggleSelected(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => (prev.size === filteredLicenses.length ? new Set() : new Set(filteredLicenses.map((l) => l.id))));
+  }
+
+  function exportCsv() {
+    downloadCsv(`licencas-${selectedMaterial?.slug ?? materialId}-${new Date().toISOString().slice(0, 10)}.csv`, filteredLicenses.map((license) => ({
+      id: license.id,
+      serial: revealedSerials.get(license.id) ?? license.serial,
+      lote: license.lot,
+      status: license.status,
+      dono: license.ownerProfileId ?? "",
+      ativada_em: license.activatedAt ?? "",
+      expira_em: license.expiresAt ?? "",
+      criada_em: license.createdAt,
+    })));
+  }
+
+  async function bulkRevoke() {
+    setBulkRevoking(true);
+    const ids = [...selectedIds].filter((id) => licenses.find((l) => l.id === id)?.status === "active");
+    let succeeded = 0;
+    for (const id of ids) {
+      const result = await apiPatch<{ revoked: true }>(`/api/admin/licenses/${id}`, { action: "revoke" });
+      if (result.ok) succeeded++;
+    }
+    setBulkRevoking(false);
+    setSelectedIds(new Set());
+    if (succeeded > 0) {
+      setLicenses((prev) => prev.map((l) => (ids.includes(l.id) ? { ...l, status: "revoked" } : l)));
+      toast.success(`${succeeded} licença${succeeded === 1 ? "" : "s"} revogada${succeeded === 1 ? "" : "s"}`);
+    }
+    if (succeeded < ids.length) toast.error(`${ids.length - succeeded} não puderam ser revogadas`);
+  }
 
   async function revoke(license: License) {
     const result = await apiPatch<{ revoked: true }>(`/api/admin/licenses/${license.id}`, { action: "revoke" });
@@ -187,26 +266,85 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
             <CardTitle>{selectedMaterial ? selectedMaterial.name : materialId ? `Material #${materialId}` : "Licenses"}</CardTitle>
             <CardDescription>{filteredLicenses.length} of {licenses.length} license{licenses.length === 1 ? "" : "s"} shown.</CardDescription>
           </div>
-          <GenerateLicenseDialog
-            open={generateOpen}
-            onOpenChange={setGenerateOpen}
-            materialId={materialId}
-            onCreated={(serial) => {
-              setRevealSerial(serial);
-              setGenerateOpen(false);
-              void loadLicenses(materialId);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={exportCsv} disabled={filteredLicenses.length === 0}>
+              <Download className="size-4" /> Exportar CSV
+            </Button>
+            <GenerateLicenseDialog
+              open={generateOpen}
+              onOpenChange={setGenerateOpen}
+              materialId={materialId}
+              onCreated={(serial) => {
+                setRevealSerial(serial);
+                setGenerateOpen(false);
+                void loadLicenses(materialId);
+              }}
+            />
+          </div>
         </CardHeader>
         <CardContent className="pt-4">
           {materialId ? (
-            <Tabs value={activationFilter} onValueChange={(value) => setActivationFilter(value as typeof activationFilter)} className="mb-4">
-              <TabsList>
-                <TabsTrigger value="all">Todas</TabsTrigger>
-                <TabsTrigger value="generated">Geradas</TabsTrigger>
-                <TabsTrigger value="activated">Ativadas</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <>
+              <Tabs value={activationFilter} onValueChange={(value) => setActivationFilter(value as typeof activationFilter)} className="mb-4">
+                <TabsList>
+                  <TabsTrigger value="all">Todas</TabsTrigger>
+                  <TabsTrigger value="generated">Geradas</TabsTrigger>
+                  <TabsTrigger value="activated">Ativadas</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border bg-muted/20 p-3">
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="active">Ativa</SelectItem>
+                      <SelectItem value="expired">Expirada</SelectItem>
+                      <SelectItem value="revoked">Revogada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="lot-filter">Lote</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input id="lot-filter" className="w-36 pl-7" value={lotQuery} onChange={(event) => setLotQuery(event.target.value)} placeholder="Buscar lote…" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="activated-from">Ativada de</Label>
+                  <Input id="activated-from" type="date" className="w-40" value={activatedFrom} onChange={(event) => setActivatedFrom(event.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="activated-to">até</Label>
+                  <Input id="activated-to" type="date" className="w-40" value={activatedTo} onChange={(event) => setActivatedTo(event.target.value)} />
+                </div>
+                {statusFilter !== "all" || lotQuery || activatedFrom || activatedTo ? (
+                  <Button variant="ghost" size="sm" onClick={() => { setStatusFilter("all"); setLotQuery(""); setActivatedFrom(""); setActivatedTo(""); }}>
+                    Limpar filtros
+                  </Button>
+                ) : null}
+              </div>
+              {selectedIds.size > 0 ? (
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                  <span className="text-sm font-medium">{selectedIds.size} selecionada{selectedIds.size === 1 ? "" : "s"}</span>
+                  <div className="flex items-center gap-2">
+                    <ConfirmActionDialog
+                      triggerLabel={`Revogar selecionadas (${selectedIds.size})`}
+                      triggerIcon={Trash2}
+                      title="Revogar as licenças selecionadas?"
+                      description="Todas as licenças selecionadas (ativas) deixam de funcionar imediatamente. Isso não pode ser desfeito."
+                      confirmLabel="Revogar selecionadas"
+                      destructive
+                      onConfirm={bulkRevoke}
+                      disabled={bulkRevoking}
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : null}
           {!materialId ? (
             <Empty>
@@ -239,13 +377,16 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
               <EmptyHeader>
                 <EmptyMedia variant="icon"><Ticket /></EmptyMedia>
                 <EmptyTitle>Nothing in this filter</EmptyTitle>
-                <EmptyDescription>{activationFilter === "generated" ? "No unclaimed licenses right now." : "No activated licenses right now."}</EmptyDescription>
+                <EmptyDescription>No licenses match the current filters — try clearing status/lot/date above.</EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox checked={selectedIds.size > 0 && selectedIds.size === filteredLicenses.length} onCheckedChange={toggleSelectAll} aria-label="Select all" />
+                  </TableHead>
                   <TableHead>Serial</TableHead>
                   <TableHead>Lot</TableHead>
                   <TableHead>Status</TableHead>
@@ -262,7 +403,10 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
                   const revealed = Boolean(fullSerial);
                   const revealing = revealingId === license.id;
                   return (
-                  <TableRow key={license.id}>
+                  <TableRow key={license.id} data-state={selectedIds.has(license.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox checked={selectedIds.has(license.id)} onCheckedChange={() => toggleSelected(license.id)} aria-label={`Select license ${license.id}`} />
+                    </TableCell>
                     <TableCell className="font-mono text-xs">
                       <div className="flex items-center gap-1.5">
                         <span>{fullSerial ?? license.serial}</span>

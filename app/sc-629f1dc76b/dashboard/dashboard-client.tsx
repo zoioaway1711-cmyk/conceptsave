@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Ban, Search, ShieldCheck, Ticket, Users } from "lucide-react";
+import { Ban, Download, Search, ShieldCheck, Ticket, TriangleAlert, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatRelativeTime } from "@/lib/presence";
 import { apiFetch, apiPost } from "../_lib/api";
 import { UserInspector } from "../live/user-inspector";
+import { downloadCsv } from "../_lib/csv";
 
 type Profile = {
   id: string;
@@ -35,8 +37,9 @@ type Profile = {
 };
 
 type Filter = "all" | "active" | "blocked";
+type ExpiringLicense = { id: number; material: { id: number; name: string }; serial: string; lot: string; ownerProfileId: string | null; expiresAt: string };
 
-export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealSerial }: { canManageProfiles: boolean; canInspectUsers: boolean; canRevealSerial: boolean }) {
+export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealSerial, canManageLicenses }: { canManageProfiles: boolean; canInspectUsers: boolean; canRevealSerial: boolean; canManageLicenses: boolean }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +47,8 @@ export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealS
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<Profile | null>(null);
   const [inspecting, setInspecting] = useState<string | null>(null);
+  const [expiring, setExpiring] = useState<ExpiringLicense[]>([]);
+  const [expiringLoading, setExpiringLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +67,19 @@ export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealS
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  useEffect(() => {
+    if (!canManageLicenses) return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setExpiringLoading(true);
+        const result = await apiFetch<{ licenses: ExpiringLicense[] }>("/api/admin/licenses/expiring-soon?days=30");
+        if (result.ok) setExpiring(result.data.licenses ?? []);
+        setExpiringLoading(false);
+      })();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [canManageLicenses]);
+
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     return profiles.filter((profile) => {
@@ -71,6 +89,19 @@ export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealS
       return true;
     });
   }, [profiles, query, filter]);
+
+  function exportProfilesCsv() {
+    downloadCsv(`perfis-clientes-${new Date().toISOString().slice(0, 10)}.csv`, filtered.map((profile) => ({
+      id: profile.id,
+      nivel: profile.levelName,
+      pontos: profile.points,
+      licencas_ativas: profile.activeLicenses,
+      ultima_atividade: profile.lastSeenAt ?? profile.lastActive,
+      status: profile.blocked ? "bloqueado" : "ativo",
+      idioma: profile.preferredLanguage,
+      primeiro_acesso: profile.firstSeen,
+    })));
+  }
 
   const totals = useMemo(() => {
     const blocked = profiles.filter((p) => p.blocked).length;
@@ -96,6 +127,8 @@ export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealS
         <StatCard icon={Ticket} label="Active licenses" value={totals.activeLicenses} />
       </div>
 
+      {canManageLicenses ? <ExpiringLicensesCard licenses={expiring} loading={expiringLoading} /> : null}
+
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-4 border-b [.border-b]:pb-4">
           <div>
@@ -114,6 +147,9 @@ export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealS
                 <TabsTrigger value="blocked">Blocked</TabsTrigger>
               </TabsList>
             </Tabs>
+            <Button variant="outline" size="sm" onClick={exportProfilesCsv} disabled={filtered.length === 0}>
+              <Download className="size-4" /> Exportar CSV
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="pt-4">
@@ -307,5 +343,50 @@ function ProfileForm({ profile, canManage, onSaved }: { profile: Profile; canMan
         </DialogFooter>
       ) : null}
     </>
+  );
+}
+
+function daysUntil(iso: string) {
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
+/** Cross-material heads-up so nobody has to click through every material's Licenses tab to notice one is about to lapse. */
+function ExpiringLicensesCard({ licenses, loading }: { licenses: ExpiringLicense[]; loading: boolean }) {
+  if (!loading && licenses.length === 0) return null;
+  return (
+    <Card className="border-amber-900/40 bg-amber-950/10">
+      <CardHeader className="flex-row items-center gap-3 space-y-0">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+          <TriangleAlert className="size-5" />
+        </div>
+        <div>
+          <CardTitle className="text-base">Licenças expirando nos próximos 30 dias</CardTitle>
+          <CardDescription>{loading ? "Carregando…" : `${licenses.length} licença${licenses.length === 1 ? "" : "s"} ativa${licenses.length === 1 ? "" : "s"} perto do vencimento.`}</CardDescription>
+        </div>
+      </CardHeader>
+      {!loading && licenses.length > 0 ? (
+        <CardContent className="pt-0">
+          <ul className="divide-y">
+            {licenses.slice(0, 8).map((license) => (
+              <li key={license.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <div className="font-medium">{license.material.name}</div>
+                  <div className="truncate font-mono text-xs text-muted-foreground">{license.serial}{license.lot ? ` · lote ${license.lot}` : ""}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <Badge variant="outline" className="border-amber-900/60 bg-amber-950/40 text-amber-400">
+                    {daysUntil(license.expiresAt)} dia{daysUntil(license.expiresAt) === 1 ? "" : "s"}
+                  </Badge>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/sc-629f1dc76b/licenses?materialId=${license.material.id}`}>Ver</Link>
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {licenses.length > 8 ? <p className="pt-2 text-xs text-muted-foreground">+{licenses.length - 8} outra{licenses.length - 8 === 1 ? "" : "s"} — veja cada material em Licenses.</p> : null}
+        </CardContent>
+      ) : null}
+    </Card>
   );
 }

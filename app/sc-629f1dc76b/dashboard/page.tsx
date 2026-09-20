@@ -10,6 +10,7 @@ export default async function DashboardPage() {
       canManageProfiles={hasPermission(admin, "admin.profiles.manage")}
       canInspectUsers={hasPermission(admin, "admin.users.inspect")}
       canRevealSerial={hasPermission(admin, "admin.licenses.manage")}
+      canManageLicenses={hasPermission(admin, "admin.licenses.manage")}
     />
   );
 }

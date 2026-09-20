@@ -207,6 +207,35 @@ export async function listLicensesForMaterial(db: D1Database, materialId: number
   }));
 }
 
+export type ExpiringLicense = { id: number; material: { id: number; name: string }; serial: string; lot: string; ownerProfileId: string | null; expiresAt: string };
+
+/**
+ * Active licenses whose `expires_at` falls inside (now, now+days] — i.e.
+ * not yet expired (those already show up as "expired" everywhere else)
+ * but close enough to warrant a heads-up before they lapse. Scans across
+ * every material at once (unlike listLicensesForMaterial), which is what
+ * makes this useful as a single Dashboard widget instead of having to
+ * check each material's Licenses tab one by one.
+ */
+export async function listExpiringSoon(db: D1Database, days = 30, limit = 100): Promise<ExpiringLicense[]> {
+  const now = new Date();
+  const threshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  const { results } = await db.prepare(
+    `SELECT l.id, l.display_prefix AS displayPrefix, l.display_suffix AS displaySuffix, l.lot, l.owner_profile_id AS ownerProfileId, l.expires_at AS expiresAt, m.id AS materialId, m.name AS materialName
+     FROM licenses l JOIN materials m ON m.id = l.material_id
+     WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at > ? AND l.expires_at <= ?
+     ORDER BY l.expires_at ASC LIMIT ?`,
+  ).bind(now.toISOString(), threshold.toISOString(), limit).all<{ id: number; displayPrefix: string; displaySuffix: string; lot: string; ownerProfileId: string | null; expiresAt: string; materialId: number; materialName: string }>();
+  return results.map((row) => ({
+    id: row.id,
+    material: { id: row.materialId, name: row.materialName },
+    serial: `${row.displayPrefix}-••••-••••-••••-${row.displaySuffix}`,
+    lot: row.lot,
+    ownerProfileId: row.ownerProfileId,
+    expiresAt: row.expiresAt,
+  }));
+}
+
 export async function listLicensesForOwner(db: D1Database, profileId: string): Promise<MaskedLicense[]> {
   const { results } = await db.prepare(
     `SELECT l.id, l.display_prefix AS displayPrefix, l.display_suffix AS displaySuffix, l.lot, l.status, l.owner_profile_id AS ownerProfileId, l.expires_at AS expiresAt, l.created_at AS createdAt, l.activated_at AS activatedAt, m.id AS materialId, m.name AS materialName, m.slug AS materialSlug
