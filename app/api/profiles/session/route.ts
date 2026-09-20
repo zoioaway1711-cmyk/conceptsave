@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { isSameOrigin, readBody, sessionLoginSchema } from "@/lib/api-validation";
-import { customerCookie, customerId } from "@/lib/customer-auth";
+import { CUSTOMER_SESSION_MAX_AGE_SECONDS, customerCookie, customerId } from "@/lib/customer-auth";
 import { database, getProfile, getProfileWithLicenses } from "@/lib/customer-profile";
 import { claimLicense, findLicenseByInput, effectiveStatus, recalculatePoints } from "@/lib/licenses";
 import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, recordLiveEvent } from "@/lib/live-events";
@@ -56,26 +56,44 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_serial" }, { status: 401 });
   }
 
+  // Single-use on purpose: a serial logs someone in exactly once, to claim
+  // the license into a profile. From then on the row stays in `licenses`
+  // (an admin can always trace it back to that profile — see the "Plan &
+  // license" section of the User Inspector) but it never again works as a
+  // login credential, even for its own owner — otherwise the serial
+  // printed on the physical packaging would double as a permanent,
+  // unrevocable password to that customer's account for anyone who later
+  // handles the product (a reseller, a courier, a family member). Ongoing
+  // access after the first activation is the long-lived session cookie
+  // alone (see lib/customer-auth.ts) — there is no "log back in with the
+  // serial" path once it's claimed.
+  if (license.ownerProfileId) {
+    await recordLiveEvent(db, { type: "ACTIVATION_REJECTED", severity: "warning", licenseId: license.id, materialId: license.materialId, ip, ...location, device, deviceFingerprint: fingerprint, ...geo, reason: "serial_already_used" });
+    return Response.json({ error: "serial_already_used" }, { status: 401 });
+  }
+
   const now = new Date().toISOString();
-  let profileId = license.ownerProfileId;
-  if (!profileId) {
-    const candidateId = `cus_${crypto.randomUUID()}`;
-    const claimed = await claimLicense(db, license.id, candidateId, now);
-    if (claimed) {
-      await db.prepare("INSERT INTO customer_profiles (id, first_seen, last_active, last_seen_at) VALUES (?, ?, ?, ?)").bind(candidateId, now, now, now).run();
-      profileId = candidateId;
-      await recalculatePoints(db, profileId, now);
-      await recordLiveEvent(db, { type: "LICENSE_ACTIVATED", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
-    } else {
-      // Lost a claim race, or the license changed state between our read
-      // and the write — re-resolve from the DB rather than trust our stale copy.
-      const fresh = await findLicenseByInput(db, body.serial);
-      if (!fresh || effectiveStatus(fresh) !== "active" || !fresh.ownerProfileId) {
-        await recordLiveEvent(db, { type: "ACTIVATION_REJECTED", severity: "warning", licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
-        return Response.json({ error: "invalid_serial" }, { status: 401 });
-      }
-      profileId = fresh.ownerProfileId;
+  const candidateId = `cus_${crypto.randomUUID()}`;
+  const claimed = await claimLicense(db, license.id, candidateId, now);
+  let profileId: string;
+  if (claimed) {
+    await db.prepare("INSERT INTO customer_profiles (id, first_seen, last_active, last_seen_at) VALUES (?, ?, ?, ?)").bind(candidateId, now, now, now).run();
+    profileId = candidateId;
+    await recalculatePoints(db, profileId, now);
+    await recordLiveEvent(db, { type: "LICENSE_ACTIVATED", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
+  } else {
+    // Lost a narrow race against a duplicate submit of this same request
+    // (e.g. a double-tap) — re-resolve from the DB rather than trust our
+    // stale copy, and let this one specific case through as a courtesy
+    // instead of bouncing the very person who just claimed it with a
+    // confusing "already used". Anyone else hitting this same path a
+    // moment later still gets rejected by the check above.
+    const fresh = await findLicenseByInput(db, body.serial);
+    if (!fresh || effectiveStatus(fresh) !== "active" || !fresh.ownerProfileId) {
+      await recordLiveEvent(db, { type: "ACTIVATION_REJECTED", severity: "warning", licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
+      return Response.json({ error: "invalid_serial" }, { status: 401 });
     }
+    profileId = fresh.ownerProfileId;
   }
 
   const profile = await getProfile(profileId);
@@ -83,7 +101,7 @@ export async function POST(request: Request) {
   await touchPresence(db, profileId, now);
   await db.prepare("UPDATE customer_profiles SET last_active=? WHERE id=?").bind(now, profileId).run();
   await recordLiveEvent(db, { type: "USER_LOGIN", actorProfileId: profileId, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
-  return Response.json({ authenticated: true, profile: await getProfileWithLicenses(profileId) }, { headers: { "cache-control": "no-store", "set-cookie": `vf_customer=${await customerCookie(profileId)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800` } });
+  return Response.json({ authenticated: true, profile: await getProfileWithLicenses(profileId) }, { headers: { "cache-control": "no-store", "set-cookie": `vf_customer=${await customerCookie(profileId)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${CUSTOMER_SESSION_MAX_AGE_SECONDS}` } });
 }
 export async function DELETE(request: Request) {
   const db = database();

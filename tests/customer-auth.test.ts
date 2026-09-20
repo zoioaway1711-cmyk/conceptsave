@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const env: Record<string, unknown> = {};
 vi.mock("cloudflare:workers", () => ({ env }));
 
-const { customerCookie, customerId } = await import("../lib/customer-auth");
+const { customerCookie, customerId, CUSTOMER_SESSION_MAX_AGE_SECONDS } = await import("../lib/customer-auth");
 
 function reqWithCookie(cookie?: string) {
   return new Request("https://verificafarma.example/api/verifications", cookie ? { headers: { cookie: `vf_customer=${cookie}` } } : {});
@@ -41,7 +41,7 @@ describe("customer session cookie", () => {
     vi.useFakeTimers();
     try {
       const cookie = await customerCookie("cus_a");
-      vi.advanceTimersByTime(9 * 60 * 60 * 1000);
+      vi.advanceTimersByTime((CUSTOMER_SESSION_MAX_AGE_SECONDS + 60) * 1000);
       expect(await customerId(reqWithCookie(cookie))).toBeNull();
     } finally {
       vi.useRealTimers();

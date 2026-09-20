@@ -201,6 +201,7 @@ const t = {
     batch: "Lote",
     expiry: "Validade",
     loginError: "Este serial não corresponde a um produto validado.",
+    loginAlreadyUsed: "Este serial já foi ativado antes e não pode ser usado novamente para entrar. Se já tem conta, continue na sessão salva neste aparelho; se precisar de ajuda, contate o suporte.",
     duplicate: "Este serial já foi contabilizado nos seus bónus.",
     added: "Serial adicionado ao seu progresso.",
     remaining: (n) =>
@@ -237,6 +238,7 @@ const t = {
     batch: "Batch",
     expiry: "Expiry",
     loginError: "This serial does not belong to a validated product.",
+    loginAlreadyUsed: "This serial was already activated and can't be used to log in again. If you already have an account, continue in the saved session on this device; contact support if you need help.",
     duplicate: "This serial has already counted towards your rewards.",
     added: "Serial added to your progress.",
     remaining: (n) => `${n} different serials left to unlock the 50% coupon.`,
@@ -271,6 +273,7 @@ const t = {
     batch: "Lote",
     expiry: "Vencimiento",
     loginError: "Este serial no corresponde a un producto validado.",
+    loginAlreadyUsed: "Este serial ya fue activado antes y no se puede usar de nuevo para ingresar. Si ya tienes una cuenta, continúa con la sesión guardada en este dispositivo; contacta a soporte si necesitas ayuda.",
     duplicate: "Este serial ya fue contabilizado.",
     added: "Serial agregado a tu progreso.",
     remaining: (n) =>
@@ -569,6 +572,21 @@ async function loginWith(serial, source = "manual") {
   setCoreState("validating");
   try {
     const response = await fetch("/api/profiles/session", { method: "POST", headers: { "content-type": "application/json", "x-device-fingerprint": await deviceFingerprint(), ...await geoHeaders() }, body: JSON.stringify({ serial }) });
+    if (!response.ok) {
+      // Serials are single-use (see the API route) — this specific case
+      // isn't "session gone, log in again" like every other 401 this app
+      // sees, so it needs its own message instead of requireResponse()'s
+      // generic one, and must NOT go through lockSession() clearing a
+      // session that was never established in this request to begin with.
+      let code = "";
+      try { code = (await response.clone().json()).error; } catch {}
+      if (code === "serial_already_used") {
+        setCoreState("error");
+        window.setTimeout(() => setCoreState("idle"), 1200);
+        error.textContent = t[language].loginAlreadyUsed;
+        return false;
+      }
+    }
     const data = await requireResponse(response);
     // session MUST be set before applyRemoteProfile — it calls saveProfile(),
     // which keys the localStorage write off the current `session` value. On

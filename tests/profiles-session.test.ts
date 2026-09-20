@@ -43,12 +43,16 @@ describe("POST /api/profiles/session — first login is a claim, and must credit
     expect(body.profile.points).toBe(100);
   });
 
-  it("logging in again with the same serial doesn't double-credit points", async () => {
+  it("a serial is single-use: logging in again with the same (already-claimed) serial is rejected, not re-authenticated", async () => {
     const { serial } = await createLicense(db as never, materialId);
-    await POST(loginRequest(serial));
+    const first = await POST(loginRequest(serial));
+    expect((await first.json() as { profile: { points: number } }).profile.points).toBe(100);
     const second = await POST(loginRequest(serial));
-    const body = await second.json() as { profile: { points: number } };
-    expect(body.profile.points).toBe(100);
+    expect(second.status).toBe(401);
+    expect((await second.json() as { error: string }).error).toBe("serial_already_used");
+    // Confirms this was a hard rejection, not a silent no-op re-login:
+    // no session cookie is issued for the second attempt.
+    expect(second.headers.get("set-cookie")).toBeNull();
   });
 
   it("rejects an unknown (well-formed) serial", async () => {
@@ -67,14 +71,26 @@ describe("POST /api/profiles/session — first login is a claim, and must credit
     spy.mockRestore();
   });
 
-  it("rejects login for a blocked profile even with the right, already-owned serial", async () => {
-    const { serial } = await createLicense(db as never, materialId);
-    const first = await POST(loginRequest(serial));
+  // A blocked profile can no longer be reached through THIS route at all:
+  // since serials are single-use, the only way in is the claim path, which
+  // always mints a brand-new (never-blocked) profile — there is no
+  // "re-present your serial" path for an existing, possibly-blocked
+  // customer to even attempt. Enforcement for an already-blocked customer
+  // now lives where they actually keep coming back through: GET/POST
+  // /api/profiles (session-cookie-authenticated), which still checks
+  // `profile.blocked` on every call.
+  it("still creates a fresh (unblocked) profile via a different, never-used serial after an unrelated profile was blocked", async () => {
+    const { serial: firstSerial } = await createLicense(db as never, materialId);
+    const first = await POST(loginRequest(firstSerial));
     const cookie = await cookieFrom(first);
-    const profileId = await customerId(new Request("https://x", { headers: { cookie: `vf_customer=${cookie}` } }));
-    db.raw.prepare("UPDATE customer_profiles SET blocked=1 WHERE id=?").run(profileId);
-    const second = await POST(loginRequest(serial));
-    expect(second.status).toBe(403);
+    const blockedProfileId = await customerId(new Request("https://x", { headers: { cookie: `vf_customer=${cookie}` } }));
+    db.raw.prepare("UPDATE customer_profiles SET blocked=1 WHERE id=?").run(blockedProfileId);
+
+    const { serial: secondSerial } = await createLicense(db as never, materialId);
+    const second = await POST(loginRequest(secondSerial));
+    expect(second.status).toBe(200);
+    const body = await second.json() as { profile: { id: string } };
+    expect(body.profile.id).not.toBe(blockedProfileId);
   });
 
   it("DELETE always clears the cookie, even with no session", async () => {

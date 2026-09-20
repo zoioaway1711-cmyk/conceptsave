@@ -7,6 +7,19 @@ async function key() {
 }
 
 /**
+ * A license serial is single-use (see app/api/profiles/session/route.ts) —
+ * it logs a customer in exactly once, to claim the license, and never
+ * works again afterwards, even for its own owner. That makes this cookie
+ * the ONLY way back into an account post-activation, so it's deliberately
+ * long-lived rather than the short admin-session-style expiry this used to
+ * share: a customer who verified a product three months ago shouldn't be
+ * locked out just because a short cookie lapsed, with no serial left to
+ * re-enter. Exported so the route that issues the cookie can set a
+ * matching `Max-Age` instead of the two durations silently drifting apart.
+ */
+export const CUSTOMER_SESSION_MAX_AGE_SECONDS = 180 * 24 * 60 * 60; // 180 days
+
+/**
  * The session identity is an opaque internal profile id (`cus_<uuid>`), not
  * a license serial — unlike the old digit-serial system, the plaintext
  * secret a customer types is never itself the session subject, so it never
@@ -15,7 +28,7 @@ async function key() {
  * without any of them individually acting as "the" credential.
  */
 export async function customerCookie(profileId: string) {
-  const payload = `customer.${profileId}.${Date.now() + 8 * 60 * 60 * 1000}`;
+  const payload = `customer.${profileId}.${Date.now() + CUSTOMER_SESSION_MAX_AGE_SECONDS * 1000}`;
   const signature = await crypto.subtle.sign("HMAC", await key(), new TextEncoder().encode(payload));
   return `${payload}.${[...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
