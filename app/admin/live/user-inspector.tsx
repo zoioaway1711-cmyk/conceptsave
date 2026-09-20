@@ -2,17 +2,21 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Ban, Fingerprint, KeyRound, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Ban, Fingerprint, KeyRound, MapPin, MapPinOff, NotebookPen, ShieldCheck, User as UserIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { computeRank } from "@/lib/rank";
+import { formatRelativeTime } from "@/lib/presence";
+import { RankBadge } from "@/components/clube-save/RankBadge";
 import { LicenseStatusBadge } from "../_components/license-status-badge";
 import { apiFetch, apiPost } from "../_lib/api";
 import { formatLocation } from "./format";
@@ -29,24 +33,34 @@ type ActivityEvent = {
   region: string;
   city: string;
   device: string;
+  deviceFingerprint: string;
   reason: string;
   metadata: Record<string, unknown>;
   createdAt: string;
 };
+type AdminNote = { id: number; adminId: string; adminUsername: string; body: string; createdAt: string };
 type Inspection = {
   account: { id: string; status: string; presence: string; createdAt: string; lastActivity: string; lastSeenAt: string | null; preferredLanguage: string; rankOverride: number };
   gamification: { points: number; level: number; levelName: string; benefits: unknown[] };
   consent: Record<string, unknown>;
   licenses: LicenseDetail[];
-  device: { browser: string } | null;
+  device: { browser: string; fingerprint: string | null } | null;
   location: { country: string; region: string; city: string; approximate: boolean } | null;
+  geoPermission: { status: string; latitude: number | null; longitude: number | null; accuracy: number | null; reportedAt: string } | null;
   lastKnownIp: string | null;
+  sameDeviceProfiles: string[];
   activity: ActivityEvent[];
   activityTruncated: boolean;
 };
 
 const PRESENCE_LABEL: Record<string, string> = { online: "Online", idle: "Idle", offline: "Offline" };
 const PRESENCE_DOT: Record<string, string> = { online: "bg-emerald-400", idle: "bg-amber-400", offline: "bg-muted-foreground/50" };
+const GEO_PERMISSION_LABEL: Record<string, string> = {
+  granted: "Permitiu",
+  denied: "Negou",
+  unavailable: "Indisponível",
+  unsupported: "Sem suporte no navegador",
+};
 
 /**
  * The single "customer profile" surface — opened from Live Intelligence,
@@ -62,6 +76,8 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [editing, setEditing] = useState(false);
+  const [notes, setNotes] = useState<AdminNote[]>([]);
+  const [notesReloadToken, setNotesReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +103,24 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
     };
   }, [profileId, reloadToken]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!profileId) {
+        setNotes([]);
+        return;
+      }
+      apiFetch<{ notes: AdminNote[] }>(`/api/admin/users/${encodeURIComponent(profileId)}/notes`).then((result) => {
+        if (cancelled) return;
+        if (result.ok) setNotes(result.data.notes);
+      });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [profileId, notesReloadToken]);
+
   async function toggleBlocked() {
     if (!data) return;
     const nextBlocked = data.account.status !== "blocked";
@@ -107,6 +141,7 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
   }
 
   const activeLicenses = data ? data.licenses.filter((license) => license.status === "active").length : 0;
+  const rankState = data ? computeRank({ activeLicenseCount: activeLicenses, rankOverride: data.account.rankOverride }) : null;
 
   return (
     <Dialog open={Boolean(profileId)} onOpenChange={(open) => !open && onClose()}>
@@ -123,22 +158,33 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
           ) : data ? (
             <>
               <section className="mx-auto flex max-w-xs flex-col items-center gap-3 text-center">
-                <Avatar size="lg" className="size-16 shrink-0 ring-2 ring-primary/30">
-                  <AvatarFallback className="bg-primary/10 text-primary">
-                    <UserIcon className="size-7" />
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar size="lg" className="size-16 shrink-0 ring-2 ring-primary/30">
+                    <AvatarFallback className="bg-primary/10 text-primary">
+                      <UserIcon className="size-7" />
+                    </AvatarFallback>
+                  </Avatar>
+                  {rankState ? (
+                    <RankBadge
+                      rankId={rankState.rank.id}
+                      size="sm"
+                      className="absolute -bottom-1.5 -right-1.5 drop-shadow-md"
+                    />
+                  ) : null}
+                </div>
                 <div className="font-mono text-sm text-foreground">{data.account.id}</div>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <Badge variant={data.account.status === "blocked" ? "destructive" : "outline"} className={data.account.status === "blocked" ? "" : "border-emerald-900/60 bg-emerald-950/70 text-emerald-400"}>
                     {data.account.status === "blocked" ? "Blocked" : "Active"}
                   </Badge>
-                  <Badge variant="outline" className="gap-1.5">
+                  <Badge variant="outline" className="gap-1.5" title={formatDate(data.account.lastSeenAt)}>
                     <span className={cn("size-1.5 rounded-full", PRESENCE_DOT[data.account.presence] ?? PRESENCE_DOT.offline)} />
-                    {PRESENCE_LABEL[data.account.presence] ?? data.account.presence}
+                    {data.account.presence === "offline"
+                      ? `Offline · left ${formatRelativeTime(data.account.lastSeenAt)}`
+                      : PRESENCE_LABEL[data.account.presence] ?? data.account.presence}
                   </Badge>
                   <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                    {data.gamification.levelName} · Level {data.gamification.level}
+                    {rankState ? rankState.rank.name.pt : data.gamification.levelName} · Level {data.gamification.level}
                   </Badge>
                 </div>
               </section>
@@ -180,13 +226,52 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
                 <SectionTitle>Device &amp; access</SectionTitle>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Linked device" value={data.device?.browser || "Not available"} />
+                  <Field label="Device ID" value={data.device?.fingerprint ? <span className="font-mono">{data.device.fingerprint.slice(0, 12)}…</span> : "Not available"} />
                   <Field label="Approximate location" value={data.location ? formatLocation(data.location) || "—" : "—"} />
                   <Field label="Last known IP" value={<span className="font-mono">{data.lastKnownIp || "—"}</span>} />
+                  <Field
+                    label="Location permission"
+                    value={
+                      data.geoPermission
+                        ? <span className={data.geoPermission.status === "denied" ? "font-medium text-destructive" : undefined}>{GEO_PERMISSION_LABEL[data.geoPermission.status] ?? data.geoPermission.status}</span>
+                        : "Not reported"
+                    }
+                  />
+                  {data.geoPermission?.status === "granted" && data.geoPermission.latitude != null && data.geoPermission.longitude != null ? (
+                    <Field
+                      label="Precise location"
+                      value={<span className="font-mono">{data.geoPermission.latitude.toFixed(4)}, {data.geoPermission.longitude.toFixed(4)}</span>}
+                    />
+                  ) : null}
                   <Field label="Language" value={data.account.preferredLanguage || "—"} />
                   <Field label="First seen" value={formatDate(data.account.createdAt)} />
-                  <Field label="Last active" value={formatDate(data.account.lastActivity)} />
+                  <Field
+                    label="Last seen"
+                    value={<span title={formatDate(data.account.lastSeenAt ?? data.account.lastActivity)}>{formatRelativeTime(data.account.lastSeenAt ?? data.account.lastActivity)}</span>}
+                  />
                 </div>
+                {data.geoPermission?.status === "denied" ? (
+                  <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                    <MapPinOff className="size-4 shrink-0" />
+                    <span>This customer denied the browser&apos;s location permission on {formatDate(data.geoPermission.reportedAt)}.</span>
+                  </div>
+                ) : data.geoPermission?.status === "granted" ? (
+                  <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">
+                    <MapPin className="size-4 shrink-0" />
+                    <span>Location permission granted on {formatDate(data.geoPermission.reportedAt)}.</span>
+                  </div>
+                ) : null}
+                {data.sameDeviceProfiles.length > 0 ? (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400">
+                    <div className="font-medium">Same device also seen on {data.sameDeviceProfiles.length} other profile{data.sameDeviceProfiles.length > 1 ? "s" : ""}</div>
+                    <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 font-mono">
+                      {data.sameDeviceProfiles.map((profileId) => <span key={profileId}>{profileId}</span>)}
+                    </div>
+                  </div>
+                ) : null}
               </section>
+
+              <NotesSection profileId={data.account.id} notes={notes} onAdded={() => setNotesReloadToken((n) => n + 1)} />
 
               {canManageProfiles && editing ? (
                 <EditForm data={data} onCancel={() => setEditing(false)} onSaved={() => { setEditing(false); setReloadToken((n) => n + 1); }} />
@@ -308,6 +393,63 @@ function EditForm({ data, onCancel, onSaved }: { data: Inspection; onCancel: () 
         <Button variant="outline" className="flex-1" onClick={onCancel} disabled={saving}>Cancel</Button>
         <Button className="flex-1" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
       </div>
+    </section>
+  );
+}
+
+/**
+ * Notes are visible to every admin who can open this profile (same
+ * admin.users.inspect bar as the inspector itself) — not gated behind
+ * canManageProfiles, since leaving/reading a note is not the same
+ * authorization as editing gamification fields.
+ */
+function NotesSection({ profileId, notes, onAdded }: { profileId: string; notes: AdminNote[]; onAdded: () => void }) {
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function addNote() {
+    const body = draft.trim();
+    if (!body) return;
+    setSaving(true);
+    const result = await apiPost<{ note: AdminNote }>(`/api/admin/users/${encodeURIComponent(profileId)}/notes`, { body });
+    setSaving(false);
+    if (!result.ok) {
+      toast.error("Could not save note", { description: result.error });
+      return;
+    }
+    setDraft("");
+    onAdded();
+  }
+
+  return (
+    <section className="space-y-2">
+      <SectionTitle>Admin notes</SectionTitle>
+      <div className="space-y-2">
+        <Textarea
+          placeholder="Leave a note for other admins about this customer…"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          rows={3}
+          maxLength={4000}
+        />
+        <Button size="sm" className="gap-1.5" onClick={() => void addNote()} disabled={saving || !draft.trim()}>
+          <NotebookPen className="size-3.5" /> {saving ? "Saving…" : "Add note"}
+        </Button>
+      </div>
+      {notes.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No notes yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {notes.map((note) => (
+            <li key={note.id} className="rounded-lg border bg-card/60 p-3 text-sm">
+              <p className="whitespace-pre-wrap break-words">{note.body}</p>
+              <div className="mt-1.5 text-xs text-muted-foreground">
+                {note.adminUsername} · {formatDate(note.createdAt)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

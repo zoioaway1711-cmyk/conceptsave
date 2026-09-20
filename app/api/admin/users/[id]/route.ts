@@ -39,13 +39,31 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const [licenses, events] = await Promise.all([
     listLicensesForOwner(database, id),
     database.prepare(
-      `SELECT id, type, severity, material_id AS materialId, license_id AS licenseId, ip, country, region, city, device, reason, metadata_json AS metadataJson, created_at AS createdAt
+      `SELECT id, type, severity, material_id AS materialId, license_id AS licenseId, ip, country, region, city, device, device_fingerprint AS deviceFingerprint, geo_permission AS geoPermission, geo_latitude AS geoLatitude, geo_longitude AS geoLongitude, geo_accuracy AS geoAccuracy, reason, metadata_json AS metadataJson, created_at AS createdAt
        FROM live_events WHERE actor_profile_id=? ORDER BY id DESC LIMIT ${ACTIVITY_LIMIT}`,
-    ).bind(id).all<{ id: number; type: string; severity: string; materialId: number | null; licenseId: number | null; ip: string; country: string; region: string; city: string; device: string; reason: string; metadataJson: string; createdAt: string }>(),
+    ).bind(id).all<{ id: number; type: string; severity: string; materialId: number | null; licenseId: number | null; ip: string; country: string; region: string; city: string; device: string; deviceFingerprint: string; geoPermission: string; geoLatitude: number | null; geoLongitude: number | null; geoAccuracy: number | null; reason: string; metadataJson: string; createdAt: string }>(),
   ]);
 
   const activity = events.results.map((event) => ({ ...event, metadata: parseStoredJson(event.metadataJson, {}) }));
   const latestEvent = activity[0];
+  // A logout (or any older event predating this column) carries no geo
+  // signal at all — falling back to `latestEvent` for this specific field
+  // would make a real "negou permissão" answer disappear the moment the
+  // customer logs out. Look back through recent activity for the last
+  // event that actually reported an outcome, same idea as `latestEvent`
+  // but scoped to this one field.
+  const latestGeoEvent = activity.find((event) => event.geoPermission);
+
+  // A classic fraud signal: the same device fingerprint showing up under
+  // other accounts. Only worth a second query when this profile actually
+  // has a fingerprint on record; the new idx_live_events_device_fingerprint
+  // index keeps this cheap even as live_events grows.
+  const sameDeviceProfiles = latestEvent?.deviceFingerprint
+    ? (await database.prepare(
+        `SELECT DISTINCT actor_profile_id AS profileId FROM live_events WHERE device_fingerprint=? AND actor_profile_id IS NOT NULL AND actor_profile_id != ? LIMIT 10`,
+      ).bind(latestEvent.deviceFingerprint, id).all<{ profileId: string }>()).results.map((row) => row.profileId)
+    : [];
+
   return Response.json({
     account: {
       id: profile.id,
@@ -60,9 +78,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     gamification: { points: profile.points, level: profile.level, levelName: profile.levelName, benefits: parseStoredJson(profile.benefitsJson, []) },
     consent: parseStoredJson(profile.consentJson, {}),
     licenses,
-    device: latestEvent ? { browser: latestEvent.device } : null,
+    device: latestEvent ? { browser: latestEvent.device, fingerprint: latestEvent.deviceFingerprint || null } : null,
     location: latestEvent ? { country: latestEvent.country, region: latestEvent.region, city: latestEvent.city, approximate: true } : null,
+    geoPermission: latestGeoEvent ? {
+      status: latestGeoEvent.geoPermission,
+      latitude: latestGeoEvent.geoLatitude,
+      longitude: latestGeoEvent.geoLongitude,
+      accuracy: latestGeoEvent.geoAccuracy,
+      reportedAt: latestGeoEvent.createdAt,
+    } : null,
     lastKnownIp: latestEvent?.ip || null,
+    sameDeviceProfiles,
     activity,
     activityTruncated: events.results.length >= ACTIVITY_LIMIT,
   }, { headers: { "cache-control": "no-store" } });

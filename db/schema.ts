@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
 
 export const customerProfiles = sqliteTable("customer_profiles", {
   id: text("id").primaryKey(),
@@ -177,6 +177,24 @@ export const adminUsers = sqliteTable("admin_users", {
   usernameIdx: uniqueIndex("idx_admin_users_username").on(table.username),
 }));
 
+// Free-text notes admins leave on a customer profile, visible to every
+// admin who can open that profile (see admin.users.inspect) — an
+// append-only log (not a single overwritable field) so one admin's note
+// never silently erases another's, and so the history of "why we blocked
+// this account" etc. survives. `adminUsername` is denormalized at write
+// time so a note still shows who wrote it even if that admin account is
+// later deleted.
+export const adminNotes = sqliteTable("admin_notes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  profileId: text("profile_id").notNull(),
+  adminId: text("admin_id").notNull(),
+  adminUsername: text("admin_username").notNull(),
+  body: text("body").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => ({
+  profileIdx: index("idx_admin_notes_profile").on(table.profileId, table.id),
+}));
+
 // Unified feed powering /admin/live — deliberately separate from
 // `audit_logs` (admin-action trail) and `verification_events` (legacy
 // history): this table's shape is purpose-built for the live feed/security
@@ -197,11 +215,31 @@ export const liveEvents = sqliteTable("live_events", {
   region: text("region").notNull().default(""),
   city: text("city").notNull().default(""),
   device: text("device").notNull().default(""),
+  // A hash of coarse, stable browser/device signals (screen size, timezone,
+  // platform, etc — never canvas/WebGL fingerprinting), recomputed by the
+  // client each request rather than stored as a persistent tracking id.
+  // Indexed (not stuffed into metadataJson like one-off extras) because its
+  // whole purpose is the cross-IP query it enables: "has this same device
+  // hit many different accounts/serials" — see lib/rate-limit.ts and the
+  // admin Live Intelligence UI.
+  deviceFingerprint: text("device_fingerprint").notNull().default(""),
+  // Real browser Geolocation API outcome — separate from the IP-based
+  // country/region/city above, which never needed a permission prompt.
+  // `geoPermission` records what the visitor actually answered (or ''
+  // when the client never reported anything, e.g. requests predating this
+  // column); coordinates are only ever non-null when it's 'granted'. This
+  // is the "aceitou/negou localização" signal for the admin panel.
+  geoPermission: text("geo_permission").notNull().default(""),
+  geoLatitude: real("geo_latitude"),
+  geoLongitude: real("geo_longitude"),
+  geoAccuracy: real("geo_accuracy"),
   reason: text("reason").notNull().default(""),
   metadataJson: text("metadata_json").notNull().default("{}"),
   createdAt: text("created_at").notNull(),
 }, (table) => ({
   createdAtIdx: index("idx_live_events_created_at").on(table.createdAt),
   typeIdx: index("idx_live_events_type").on(table.type),
+  deviceFingerprintIdx: index("idx_live_events_device_fingerprint").on(table.deviceFingerprint),
   severityCheck: check("live_events_severity_check", sql`${table.severity} IN ('info','warning','critical')`),
+  geoPermissionCheck: check("live_events_geo_permission_check", sql`${table.geoPermission} IN ('','granted','denied','unavailable','unsupported')`),
 }));

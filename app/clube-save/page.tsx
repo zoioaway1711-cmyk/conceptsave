@@ -60,7 +60,7 @@ export default function ClubeSavePage() {
           return;
         }
         if (response.status === 403) {
-          const body = await response.json().catch(() => ({}));
+          const body = (await response.json().catch(() => ({}))) as { error?: string };
           if (cancelled) return;
           setState(body?.error === "profile_blocked" ? { kind: "blocked" } : { kind: "error", message: "Acesso negado." });
           return;
@@ -69,7 +69,7 @@ export default function ClubeSavePage() {
           setState({ kind: "error", message: "Não foi possível carregar o Clube SAVE." });
           return;
         }
-        const data = await response.json();
+        const data = (await response.json()) as { profile: Profile };
         if (!cancelled) setState({ kind: "ready", profile: data.profile });
       } catch {
         if (!cancelled) setState({ kind: "error", message: "Falha de conexão. Tente novamente." });
@@ -103,7 +103,7 @@ export default function ClubeSavePage() {
       }),
     });
     if (!response.ok) return;
-    const data = await response.json();
+    const data = (await response.json()) as { profile?: Profile };
     if (data.profile) setState({ kind: "ready", profile: data.profile });
   }
 

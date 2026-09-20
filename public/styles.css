@@ -2195,20 +2195,40 @@ footer {
   margin-bottom: 3px;
   white-space: nowrap;
 }
+/* Box measured directly from login-product-back-v2.png's real pixels
+   (1254×1254): the printed white square's navy border sits at x 445–808,
+   y 625–940, i.e. left 35.5%/right 64.4%/top 49.8%/bottom 75.0% of the
+   image. It relies on `.login-product-visual > img` staying at its native
+   1:1 ratio with no cropping (see that rule) — every breakpoint used to
+   force a different crop (4/3, 16/10) via object-fit: cover, which shifts
+   which part of the image is visible, so the QR/serial drifted outside the
+   printed square on mobile. One set of numbers now works at every width
+   because nothing crops.
+   `.live-auth-label` itself IS that box (inset ~0.5% on every side for a
+   safety margin from the printed border) and centers its content with
+   flexbox instead of a fixed `top`, because the "DEMONSTRAÇÃO" pill and
+   serial text use `vw`-based clamp() font sizes that scale with the
+   *viewport* width, not this card's width — on a phone they render near
+   their minimum, so the stack is shorter than on desktop and a fixed `top`
+   left a gap above it on mobile. Centering with flexbox keeps it centered
+   no matter how tall the stack ends up. */
 .live-auth-label {
   position: absolute;
-  left: 43.8%;
-  top: 50.9%;
-  width: 13.2%;
+  left: 36%;
+  right: 36%;
+  top: 50.3%;
+  bottom: 25.5%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   color: #071b42;
 }
 .live-auth-label #login-demo-qr {
-  width: 100%;
+  width: 50%;
   aspect-ratio: 1;
   background: #fff;
+  flex-shrink: 0;
 }
 .live-auth-label #login-demo-qr canvas,
 .live-auth-label #login-demo-qr img {
@@ -2285,7 +2305,14 @@ footer {
 .product-copy { min-width: 0; }
 .signature-vial {
   width: min(100%, 300px);
-  height: clamp(410px, 46vw, 540px);
+  /* Matches save-concept-vial-signature-v1.png/-back-v1.png's real pixel
+     size (1024×1536) exactly, so .vial-face > img's object-fit: contain
+     never has to letterbox — without this, width and height were set
+     independently per breakpoint, the rendered image floated inside empty
+     space that shifted at every screen size, and .vial-auth-label's
+     percentage-based QR/code overlay (calibrated against the image itself)
+     drifted away from — sometimes outside — the printed label on it. */
+  aspect-ratio: 1024 / 1536;
   align-self: center;
   justify-self: center;
   perspective: 1200px;
@@ -2372,14 +2399,13 @@ footer {
     grid-template-columns: minmax(230px, 1fr) minmax(165px, .65fr);
     gap: 18px;
   }
-  .signature-vial { height: 460px; }
 }
 @media (max-width: 900px) {
   .product-panel {
     grid-template-columns: minmax(250px, 1fr) minmax(180px, .7fr);
     max-width: none;
   }
-  .signature-vial { width: min(100%, 260px); height: 430px; }
+  .signature-vial { width: min(100%, 260px); }
 }
 @media (max-width: 600px) {
   .product-panel {
@@ -2389,7 +2415,6 @@ footer {
   .product-copy { text-align: left; }
   .signature-vial {
     width: min(72vw, 270px);
-    height: 420px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2791,16 +2816,6 @@ footer {
     grid-template-columns: 1fr;
     max-width: 470px;
   }
-  .login-product-visual {
-    max-height: 380px;
-  }
-  .login-product-visual > img {
-    aspect-ratio: 4/3;
-    object-position: center 53%;
-  }
-  .live-auth-label {
-    top: 48%;
-  }
   .login-brand {
     position: absolute;
   }
@@ -2829,9 +2844,6 @@ footer {
   .login-layout {
     gap: 16px;
   }
-  .login-product-visual {
-    max-height: 310px;
-  }
   .login-product-visual figcaption {
     left: 10px;
     right: 10px;
@@ -2839,11 +2851,6 @@ footer {
   }
   .login-card {
     padding: 21px;
-  }
-  .live-auth-label {
-    width: 14%;
-    left: 43%;
-    top: 47%;
   }
 }
 .brand-icon-only {
@@ -2953,9 +2960,6 @@ footer {
   .login-tutorial article {
     padding: 10px 12px;
   }
-  .login-product-visual {
-    max-height: 430px;
-  }
 }
 @media (max-width: 520px) {
   .brand-icon-only img,
@@ -3048,15 +3052,6 @@ footer {
   box-shadow: none;
   animation: none;
 }
-.login-help-popover .login-product-visual > img {
-  aspect-ratio: 16/10;
-  object-position: center 53%;
-}
-.login-help-popover .live-auth-label {
-  left: 43.5%;
-  top: 47.5%;
-  width: 13.5%;
-}
 .login-help-popover .login-product-visual figcaption {
   left: 10px;
   right: 10px;
@@ -3117,9 +3112,6 @@ footer {
   }
   .login-help-popover .login-tutorial {
     display: grid;
-  }
-  .login-help-popover .login-product-visual > img {
-    aspect-ratio: 4/3;
   }
   .login-help-popover .login-product-visual figcaption {
     position: static;

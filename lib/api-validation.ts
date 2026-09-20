@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ANY_SERIAL_PATTERN, isValidPrefixCode } from "./serial";
+import { isTrustedProxyRequest } from "./proxy-trust";
 
 const licenseSerial = z.string().trim().transform((value) => value.toUpperCase()).refine((value) => ANY_SERIAL_PATTERN.test(value), "Formato de serial inválido");
 const jsonObject = z.record(z.unknown());
@@ -15,6 +16,9 @@ export const profileSchema = z.object({
   preferredLanguage: z.enum(["pt", "en", "es"]).default("pt"),
   benefits: boundedJson(z.array(jsonObject), 10000).default([]),
   consent: boundedJson(jsonObject, 2000).default({}),
+});
+export const adminNoteSchema = z.object({
+  body: z.string().trim().min(1).max(4000),
 });
 export const adminProfileSchema = z.object({
   id: z.string().trim().min(1).max(80),
@@ -95,13 +99,21 @@ export const licenseImportSchema = z.object({
  * lacking that, Referer) header doesn't match the request's own host.
  * Same-origin requests never send a mismatching Origin, so this never
  * blocks legitimate same-site calls; it only rejects forged cross-site ones.
+ *
+ * Requests forwarded by our own Vercel reverse proxy (see proxy.ts) are a
+ * deliberate exception: Origin carries the PUBLIC host (e.g.
+ * www.saveconcept.online) while `request.url`'s host is this Worker's own
+ * workers.dev hostname — those are allowed only when `x-vf-forwarded-host`
+ * matches Origin AND the request is provably from that trusted proxy.
  */
 export function isSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
   const source = origin || request.headers.get("referer");
   if (!source) return true;
   try {
-    return new URL(source).host === new URL(request.url).host;
+    const sourceHost = new URL(source).host;
+    if (sourceHost === new URL(request.url).host) return true;
+    return isTrustedProxyRequest(request) && sourceHost === request.headers.get("x-vf-forwarded-host");
   } catch {
     return false;
   }

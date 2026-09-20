@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { formatRelativeTime } from "@/lib/presence";
 import { apiFetch, apiPost } from "../_lib/api";
 import { UserInspector } from "../live/user-inspector";
 
@@ -157,7 +158,9 @@ export function DashboardClient({ canManageProfiles, canInspectUsers }: { canMan
                     <TableCell>{profile.levelName}</TableCell>
                     <TableCell>{profile.points}</TableCell>
                     <TableCell>{profile.activeLicenses}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatDate(profile.lastActive)}</TableCell>
+                    <TableCell className="text-muted-foreground" title={formatDate(profile.lastSeenAt ?? profile.lastActive)}>
+                      {formatRelativeTime(profile.lastSeenAt ?? profile.lastActive)}
+                    </TableCell>
                     <TableCell>
                       {profile.blocked ? <Badge variant="destructive">Blocked</Badge> : <Badge variant="outline" className="border-emerald-900/60 bg-emerald-950/70 text-emerald-400">Active</Badge>}
                     </TableCell>

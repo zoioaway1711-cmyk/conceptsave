@@ -40,6 +40,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border: 1px solid var(--ui-border); color: var(--ui-text); background: var(--ui-surface);
   box-shadow: 0 8px 30px #071f4c20; cursor: pointer;
   font: 700 12px Manrope, sans-serif;
+  /* iOS Safari has a long-standing rendering bug where a `position: fixed`
+     element that also paints a backdrop-filter/box-shadow (this button has
+     both, applied further down in this file) is repainted at its OLD
+     position during a touch-scroll gesture and only snaps to the correct
+     spot once scrolling stops — visually it looks like the button is
+     "dragged along" by the scroll. Forcing the browser to promote it to its
+     own GPU compositing layer up front (rather than letting Safari decide
+     mid-scroll) keeps it correctly pinned to the viewport throughout the
+     gesture. This is unrelated to the earlier body-scroll-lock rules further
+     down in this file, which were fixing a different (position) bug. */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
 }
 .theme-toggle > span:first-child { font-size: 23px; }
 .support-fab { bottom: 84px; }
@@ -518,3 +531,55 @@ body::after {content:none;}
 :root .save-footer svg {display:block;width:22px;height:22px;}
 :root .save-footer :is(#privacy-preferences,.admin-footer-link):hover {background:var(--ui-soft);color:var(--ui-accent);}
 @media(max-width:600px){:root .save-footer{gap:16px;}}
+
+/* Mobile login screen: dock the theme toggle right next to the language
+   flags (top-right, same row) instead of the fixed bottom-left position
+   used everywhere else. Earlier mobile rules for .theme-toggle set `top`
+   in one place and `bottom` in another for this same login-gate context —
+   on a `position: fixed` box with no explicit `height`, having BOTH `top`
+   and `bottom` set makes it stretch to fill the gap between them (that
+   was the "giant bar on the left edge" bug). Every positioning property
+   is pinned here explicitly, including a real `height` (not just
+   `min-height`), so this rule can never recombine with another one into
+   that stretch again — and appended at the end of the file, after every
+   earlier .theme-toggle rule, so it wins ties on source order too. */
+@media (max-width: 520px) {
+  body:has(.login-gate:not(.hidden)) .theme-toggle {
+    position: fixed;
+    top: 18px;
+    right: 144px;
+    left: auto;
+    bottom: auto;
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+}
+
+/* .login-gate is `position: fixed; inset: 0` with its OWN `overflow: auto`
+   for the card content — but the rest of the page behind it (everything
+   the gate is covering) was never stopped from also being scrollable. On
+   iOS Safari, having two independently-scrollable regions like that is a
+   known trigger for `position: fixed` siblings (the theme toggle, here) to
+   visibly drag/follow a touch-scroll gesture instead of staying pinned to
+   the viewport. Locking the body's own scroll while the gate is up leaves
+   only one scrollable region (the gate's own), which removes the trigger. */
+body:has(.login-gate:not(.hidden)) {
+  overflow: hidden;
+  height: 100dvh;
+}
+
+/* .signature-vial's width/height are set independently across three
+   separate copies of this rule scattered through styles.css (leftovers
+   from more than one visual revision), none matching the vial images'
+   real 1024×1536 pixel ratio — the mismatch letterboxes the image inside
+   the box (object-fit: contain), and .vial-auth-label's percentage-based
+   QR/code overlay (measured against the image itself) drifts with it,
+   sometimes past the box's edge. One authoritative rule, loaded after all
+   of them, pins the correct ratio so it never has to letterbox — !important
+   is deliberate here given how scattered the conflicting sources are. */
+.signature-vial {
+  aspect-ratio: 1024 / 1536 !important;
+  height: auto !important;
+}

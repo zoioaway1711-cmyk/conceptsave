@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { hasPermission, requirePermission } from "@/lib/admin-auth";
 import { parseStoredJson } from "@/lib/api-validation";
-import { maskIp, maskProfileId } from "@/lib/live-events";
+import { maskFingerprint, maskIp, maskProfileId } from "@/lib/live-events";
 import { isLiveWindow, windowStartIso } from "@/lib/live-window";
 import { enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -21,7 +21,7 @@ const PAGE_SIZE = 100;
 type LiveEventRow = {
   id: number; type: string; severity: string; actorProfileId: string | null; actorAdminId: string | null;
   materialId: number | null; licenseId: number | null; ip: string; country: string; region: string; city: string;
-  device: string; reason: string; metadataJson: string; createdAt: string;
+  device: string; deviceFingerprint: string; reason: string; metadataJson: string; createdAt: string;
 };
 
 export async function GET(request: Request) {
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
 
   const { results } = await db_.prepare(
-    `SELECT id, type, severity, actor_profile_id AS actorProfileId, actor_admin_id AS actorAdminId, material_id AS materialId, license_id AS licenseId, ip, country, region, city, device, reason, metadata_json AS metadataJson, created_at AS createdAt
+    `SELECT id, type, severity, actor_profile_id AS actorProfileId, actor_admin_id AS actorAdminId, material_id AS materialId, license_id AS licenseId, ip, country, region, city, device, device_fingerprint AS deviceFingerprint, reason, metadata_json AS metadataJson, created_at AS createdAt
      FROM live_events ${where} ORDER BY id DESC LIMIT ${PAGE_SIZE}`,
   ).bind(...values).all<LiveEventRow>();
 
@@ -55,6 +55,7 @@ export async function GET(request: Request) {
   const events = results.reverse().map((row) => ({
     ...row,
     ip: canViewIp ? row.ip : maskIp(String(row.ip ?? "")),
+    deviceFingerprint: canViewIp ? row.deviceFingerprint : maskFingerprint(String(row.deviceFingerprint ?? "")),
     actorProfileId: row.actorProfileId ? (canInspectUsers ? row.actorProfileId : maskProfileId(String(row.actorProfileId))) : null,
     metadata: parseStoredJson(row.metadataJson, {}),
   }));

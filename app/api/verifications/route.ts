@@ -3,7 +3,7 @@ import { customerId } from "@/lib/customer-auth";
 import { database, getProfile, getProfileWithLicenses } from "@/lib/customer-profile";
 import { claimLicense, effectiveStatus, findLicenseByInput, recalculatePoints } from "@/lib/licenses";
 import { getMaterial } from "@/lib/materials";
-import { approximateLocation, describeDevice, recordLiveEvent } from "@/lib/live-events";
+import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, recordLiveEvent } from "@/lib/live-events";
 import { touchPresence } from "@/lib/presence";
 import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -29,11 +29,13 @@ export async function POST(request: Request) {
   const ip = clientIp(request);
   const location = approximateLocation(request);
   const device = describeDevice(request.headers.get("user-agent"));
+  const fingerprint = deviceFingerprint(request);
+  const geo = geoSignal(request);
   await touchPresence(db, profileId, now);
 
   const license = await findLicenseByInput(db, body.serial);
   if (!license) {
-    await recordLiveEvent(db, { type: "INVALID_SERIAL", severity: "warning", actorProfileId: profileId, ip, ...location, device });
+    await recordLiveEvent(db, { type: "INVALID_SERIAL", severity: "warning", actorProfileId: profileId, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
     return Response.json({ recorded: true, status: "not_found", credited: false, license: null, product: null, profile: await getProfileWithLicenses(profileId) }, { status: 201, headers: { "cache-control": "no-store" } });
   }
 
@@ -42,21 +44,21 @@ export async function POST(request: Request) {
   let resultStatus: "active" | "expired" | "revoked" | "unavailable" = status;
 
   if (status !== "active") {
-    await recordLiveEvent(db, { type: status === "revoked" ? "LICENSE_REVOKED" : "LICENSE_EXPIRED", severity: "warning", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device });
+    await recordLiveEvent(db, { type: status === "revoked" ? "LICENSE_REVOKED" : "LICENSE_EXPIRED", severity: "warning", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
   } else if (!license.ownerProfileId) {
     credited = await claimLicense(db, license.id, profileId, now);
     if (credited) {
-      await recordLiveEvent(db, { type: "LICENSE_ACTIVATED", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device });
+      await recordLiveEvent(db, { type: "LICENSE_ACTIVATED", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
     } else {
       // Someone else won the claim race between our read and this write.
       resultStatus = "unavailable";
-      await recordLiveEvent(db, { type: "ACTIVATION_REJECTED", severity: "warning", actorProfileId: profileId, licenseId: license.id, ip, ...location, device });
+      await recordLiveEvent(db, { type: "ACTIVATION_REJECTED", severity: "warning", actorProfileId: profileId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
     }
   } else if (license.ownerProfileId !== profileId) {
     resultStatus = "unavailable";
-    await recordLiveEvent(db, { type: "ACTIVATION_REJECTED", severity: "warning", actorProfileId: profileId, licenseId: license.id, ip, ...location, device, reason: "owned_by_other_profile" });
+    await recordLiveEvent(db, { type: "ACTIVATION_REJECTED", severity: "warning", actorProfileId: profileId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo, reason: "owned_by_other_profile" });
   } else {
-    await recordLiveEvent(db, { type: "LICENSE_VALIDATED", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device });
+    await recordLiveEvent(db, { type: "LICENSE_VALIDATED", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
   }
 
   if (credited) await recalculatePoints(db, profileId, now);

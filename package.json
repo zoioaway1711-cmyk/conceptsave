@@ -13,7 +13,9 @@
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "test": "vitest run"
+    "test": "vitest run",
+    "admin:live": "node scripts/admin-cli.mjs",
+    "admin:audit": "node scripts/admin-cli.mjs --audit"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -28,7 +30,7 @@
     "framer-motion": "^13.2.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.31.0",
-    "next": "16.2.6",
+    "next": "16.3.5",
     "next-themes": "^0.4.6",
     "qrcode": "^1.5.4",
     "radix-ui": "^1.6.7",

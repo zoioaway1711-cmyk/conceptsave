@@ -1,4 +1,17 @@
+import { isTrustedProxyRequest } from "./proxy-trust";
+
+/**
+ * `cf-connecting-ip` is only the real visitor when Cloudflare terminates
+ * their connection directly. Requests that arrive via the Vercel reverse
+ * proxy (see proxy.ts) have that header pointing at Vercel's own egress IP
+ * instead — the visitor's real IP travels in `x-vf-real-ip`, trusted only
+ * when it's provably from our own proxy (see isTrustedProxyRequest).
+ */
 export function clientIp(request: Request) {
+  if (isTrustedProxyRequest(request)) {
+    const forwarded = request.headers.get("x-vf-real-ip");
+    if (forwarded) return forwarded;
+  }
   return request.headers.get("cf-connecting-ip") || "unknown";
 }
 

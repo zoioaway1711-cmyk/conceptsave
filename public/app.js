@@ -1,4 +1,12 @@
 function safeParse(raw, fallback) {
+  // localStorage.getItem() returns `null` for a missing key, and
+  // JSON.parse(null) does NOT throw — it coerces to the string "null" and
+  // happily returns the value `null`. Without this check, every "first
+  // visit, nothing saved yet" case silently returned `null` instead of the
+  // caller's fallback (e.g. loadConsent() returning null instead of the
+  // default consent object), which then crashed downstream code like
+  // `consent.analytics` with "Cannot read properties of null".
+  if (raw == null) return fallback;
   try {
     return JSON.parse(raw);
   } catch {
@@ -22,6 +30,82 @@ function saveConsent(next) {
   document.querySelector("#consent-banner")?.setAttribute("hidden", "");
   if (session && remoteProfile) void syncCustomerProfile(loadProfile()).catch(error => { result.className = "result show warning"; result.textContent = error.message; });
   return consent;
+}
+/**
+ * A coarse, stable hash of the device — screen size, timezone, language,
+ * platform, hardware concurrency, pixel ratio — recomputed fresh every time
+ * from live browser signals, never a random id generated once and stored.
+ * No canvas/WebGL fingerprinting. Used server-side only to slow down
+ * abuse (the same device cycling through IPs to spam serials/logins) and
+ * to give admins a "same device, different accounts" signal — see the
+ * "Cookies necessários" section of the privacy preferences dialog for how
+ * this is disclosed. Cached per page load; never fails the caller (network
+ * requests must still work if Web Crypto or any signal is unavailable).
+ */
+let fingerprintPromise;
+function deviceFingerprint() {
+  if (!fingerprintPromise) {
+    fingerprintPromise = (async () => {
+      try {
+        const parts = [
+          navigator.userAgent || "",
+          navigator.language || "",
+          `${screen.width}x${screen.height}`,
+          String(screen.colorDepth || ""),
+          Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+          String(navigator.hardwareConcurrency || ""),
+          navigator.platform || navigator.userAgentData?.platform || "",
+          String(window.devicePixelRatio || ""),
+        ].join("|");
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(parts));
+        return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      } catch {
+        return "";
+      }
+    })();
+  }
+  return fingerprintPromise;
+}
+/**
+ * Real browser Geolocation permission — separate from and much more precise
+ * than the IP-based country/region/city the server already derives on its
+ * own (no permission needed for that). This is only requested once per page
+ * load (result cached, like deviceFingerprint()) so we don't re-trigger the
+ * native permission prompt on every request — a user who denies it stays
+ * denied for the rest of the session instead of being asked again. Reported
+ * to the server as `x-geo-permission` (+ coordinates only when granted) so
+ * the admin panel can show exactly what the visitor chose, not just guess
+ * from missing data. See the "Cookies necessários" consent copy for how
+ * this is disclosed before the browser's own prompt appears.
+ */
+let geoPromise;
+function geoSignal() {
+  if (!geoPromise) {
+    geoPromise = new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve({ permission: "unsupported" }); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({
+          permission: "granted",
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        }),
+        (error) => resolve({ permission: error.code === error.PERMISSION_DENIED ? "denied" : "unavailable" }),
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
+      );
+    });
+  }
+  return geoPromise;
+}
+async function geoHeaders() {
+  const geo = await geoSignal();
+  const headers = { "x-geo-permission": geo.permission };
+  if (geo.permission === "granted") {
+    headers["x-geo-lat"] = String(geo.lat);
+    headers["x-geo-lng"] = String(geo.lng);
+    if (Number.isFinite(geo.accuracy)) headers["x-geo-accuracy"] = String(geo.accuracy);
+  }
+  return headers;
 }
 function loadRecords() { return []; }
 // The old flat digit-serial catalog endpoint (/api/catalog) is gone —
@@ -50,7 +134,11 @@ function applyRemoteProfile(profile) {
 let presenceHeartbeatTimer = null;
 function startPresenceHeartbeat() {
   stopPresenceHeartbeat();
-  const ping = () => { if (session) fetch("/api/profiles/heartbeat", { method: "POST" }).catch(() => {}); };
+  // proxy.ts's CSRF guard requires `content-type: application/json` on every
+  // non-GET/DELETE /api/ request, even a bodyless one like this — omitting
+  // it made every heartbeat silently 415, so presence (online/idle/offline,
+  // "last seen") never updated after the initial login.
+  const ping = () => { if (session) fetch("/api/profiles/heartbeat", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).catch(() => {}); };
   ping();
   presenceHeartbeatTimer = setInterval(ping, 60000);
 }
@@ -460,13 +548,27 @@ function showApp(profileId) {
 }
 async function loginWith(serial, source = "manual") {
   const error = document.querySelector("#login-error");
+  // The "necessary" consent bucket is the antifraud disclosure (device
+  // recognition, IP, approximate location — see the consent dialog copy) —
+  // required to verify a serial, unlike analytics/personalization/marketing,
+  // which stay optional. Any of the banner's three buttons satisfies this
+  // (even "Apenas necessários"); only "not decided yet" blocks. Gating here,
+  // the one function every entry point (form submit, QR scan, shared link)
+  // already calls, covers all of them without repeating this check per caller.
+  if (!loadConsent().decidedAt) {
+    error.textContent = "Para verificar, aceite os termos de proteção contra fraude abaixo.";
+    const banner = document.querySelector("#consent-banner");
+    banner?.removeAttribute("hidden");
+    banner?.scrollIntoView({ behavior: reduceMotion.matches ? "auto" : "smooth", block: "nearest" });
+    return false;
+  }
   if (!validSerial(serial)) { error.textContent = t[language].loginError; setCoreState("error"); window.setTimeout(() => setCoreState("idle"), 900); return false; }
   const button = document.querySelector('#login-form button[type="submit"]');
   if (button) button.disabled = true;
   error.textContent = "Verificando…";
   setCoreState("validating");
   try {
-    const response = await fetch("/api/profiles/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ serial }) });
+    const response = await fetch("/api/profiles/session", { method: "POST", headers: { "content-type": "application/json", "x-device-fingerprint": await deviceFingerprint(), ...await geoHeaders() }, body: JSON.stringify({ serial }) });
     const data = await requireResponse(response);
     // session MUST be set before applyRemoteProfile — it calls saveProfile(),
     // which keys the localStorage write off the current `session` value. On
@@ -695,7 +797,7 @@ function auditMetadata() {
 }
 async function recordRemoteVerification(item) {
   const response = await fetch("/api/verifications", {
-    method: "POST", headers: { "content-type": "application/json" },
+    method: "POST", headers: { "content-type": "application/json", "x-device-fingerprint": await deviceFingerprint(), ...await geoHeaders() },
     body: JSON.stringify({ serial: item.serial, profileId: session, language, action: item.action || "verification", source: item.source || "manual", metadata: auditMetadata() }),
   });
   const data = await requireResponse(response);
