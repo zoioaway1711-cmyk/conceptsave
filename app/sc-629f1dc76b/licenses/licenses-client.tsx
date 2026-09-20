@@ -166,6 +166,15 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
     setSelectedIds((prev) => (prev.size === filteredLicenses.length ? new Set() : new Set(filteredLicenses.map((l) => l.id))));
   }
 
+  // "Select all" also picks up already-revoked/expired rows (still useful
+  // to export them), but only active ones are actually revocable — the
+  // toolbar label and confirm dialog count this, not the raw selection
+  // size, so an admin never reads "(5)" and gets 2 silently skipped.
+  const revocableSelectedCount = useMemo(
+    () => [...selectedIds].filter((id) => licenses.find((l) => l.id === id)?.status === "active").length,
+    [selectedIds, licenses],
+  );
+
   function exportCsv() {
     downloadCsv(`licencas-${selectedMaterial?.slug ?? materialId}-${new Date().toISOString().slice(0, 10)}.csv`, filteredLicenses.map((license) => ({
       id: license.id,
@@ -328,18 +337,23 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
               </div>
               {selectedIds.size > 0 ? (
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-                  <span className="text-sm font-medium">{selectedIds.size} selecionada{selectedIds.size === 1 ? "" : "s"}</span>
+                  <span className="text-sm font-medium">
+                    {selectedIds.size} selecionada{selectedIds.size === 1 ? "" : "s"}
+                    {revocableSelectedCount < selectedIds.size ? ` (${revocableSelectedCount} ativa${revocableSelectedCount === 1 ? "" : "s"} — as demais já não estão ativas)` : ""}
+                  </span>
                   <div className="flex items-center gap-2">
-                    <ConfirmActionDialog
-                      triggerLabel={`Revogar selecionadas (${selectedIds.size})`}
-                      triggerIcon={Trash2}
-                      title="Revogar as licenças selecionadas?"
-                      description="Todas as licenças selecionadas (ativas) deixam de funcionar imediatamente. Isso não pode ser desfeito."
-                      confirmLabel="Revogar selecionadas"
-                      destructive
-                      onConfirm={bulkRevoke}
-                      disabled={bulkRevoking}
-                    />
+                    {revocableSelectedCount > 0 ? (
+                      <ConfirmActionDialog
+                        triggerLabel={`Revogar selecionadas (${revocableSelectedCount})`}
+                        triggerIcon={Trash2}
+                        title="Revogar as licenças selecionadas?"
+                        description={`${revocableSelectedCount} licença${revocableSelectedCount === 1 ? "" : "s"} ativa${revocableSelectedCount === 1 ? "" : "s"} entre as selecionadas ${revocableSelectedCount === 1 ? "deixa" : "deixam"} de funcionar imediatamente (as demais já revogadas/expiradas são ignoradas). Isso não pode ser desfeito.`}
+                        confirmLabel="Revogar selecionadas"
+                        destructive
+                        onConfirm={bulkRevoke}
+                        disabled={bulkRevoking}
+                      />
+                    ) : null}
                     <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
                   </div>
                 </div>

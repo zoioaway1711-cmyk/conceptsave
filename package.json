@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
     "admin:live": "node scripts/admin-cli.mjs",
-    "admin:audit": "node scripts/admin-cli.mjs --audit"
+    "admin:audit": "node scripts/admin-cli.mjs --audit",
+    "test:e2e": "node scripts/e2e-admin-smoke.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -59,6 +60,7 @@
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "flyonui": "^2.4.1",
+    "playwright": "^1.63.0",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "tw-animate-css": "^1.4.0",
