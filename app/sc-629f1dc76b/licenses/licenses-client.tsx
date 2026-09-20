@@ -33,7 +33,7 @@ type License = {
   activatedAt: string | null;
 };
 
-export function LicensesClient({ initialMaterialId, canInspectUsers, canManageProfiles }: { initialMaterialId: string | null; canInspectUsers: boolean; canManageProfiles: boolean }) {
+export function LicensesClient({ initialMaterialId, canInspectUsers, canManageProfiles, canRevealSerial }: { initialMaterialId: string | null; canInspectUsers: boolean; canManageProfiles: boolean; canRevealSerial: boolean }) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [materialsError, setMaterialsError] = useState<string | null>(null);
   const [materialId, setMaterialId] = useState<string>(initialMaterialId ?? "");
@@ -337,7 +337,7 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
       </Card>
 
       <RevealSerialDialog serial={revealSerial} onClose={() => setRevealSerial(null)} />
-      <UserInspector profileId={inspecting} canManageProfiles={canManageProfiles} onClose={() => setInspecting(null)} />
+      <UserInspector profileId={inspecting} canManageProfiles={canManageProfiles} canRevealSerial={canRevealSerial} onClose={() => setInspecting(null)} />
       <EditLicenseDialog
         license={editing}
         onClose={() => setEditing(null)}

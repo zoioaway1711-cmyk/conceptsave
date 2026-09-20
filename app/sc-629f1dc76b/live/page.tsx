@@ -9,6 +9,7 @@ export default async function LivePage() {
     <LiveClient
       canInspectUsers={hasPermission(admin, "admin.users.inspect")}
       canManageProfiles={hasPermission(admin, "admin.profiles.manage")}
+      canRevealSerial={hasPermission(admin, "admin.licenses.manage")}
     />
   );
 }

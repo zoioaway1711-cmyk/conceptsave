@@ -77,7 +77,7 @@ const SEVERITY_STYLES: Record<string, { ring: string; icon: string; badge: strin
   critical: { ring: "border-red-500/50 bg-red-500/10", icon: "bg-red-500/20 text-red-400", badge: "border-red-500/50 bg-red-500/10 text-red-400" },
 };
 
-export function LiveClient({ canInspectUsers, canManageProfiles }: { canInspectUsers: boolean; canManageProfiles: boolean }) {
+export function LiveClient({ canInspectUsers, canManageProfiles, canRevealSerial }: { canInspectUsers: boolean; canManageProfiles: boolean; canRevealSerial: boolean }) {
   const reduceMotion = useReducedMotion();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [events, setEvents] = useState<LiveEvent[]>([]);
@@ -264,7 +264,7 @@ export function LiveClient({ canInspectUsers, canManageProfiles }: { canInspectU
         </Card>
       </div>
 
-      <UserInspector profileId={inspecting} canManageProfiles={canManageProfiles} onClose={() => setInspecting(null)} />
+      <UserInspector profileId={inspecting} canManageProfiles={canManageProfiles} canRevealSerial={canRevealSerial} onClose={() => setInspecting(null)} />
     </div>
   );
 }

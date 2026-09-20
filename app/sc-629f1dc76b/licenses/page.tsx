@@ -11,6 +11,7 @@ export default async function LicensesPage({ searchParams }: { searchParams: Pro
       initialMaterialId={params.materialId ?? null}
       canInspectUsers={hasPermission(admin, "admin.users.inspect")}
       canManageProfiles={hasPermission(admin, "admin.profiles.manage")}
+      canRevealSerial={hasPermission(admin, "admin.licenses.manage")}
     />
   );
 }

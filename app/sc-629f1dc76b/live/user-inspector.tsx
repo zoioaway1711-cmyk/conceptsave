@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Ban, Fingerprint, KeyRound, MapPin, MapPinOff, NotebookPen, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Ban, Eye, EyeOff, Fingerprint, KeyRound, MapPin, MapPinOff, NotebookPen, ShieldCheck, User as UserIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { computeRank } from "@/lib/rank";
 import { formatRelativeTime } from "@/lib/presence";
 import { RankBadge } from "@/components/clube-save/RankBadge";
 import { LicenseStatusBadge } from "../_components/license-status-badge";
-import { apiFetch, apiPost } from "../_lib/api";
+import { apiFetch, apiPatch, apiPost } from "../_lib/api";
 import { formatLocation } from "./format";
 
 type LicenseDetail = { id: number; material: { name: string }; serial: string; status: string; lot: string; createdAt: string; activatedAt: string | null; expiresAt: string | null };
@@ -70,7 +70,7 @@ const GEO_PERMISSION_LABEL: Record<string, string> = {
  * checked server-side by the endpoint this fetches): a caller may view the
  * full record without being allowed to edit it.
  */
-export function UserInspector({ profileId, canManageProfiles = false, onClose }: { profileId: string | null; canManageProfiles?: boolean; onClose: () => void }) {
+export function UserInspector({ profileId, canManageProfiles = false, canRevealSerial = false, onClose }: { profileId: string | null; canManageProfiles?: boolean; canRevealSerial?: boolean; onClose: () => void }) {
   const [data, setData] = useState<Inspection | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +78,33 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState<AdminNote[]>([]);
   const [notesReloadToken, setNotesReloadToken] = useState(0);
+  // Same contract as the Licenses page's own reveal toggle (see
+  // licenses-client.tsx): decrypted server-side and audit-logged on every
+  // fetch, kept only in this component's memory, and discarded (not just
+  // hidden) when toggled off — so confirming a customer's key over the
+  // phone always goes through a fresh, freshly-logged decrypt, never a
+  // cached plaintext copy sitting in state after the admin moved on.
+  const [revealedSerials, setRevealedSerials] = useState<Map<number, string>>(new Map());
+  const [revealingId, setRevealingId] = useState<number | null>(null);
+
+  async function toggleSerialVisibility(licenseId: number) {
+    if (revealedSerials.has(licenseId)) {
+      setRevealedSerials((prev) => {
+        const next = new Map(prev);
+        next.delete(licenseId);
+        return next;
+      });
+      return;
+    }
+    setRevealingId(licenseId);
+    const result = await apiPatch<{ serial: string }>(`/api/admin/licenses/${licenseId}`, { action: "reveal" });
+    setRevealingId(null);
+    if (!result.ok) {
+      toast.error("Could not recover the full serial", { description: result.error === "not_recoverable" ? "This license was generated before this feature existed — no recoverable copy." : result.error });
+      return;
+    }
+    setRevealedSerials((prev) => new Map(prev).set(licenseId, result.data.serial));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -201,14 +228,31 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
                   <p className="text-sm text-muted-foreground">No licenses owned by this profile.</p>
                 ) : (
                   <ul className="space-y-2">
-                    {data.licenses.map((license) => (
+                    {data.licenses.map((license) => {
+                      const fullSerial = revealedSerials.get(license.id);
+                      const revealed = Boolean(fullSerial);
+                      const revealing = revealingId === license.id;
+                      return (
                       <li key={license.id} className="rounded-lg border bg-card/60 p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="text-sm font-medium">{license.material.name}</div>
                           <LicenseStatusBadge status={license.status} />
                         </div>
                         <div className="mt-1.5 flex w-fit items-center gap-1.5 rounded-md border border-dashed px-2 py-1 font-mono text-xs text-muted-foreground">
-                          <Fingerprint className="size-3.5 shrink-0" /> {license.serial}
+                          <Fingerprint className="size-3.5 shrink-0" /> {fullSerial ?? license.serial}
+                          {canRevealSerial ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-5 shrink-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => void toggleSerialVisibility(license.id)}
+                              disabled={revealing}
+                              title={revealed ? "Ocultar serial completo" : "Ver serial completo — confirme a chave com o cliente antes de agir (fica registrado no log de auditoria)"}
+                            >
+                              {revealing ? <Spinner className="size-3.5" /> : revealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                            </Button>
+                          ) : null}
                         </div>
                         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <div><dt className="inline font-medium text-foreground/70">Activated: </dt><dd className="inline">{formatDate(license.activatedAt)}</dd></div>
@@ -217,7 +261,8 @@ export function UserInspector({ profileId, canManageProfiles = false, onClose }:
                           <div><dt className="inline font-medium text-foreground/70">Issued: </dt><dd className="inline">{formatDate(license.createdAt)}</dd></div>
                         </dl>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
               </section>

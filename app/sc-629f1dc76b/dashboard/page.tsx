@@ -9,6 +9,7 @@ export default async function DashboardPage() {
     <DashboardClient
       canManageProfiles={hasPermission(admin, "admin.profiles.manage")}
       canInspectUsers={hasPermission(admin, "admin.users.inspect")}
+      canRevealSerial={hasPermission(admin, "admin.licenses.manage")}
     />
   );
 }

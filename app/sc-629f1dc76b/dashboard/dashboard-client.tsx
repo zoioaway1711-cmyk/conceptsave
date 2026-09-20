@@ -36,7 +36,7 @@ type Profile = {
 
 type Filter = "all" | "active" | "blocked";
 
-export function DashboardClient({ canManageProfiles, canInspectUsers }: { canManageProfiles: boolean; canInspectUsers: boolean }) {
+export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealSerial }: { canManageProfiles: boolean; canInspectUsers: boolean; canRevealSerial: boolean }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -185,6 +185,7 @@ export function DashboardClient({ canManageProfiles, canInspectUsers }: { canMan
       <UserInspector
         profileId={inspecting}
         canManageProfiles={canManageProfiles}
+        canRevealSerial={canRevealSerial}
         onClose={() => {
           setInspecting(null);
           void load();
