@@ -152,6 +152,25 @@ export async function revokeLicense(db: D1Database, licenseId: number, now = new
   return result.meta.changes > 0;
 }
 
+/**
+ * Admin-only escape hatch that customers themselves can never trigger: puts
+ * an already-claimed, still-active license back into the unclaimed pool —
+ * same serial, so the exact code already printed/tested keeps working —
+ * without touching the single-use guarantee on the customer-facing login
+ * path (app/api/profiles/session/route.ts still refuses a re-claim from
+ * anyone; only this explicit admin action can undo a claim). Meant for QA
+ * batches an admin activated themselves while testing, or a support case
+ * where a customer's own accidental claim needs undoing. The disconnected
+ * customer_profiles row is left alone (still reachable, just missing this
+ * one license) — this resets the LICENSE, not the person.
+ */
+export async function resetLicense(db: D1Database, licenseId: number): Promise<boolean> {
+  const result = await db.prepare(
+    "UPDATE licenses SET owner_profile_id=NULL, activated_at=NULL WHERE id=? AND status='active' AND owner_profile_id IS NOT NULL",
+  ).bind(licenseId).run();
+  return result.meta.changes > 0;
+}
+
 /** REVOKE + GENERATE REPLACEMENT: issues a brand new serial for the same material and, if the lost license had an owner, transfers entitlement to the new one immediately. Doesn't itself reveal the revoked license's old serial — call `revealLicenseSerial(db, licenseId)` separately if that's what's actually needed (e.g. the customer's product still has the old code printed on it). */
 export async function replaceLicense(db: D1Database, licenseId: number): Promise<{ id: number; serial: string } | null> {
   const existing = await getLicense(db, licenseId);

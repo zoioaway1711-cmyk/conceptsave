@@ -6,7 +6,7 @@ import { seedLicense, seedMaterial } from "./helpers/seed";
 const env: Record<string, unknown> = { SESSION_SECRET: "s".repeat(32) };
 vi.mock("cloudflare:workers", () => ({ env }));
 
-const { createLicense, findLicenseByInput, effectiveStatus, revokeLicense, replaceLicense, claimLicense, importLicense, updateLicense } = await import("../lib/licenses");
+const { createLicense, findLicenseByInput, effectiveStatus, revokeLicense, replaceLicense, resetLicense, claimLicense, importLicense, updateLicense } = await import("../lib/licenses");
 const { serialDigest, ANY_SERIAL_PATTERN } = await import("../lib/serial");
 
 let db: ReturnType<typeof createFakeD1>;
@@ -200,5 +200,34 @@ describe("revokeLicense / replaceLicense", () => {
     const replacement = await replaceLicense(db as never, licenseId);
     const fresh = await findLicenseByInput(db as never, replacement!.serial);
     expect(fresh?.ownerProfileId).toBeNull();
+  });
+});
+
+describe("resetLicense", () => {
+  it("clears ownership and activation off an active, claimed license — the exact same serial can be claimed again afterwards", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "RSET", name: "Reset Material" });
+    const licenseId = await seedLicense(db, materialId, { serial: "RSET-AAAA-BBBB-CCCC-DDDD", ownerProfileId: "cus_qa_tester" });
+    expect(await resetLicense(db as never, licenseId)).toBe(true);
+
+    const row = db.raw.prepare("SELECT owner_profile_id AS ownerProfileId, activated_at AS activatedAt, status FROM licenses WHERE id=?").get(licenseId) as { ownerProfileId: string | null; activatedAt: string | null; status: string };
+    expect(row.ownerProfileId).toBeNull();
+    expect(row.activatedAt).toBeNull();
+    expect(row.status).toBe("active"); // reset never touches status — only claim/replace do
+
+    // Proves it's genuinely re-claimable, not just DB fields that happen to look right.
+    expect(await claimLicense(db as never, licenseId, "cus_new_owner")).toBe(true);
+  });
+
+  it("is a no-op on a license that was never claimed (nothing to reset)", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "RSET", name: "Reset Material" });
+    const licenseId = await seedLicense(db, materialId, { serial: "RSET-EEEE-FFFF-GGGG-HHHH" });
+    expect(await resetLicense(db as never, licenseId)).toBe(false);
+  });
+
+  it("refuses to resurrect a revoked license — reset is not a way around revoke", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "RSET", name: "Reset Material" });
+    const licenseId = await seedLicense(db, materialId, { serial: "RSET-IIII-JJJJ-KKKK-LLLL", ownerProfileId: "cus_owner" });
+    await revokeLicense(db as never, licenseId);
+    expect(await resetLicense(db as never, licenseId)).toBe(false);
   });
 });

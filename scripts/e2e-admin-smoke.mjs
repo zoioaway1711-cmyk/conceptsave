@@ -113,7 +113,24 @@ async function main() {
         await selectAll.click();
         await shot(page, "licenses-all-selected");
         check("select-all toggles every visible row", true);
-        await selectAll.click(); // deselect so we don't leave a destructive bulk action armed
+
+        const resetTrigger = page.getByRole("button", { name: /Resetar selecionadas/i });
+        if (await resetTrigger.count()) {
+          const claimedBefore = await page.locator("table tbody tr").filter({ hasNotText: "Unclaimed" }).count();
+          await resetTrigger.click();
+          await page.getByRole("button", { name: /^Resetar selecionadas$/ }).click();
+          // Toast timing is flaky to assert on directly (sonner auto-dismisses,
+          // and a fullPage screenshot can clip a fixed-position toast) — the
+          // thing that actually matters is the row itself flipping to
+          // Unclaimed, so assert on the real DOM state instead.
+          await page.waitForTimeout(1000);
+          const claimedAfter = await page.locator("table tbody tr").filter({ hasNotText: "Unclaimed" }).count();
+          check("bulk reset clears ownership on previously-claimed rows", claimedAfter < claimedBefore, `${claimedBefore} claimed before, ${claimedAfter} after`);
+          await shot(page, "licenses-after-bulk-reset");
+        } else {
+          check("bulk reset button available", false, "no claimed+active license in this material to reset — activate one first for a fuller test");
+        }
+        await selectAll.click().catch(() => {}); // best-effort deselect afterwards
       }
     } else {
       check("licenses table has rows to select", false, "no licenses under the chosen material — generate one first for a fuller test");

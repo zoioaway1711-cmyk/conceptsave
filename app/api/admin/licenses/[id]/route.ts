@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { requirePermission } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit, maskSerial } from "@/lib/audit-log";
-import { getLicense, replaceLicense, revealLicenseSerial, revokeLicense, updateLicense } from "@/lib/licenses";
+import { getLicense, replaceLicense, resetLicense, revealLicenseSerial, revokeLicense, updateLicense } from "@/lib/licenses";
 import { recordLiveEvent } from "@/lib/live-events";
 import { clientIp } from "@/lib/rate-limit";
 import { z } from "zod";
@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: "invalid_id" }, { status: 400 });
   const body = await readBody(request, z.object({
-    action: z.enum(["revoke", "replace", "update", "reveal"]),
+    action: z.enum(["revoke", "replace", "update", "reveal", "reset"]),
     lot: z.string().trim().max(80).optional(),
     expiresAt: z.string().datetime().nullable().optional(),
   }));
@@ -46,6 +46,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     await logAudit(db(), { actor: admin.username, action: "LICENSE_SERIAL_REVEALED", resource: "licenses", resourceId: String(id), result: "success", ip });
     await recordLiveEvent(db(), { type: "ADMIN_ACTION", severity: "warning", actorAdminId: admin.id, licenseId: id, ip, reason: "license_serial_revealed" });
     return Response.json({ serial }, { headers: { "cache-control": "no-store" } });
+  }
+
+  if (body.action === "reset") {
+    // See lib/licenses.ts:resetLicense for why this is the one path that
+    // can undo a claim — every call is audit-logged with the actor, same
+    // accountability bar as a serial reveal.
+    const reset = await resetLicense(db(), id);
+    if (!reset) return Response.json({ error: "not_resettable" }, { status: 409 });
+    await logAudit(db(), { actor: admin.username, action: "LICENSE_RESET", resource: "licenses", resourceId: String(id), result: "success", ip });
+    await recordLiveEvent(db(), { type: "ADMIN_ACTION", severity: "warning", actorAdminId: admin.id, licenseId: id, ip, reason: "license_reset_to_unclaimed" });
+    return Response.json({ reset: true });
   }
 
   if (body.action === "revoke") {

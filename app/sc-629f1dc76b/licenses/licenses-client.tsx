@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ComponentType, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Download, Eye, EyeOff, Pencil, Plus, RefreshCw, Search, Ticket, Trash2 } from "lucide-react";
+import { Download, Eye, EyeOff, Pencil, Plus, RefreshCw, RotateCcw, Search, Ticket, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,6 +175,15 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
     [selectedIds, licenses],
   );
 
+  // Resettable is a narrower subset than revocable: active AND already claimed (nothing to reset on a still-unclaimed license).
+  const resettableSelectedCount = useMemo(
+    () => [...selectedIds].filter((id) => {
+      const license = licenses.find((l) => l.id === id);
+      return license?.status === "active" && Boolean(license.ownerProfileId);
+    }).length,
+    [selectedIds, licenses],
+  );
+
   function exportCsv() {
     downloadCsv(`licencas-${selectedMaterial?.slug ?? materialId}-${new Date().toISOString().slice(0, 10)}.csv`, filteredLicenses.map((license) => ({
       id: license.id,
@@ -213,6 +222,36 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
     }
     toast.success("License revoked");
     setLicenses((prev) => prev.map((l) => (l.id === license.id ? { ...l, status: "revoked" } : l)));
+  }
+
+  async function reset(license: License) {
+    const result = await apiPatch<{ reset: true }>(`/api/admin/licenses/${license.id}`, { action: "reset" });
+    if (!result.ok) {
+      toast.error("Não foi possível resetar a licença", { description: result.error === "not_resettable" ? "Só é possível resetar uma licença ativa que já foi reivindicada." : result.error });
+      return;
+    }
+    toast.success("Licença resetada — disponível para ativação novamente");
+    setLicenses((prev) => prev.map((l) => (l.id === license.id ? { ...l, ownerProfileId: null, activatedAt: null } : l)));
+  }
+
+  async function bulkReset() {
+    setBulkRevoking(true);
+    const ids = [...selectedIds].filter((id) => {
+      const license = licenses.find((l) => l.id === id);
+      return license?.status === "active" && Boolean(license.ownerProfileId);
+    });
+    let succeeded = 0;
+    for (const id of ids) {
+      const result = await apiPatch<{ reset: true }>(`/api/admin/licenses/${id}`, { action: "reset" });
+      if (result.ok) succeeded++;
+    }
+    setBulkRevoking(false);
+    setSelectedIds(new Set());
+    if (succeeded > 0) {
+      setLicenses((prev) => prev.map((l) => (ids.includes(l.id) ? { ...l, ownerProfileId: null, activatedAt: null } : l)));
+      toast.success(`${succeeded} licença${succeeded === 1 ? "" : "s"} resetada${succeeded === 1 ? "" : "s"} — ${succeeded === 1 ? "disponível" : "disponíveis"} novamente`);
+    }
+    if (succeeded < ids.length) toast.error(`${ids.length - succeeded} não puderam ser resetadas`);
   }
 
   async function replace(license: License) {
@@ -354,6 +393,17 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
                         disabled={bulkRevoking}
                       />
                     ) : null}
+                    {resettableSelectedCount > 0 ? (
+                      <ConfirmActionDialog
+                        triggerLabel={`Resetar selecionadas (${resettableSelectedCount})`}
+                        triggerIcon={RotateCcw}
+                        title="Resetar as licenças selecionadas?"
+                        description={`${resettableSelectedCount} licença${resettableSelectedCount === 1 ? "" : "s"} já reivindicada${resettableSelectedCount === 1 ? "" : "s"} entre as selecionadas ${resettableSelectedCount === 1 ? "volta" : "voltam"} a ficar ${resettableSelectedCount === 1 ? "disponível" : "disponíveis"} para ativação, com o mesmo serial. O perfil que tinha essa licença perde o vínculo com ela (mas continua existindo).`}
+                        confirmLabel="Resetar selecionadas"
+                        onConfirm={bulkReset}
+                        disabled={bulkRevoking}
+                      />
+                    ) : null}
                     <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
                   </div>
                 </div>
@@ -472,6 +522,15 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
                           confirmLabel="Replace license"
                           onConfirm={() => replace(license)}
                           disabled={license.status === "revoked"}
+                        />
+                        <ConfirmActionDialog
+                          triggerLabel="Resetar"
+                          triggerIcon={RotateCcw}
+                          title="Resetar esta licença?"
+                          description="O mesmo serial volta a ficar disponível para ativação — útil para chaves de teste que você mesmo já usou. O perfil atualmente dono dela perde o vínculo (mas continua existindo, com o histórico dele intacto)."
+                          confirmLabel="Resetar licença"
+                          onConfirm={() => reset(license)}
+                          disabled={license.status !== "active" || !license.ownerProfileId}
                         />
                         <ConfirmActionDialog
                           triggerLabel="Revoke"
