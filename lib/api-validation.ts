@@ -119,10 +119,17 @@ export function isSameOrigin(request: Request) {
   }
 }
 
-export async function readBody<T extends z.ZodTypeAny>(request: Request, schema: T): Promise<z.infer<T> | null> {
+/**
+ * `maxBytes` defaults to 64000 — comfortable headroom for every route's
+ * normal request shape. The one exception is the bulk license importer
+ * (licenseImportSchema allows up to 1000 rows), which passes a much
+ * higher explicit limit — see proxy.ts's matching per-path exception,
+ * without which this would never even see a request that large.
+ */
+export async function readBody<T extends z.ZodTypeAny>(request: Request, schema: T, maxBytes = 64000): Promise<z.infer<T> | null> {
   try {
     const raw = await request.text();
-    if (raw.length > 64000) return null;
+    if (raw.length > maxBytes) return null;
     const result = schema.safeParse(JSON.parse(raw));
     return result.success ? result.data : null;
   } catch { return null; }

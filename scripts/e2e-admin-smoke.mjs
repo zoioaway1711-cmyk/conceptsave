@@ -68,6 +68,29 @@ async function main() {
     await page.waitForURL(/dashboard/, { timeout: 10000 });
     check("login succeeds and redirects to dashboard", true);
 
+    // --- Deterministic fixture data ---
+    // Earlier versions of this script picked "whatever's first in the
+    // material dropdown", which made the licenses/bulk-action checks
+    // depend on leftover state from previous manual testing (flaky pass/
+    // fail unrelated to real regressions). Create our own material + one
+    // unclaimed + one claimed license via the same authenticated session
+    // (page.request shares this context's cookies), then select this
+    // material by name — every run now has the exact rows it expects.
+    const fixtureName = `E2E Smoke ${Date.now()}`;
+    const materialRes = await page.request.post(`${baseUrl}/api/admin/materials`, {
+      headers: { origin: baseUrl },
+      data: { name: fixtureName, prefixCode: "E2ESMK", maker: "E2E", brand: "E2E" },
+    });
+    const material = (await materialRes.json()).material;
+    check("fixture material created via API", materialRes.ok(), fixtureName);
+    for (const shouldClaim of [false, true]) {
+      const licenseRes = await page.request.post(`${baseUrl}/api/admin/licenses`, { headers: { origin: baseUrl }, data: { materialId: material.id } });
+      const serial = (await licenseRes.json()).license?.serial;
+      if (shouldClaim && serial) {
+        await page.request.post(`${baseUrl}/api/profiles/session`, { headers: { origin: baseUrl }, data: { serial } });
+      }
+    }
+
     // --- Dashboard ---
     await page.waitForLoadState("networkidle");
     // Widgets fetch via a setTimeout(0)-deferred effect (see codebase
@@ -86,15 +109,10 @@ async function main() {
     check("dashboard CSV export triggers a download", Boolean(dashboardDownload), dashboardDownload ? dashboardDownload.suggestedFilename() : "no download event fired");
 
     // --- Licenses: filters + bulk selection + CSV ---
-    await page.goto(`${baseUrl}/sc-629f1dc76b/licenses`, { waitUntil: "networkidle" });
-    // Pick the first material in the dropdown so the table has rows.
-    const materialTrigger = page.locator('button[role="combobox"]').first();
-    if (await materialTrigger.count()) {
-      await materialTrigger.click();
-      await page.locator('[role="option"]').first().click();
-      await page.keyboard.press("Escape").catch(() => {});
-      await page.waitForLoadState("networkidle");
-    }
+    // Go straight in via ?materialId — same URL the Dashboard's own
+    // expiring-soon "Ver" link and the Materials page use — so this
+    // doesn't depend on the material dropdown/combobox at all.
+    await page.goto(`${baseUrl}/sc-629f1dc76b/licenses?materialId=${material.id}`, { waitUntil: "networkidle" });
     await shot(page, "licenses-list");
 
     const statusFilterVisible = await page.getByText("Status").first().isVisible().catch(() => false);
@@ -141,6 +159,35 @@ async function main() {
       page.getByRole("button", { name: /Exportar CSV/i }).first().click(),
     ]);
     check("licenses CSV export triggers a download", Boolean(licensesDownload), licensesDownload ? licensesDownload.suggestedFilename() : "no download event fired (empty list?)");
+
+    // --- Bulk import: regression test for the >500-row payload_too_large
+    // bug (proxy.ts had a blanket 256KB body cap and readBody() a 64KB
+    // one; a real ~500+ row CSV blew past 64KB well before the schema's
+    // own 1000-row limit). Import 600 rows in one paste — comfortably past
+    // the old bug's threshold — and confirm it succeeds end-to-end.
+    await page.goto(`${baseUrl}/sc-629f1dc76b/licenses/import`, { waitUntil: "networkidle" });
+    // Serial prefix must be unique per run — re-running this script against
+    // a persistent (non-reset) dev database with the same 600 fixed
+    // serials would make every single row a legitimate `duplicate_serial`
+    // skip (correct product behavior, protecting against double-import),
+    // which looks identical to a real failure in the "0 criados" result.
+    // Serial's own prefix segment is capped at 10 chars (ANY_SERIAL_PATTERN
+    // in lib/serial.ts) — "E2E" + the 6 fastest-changing base36 digits of
+    // the clock keeps this at 9 and still unique run-to-run.
+    const importPrefix = `E2E${Date.now().toString(36).toUpperCase().slice(-6)}`;
+    const importRows = ["SERIAL,LOTE,PRODUTO,VALIDADE"];
+    for (let i = 0; i < 600; i++) importRows.push(`${importPrefix}-${String(i).padStart(4, "0")}-AAAA-BBBB-CCCC,LOTEE2E,E2E Import Regression Product,2028-01-01`);
+    await page.locator("#import-textarea").fill(importRows.join("\n"));
+    await shot(page, "import-600-rows-pasted");
+    await page.getByRole("button", { name: /Importar 600 produtos/i }).click();
+    // Not the toast (sonner auto-dismisses well before 600 sequential
+    // server-side inserts finish) — wait for the persistent post-import
+    // view instead: the form is replaced by a "N criados" badge + QR
+    // download/print controls once results actually land.
+    const importSucceeded = await page.getByText(/^\d+ criados$/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+    const badgeText = importSucceeded ? await page.getByText(/^\d+ criados$/).first().textContent() : null;
+    check("bulk import of 600 rows (past the old 500-row bug) succeeds in one request", importSucceeded && badgeText?.startsWith("600 "), badgeText ?? "results view never appeared — check for payload_too_large or a schema/body-size regression");
+    await shot(page, "import-600-rows-result");
 
     // --- Audit log CSV ---
     await page.goto(`${baseUrl}/sc-629f1dc76b/audit`, { waitUntil: "networkidle" });

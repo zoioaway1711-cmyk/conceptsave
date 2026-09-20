@@ -36,7 +36,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
-  const body = await readBody(request, licenseImportSchema);
+  // Matches proxy.ts's per-path exception for this same route — see the
+  // comment there for why bulk import needs far more than the 64KB every
+  // other endpoint's readBody() call is capped at.
+  const body = await readBody(request, licenseImportSchema, 2 * 1024 * 1024);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
 
   const database = db();

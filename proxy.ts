@@ -153,6 +153,16 @@ export async function proxy(request: NextRequest) {
     if (request.method !== "DELETE") {
       if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return reject("json_required", 415);
       // Count actual bytes: Content-Length alone can be absent or untrusted.
+      // Every JSON API body is capped at 256KB — plenty for the small
+      // request/response shapes everywhere else — except the bulk license
+      // importer, which is an authenticated, RBAC-gated admin endpoint
+      // whose whole job is accepting up to 1000 rows in one request (see
+      // licenseImportSchema); 256KB was silently truncating that well
+      // before the 1000-row schema limit ever kicked in (reported as "over
+      // 500 lines stops working"). Kept as a per-path exception rather
+      // than raising the global cap, since nothing else legitimately needs
+      // a body this large.
+      const maxBodyBytes = request.nextUrl.pathname === "/api/admin/licenses/import" ? 2 * 1024 * 1024 : 256 * 1024;
       const reader = request.clone().body?.getReader();
       let size = 0;
       if (reader) {
@@ -161,7 +171,7 @@ export async function proxy(request: NextRequest) {
             const { done, value } = await reader.read();
             if (done) break;
             size += value.byteLength;
-            if (size > 256 * 1024) { void reader.cancel(); return reject("payload_too_large", 413); }
+            if (size > maxBodyBytes) { void reader.cancel(); return reject("payload_too_large", 413); }
           }
         } finally { reader.releaseLock(); }
       }

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 
-const { isSameOrigin, adminProfileSchema, profileSchema, licenseCheckSchema, materialCreateSchema } = await import("../lib/api-validation");
+const { isSameOrigin, adminProfileSchema, profileSchema, licenseCheckSchema, materialCreateSchema, licenseImportSchema, readBody } = await import("../lib/api-validation");
 
 function req(url: string, headers: Record<string, string> = {}) {
   return new Request(url, { headers });
@@ -72,5 +72,37 @@ describe("mass-assignment resistance of the request schemas", () => {
     expect(materialCreateSchema.safeParse({ name: "X", prefixCode: "a" }).success).toBe(false);
     expect(materialCreateSchema.safeParse({ name: "X", prefixCode: "-BAD-" }).success).toBe(false);
     expect(materialCreateSchema.safeParse({ name: "X", prefixCode: "cura" }).success).toBe(true);
+  });
+});
+
+describe("readBody", () => {
+  function jsonReq(body: unknown) {
+    return new Request("https://verificafarma.example/api/x", { method: "POST", body: JSON.stringify(body) });
+  }
+
+  // A realistic product name/lot length (not a single short word) — this is
+  // what actually pushed a real ~600-row CSV past 64000 bytes in practice.
+  const bulkRows = (count: number) => Array.from({ length: count }, (_, i) => ({
+    serial: `IMPT-${String(i).padStart(4, "0")}-AAAA-BBBB-CCCC`,
+    product: "Testenat Enantato de Testosterona 250mg/ml",
+    lot: `LOTE-2026-${String(i).padStart(4, "0")}`,
+  }));
+
+  it("defaults to a 64000-byte cap — plenty for every route except bulk import", async () => {
+    const bigBody = { rows: bulkRows(1000), maker: "x", brand: "x" };
+    expect(JSON.stringify(bigBody).length).toBeGreaterThan(64000);
+    expect(await readBody(jsonReq(bigBody), licenseImportSchema)).toBeNull();
+  });
+
+  it("accepts a larger body when the caller passes an explicit maxBytes — this is what the import route relies on for >500 rows", async () => {
+    const body = { rows: bulkRows(600), maker: "x", brand: "x" };
+    const raw = JSON.stringify(body);
+    expect(raw.length).toBeGreaterThan(64000); // reproduces the real >500-row bug report
+    const parsed = await readBody(jsonReq(body), licenseImportSchema, 2 * 1024 * 1024);
+    expect(parsed?.rows.length).toBe(600);
+  });
+
+  it("still rejects a body over the explicit maxBytes even when raised", async () => {
+    expect(await readBody(jsonReq({ rows: bulkRows(600), maker: "x", brand: "x" }), licenseImportSchema, 1000)).toBeNull();
   });
 });
