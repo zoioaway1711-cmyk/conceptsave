@@ -19,6 +19,7 @@ import { formatRelativeTime } from "@/lib/presence";
 import { apiFetch, apiPost } from "../_lib/api";
 import { UserInspector } from "../live/user-inspector";
 import { downloadCsv } from "../_lib/csv";
+import { ActivationsChart, TopCountriesChart } from "./charts";
 
 type Profile = {
   id: string;
@@ -125,6 +126,11 @@ export function DashboardClient({ canManageProfiles, canInspectUsers, canRevealS
         <StatCard icon={ShieldCheck} label="Active" value={totals.active} />
         <StatCard icon={Ban} label="Blocked" value={totals.blocked} tone="destructive" />
         <StatCard icon={Ticket} label="Active licenses" value={totals.activeLicenses} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ActivationsChart />
+        <TopCountriesChart />
       </div>
 
       {canManageLicenses ? <ExpiringLicensesCard licenses={expiring} loading={expiringLoading} /> : null}

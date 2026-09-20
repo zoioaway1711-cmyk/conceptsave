@@ -102,6 +102,10 @@ async function main() {
     const expiringCard = page.getByText("Licenças expirando nos próximos 30 dias");
     check("dashboard renders (expiring-soon widget present or correctly absent)", true, (await expiringCard.count()) > 0 ? "widget visible" : "no expiring licenses right now — widget correctly hidden");
 
+    const rechartsSurfaces = await page.locator("svg.recharts-surface").count();
+    check("activations chart mounts a real chart (not stuck on the loading spinner)", rechartsSurfaces > 0 || (await page.getByText(/Nenhuma ativação registrada/).count()) > 0);
+    check("top-countries card renders (chart or correct empty state)", (await page.getByText("De onde vêm as verificações").count()) > 0);
+
     const [dashboardDownload] = await Promise.all([
       page.waitForEvent("download", { timeout: 5000 }).catch(() => null),
       page.getByRole("button", { name: /Exportar CSV/i }).first().click(),
