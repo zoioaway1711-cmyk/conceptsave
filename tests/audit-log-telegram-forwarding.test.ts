@@ -34,6 +34,24 @@ describe("logAudit — every entry forwards to Telegram by default", () => {
     expect(text).toContain("1.2.3.4");
   });
 
+  it("shows the product name (not just the id) when metadata carries one — LICENSE_CREATED uses `material`", async () => {
+    await logAudit(db as never, { actor: "owner", action: "LICENSE_CREATED", resource: "licenses", resourceId: "42", result: "success", metadata: { serial: "****1234", material: "LIPOLESS 2.5MG" } });
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).toContain("Produto: LIPOLESS 2.5MG");
+  });
+
+  it("shows the product name from `name` — MATERIAL_CREATED", async () => {
+    await logAudit(db as never, { actor: "owner", action: "MATERIAL_CREATED", resource: "materials", resourceId: "7", result: "success", metadata: { name: "LIPOLESS 2.5MG", prefixCode: "LIPO" } });
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).toContain("Produto: LIPOLESS 2.5MG");
+  });
+
+  it("omits the product line entirely when metadata has no name/material", async () => {
+    await logAudit(db as never, { actor: "owner", action: "LICENSE_REVOKED", resource: "licenses", resourceId: "42", result: "success" });
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).not.toContain("Produto:");
+  });
+
   it("still writes the Audit Log row even when Telegram isn't configured", async () => {
     delete env.TELEGRAM_BOT_TOKEN;
     delete env.TELEGRAM_CHAT_ID;

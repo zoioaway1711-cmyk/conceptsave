@@ -86,7 +86,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const created = await replaceLicense(db(), id);
   if (!created) return Response.json({ error: "not_replaceable" }, { status: 409 });
   await logAudit(db(), { actor: admin.username, action: "LICENSE_REVOKED", resource: "licenses", resourceId: String(id), result: "success", ip, metadata: { replacedBy: created.id } });
-  await logAudit(db(), { actor: admin.username, action: "LICENSE_CREATED", resource: "licenses", resourceId: String(created.id), result: "success", ip, metadata: { serial: maskSerial(created.serial), replaces: id } });
+  await logAudit(db(), { actor: admin.username, action: "LICENSE_CREATED", resource: "licenses", resourceId: String(created.id), result: "success", ip, metadata: { serial: maskSerial(created.serial), replaces: id, material: created.materialName } });
   await recordLiveEvent(db(), { type: "LICENSE_REVOKED", severity: "warning", actorAdminId: admin.id, licenseId: id, ip });
   await recordLiveEvent(db(), { type: "LICENSE_CREATED", actorAdminId: admin.id, licenseId: created.id, ip });
   return Response.json({ license: { id: created.id, serial: created.serial } });

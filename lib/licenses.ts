@@ -41,7 +41,7 @@ const LICENSE_COLUMNS = "id, material_id AS materialId, display_prefix AS displa
  * ENCRYPTED copy (`serial_encrypted`) recoverable only via
  * `revealLicenseSerial()` below, gated behind admin auth.
  */
-export async function createLicense(db: D1Database, materialId: number, opts: { lot?: string; expiresAt?: string | null } = {}, maxAttempts = 5): Promise<{ id: number; serial: string }> {
+export async function createLicense(db: D1Database, materialId: number, opts: { lot?: string; expiresAt?: string | null } = {}, maxAttempts = 5): Promise<{ id: number; serial: string; materialName: string }> {
   const material = await getMaterial(db, materialId);
   if (!material) throw new Error("material_not_found");
   const now = new Date().toISOString();
@@ -53,7 +53,7 @@ export async function createLicense(db: D1Database, materialId: number, opts: { 
       const row = await db.prepare(
         "INSERT INTO licenses (material_id, serial_digest, serial_encrypted, display_prefix, display_suffix, lot, status, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?) RETURNING id",
       ).bind(materialId, digest, encrypted, material.prefixCode, displaySuffixOf(serial), opts.lot ?? "", opts.expiresAt ?? null, now).first<{ id: number }>();
-      return { id: row!.id, serial };
+      return { id: row!.id, serial, materialName: material.name };
     } catch (error) {
       if (isUniqueConstraintError(error)) continue; // digest collision — regenerate and retry
       throw error;
@@ -172,7 +172,7 @@ export async function resetLicense(db: D1Database, licenseId: number): Promise<b
 }
 
 /** REVOKE + GENERATE REPLACEMENT: issues a brand new serial for the same material and, if the lost license had an owner, transfers entitlement to the new one immediately. Doesn't itself reveal the revoked license's old serial — call `revealLicenseSerial(db, licenseId)` separately if that's what's actually needed (e.g. the customer's product still has the old code printed on it). */
-export async function replaceLicense(db: D1Database, licenseId: number): Promise<{ id: number; serial: string } | null> {
+export async function replaceLicense(db: D1Database, licenseId: number): Promise<{ id: number; serial: string; materialName: string } | null> {
   const existing = await getLicense(db, licenseId);
   if (!existing) return null;
   const revoked = await revokeLicense(db, licenseId);

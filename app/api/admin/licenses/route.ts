@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
   try {
     const license = await createLicense(db(), body.materialId, { lot: body.lot, expiresAt: body.expiresAt });
-    await logAudit(db(), { actor: admin.username, action: "LICENSE_CREATED", resource: "licenses", resourceId: String(license.id), result: "success", ip: clientIp(request), metadata: { serial: maskSerial(license.serial) } });
+    await logAudit(db(), { actor: admin.username, action: "LICENSE_CREATED", resource: "licenses", resourceId: String(license.id), result: "success", ip: clientIp(request), metadata: { serial: maskSerial(license.serial), material: license.materialName } });
     await recordLiveEvent(db(), { type: "LICENSE_CREATED", actorAdminId: admin.id, materialId: body.materialId, licenseId: license.id, ip: clientIp(request) });
     // SHOW ONCE: this is the only response that will ever contain the
     // plaintext serial — it is not persisted anywhere. Every later read of

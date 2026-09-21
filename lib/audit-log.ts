@@ -35,9 +35,23 @@ function isAlreadyAlerted(action: string): boolean {
 
 const RESULT_ICON: Record<AuditEntry["result"], string> = { success: "✅", failure: "❌" };
 
+/**
+ * Pulls a human-readable product name out of metadata when the entry has
+ * one — e.g. { name: "LIPOLESS 2.5MG" } on MATERIAL_CREATED/UPDATED, or
+ * { material: "LIPOLESS 2.5MG" } on LICENSE_CREATED. Without this, the
+ * Telegram message only ever showed "materials #7" / "licenses #142" —
+ * a number that means nothing without opening the admin panel.
+ */
+export function productNameFromMetadata(metadata: Record<string, unknown> | undefined): string | null {
+  const candidate = metadata?.material ?? metadata?.name;
+  return typeof candidate === "string" && candidate.trim() ? candidate : null;
+}
+
 function formatAuditTelegramMessage(entry: AuditEntry): string {
   const lines = [`${RESULT_ICON[entry.result]} SAVE LOGS — ${entry.action}`, `Por: ${entry.actor}`];
   if (entry.resource) lines.push(`Recurso: ${entry.resource}${entry.resourceId ? ` #${entry.resourceId}` : ""}`);
+  const productName = productNameFromMetadata(entry.metadata);
+  if (productName) lines.push(`Produto: ${productName}`);
   if (entry.ip) lines.push(`IP: ${entry.ip}`);
   return lines.join("\n");
 }

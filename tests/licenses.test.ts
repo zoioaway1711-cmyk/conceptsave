@@ -32,6 +32,12 @@ describe("createLicense", () => {
     expect(allColumns).not.toContain(serial);
   });
 
+  it("returns the material's name alongside the id/serial, for audit-log display", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "LIPO", name: "LIPOLESS 2.5MG" });
+    const { materialName } = await createLicense(db as never, materialId);
+    expect(materialName).toBe("LIPOLESS 2.5MG");
+  });
+
   it("retries on a digest collision instead of failing outright", async () => {
     const materialId = seedMaterial(db, { prefixCode: "COLL", name: "Collision Material" });
     const randomValues = vi.spyOn(crypto, "getRandomValues");
@@ -181,6 +187,7 @@ describe("revokeLicense / replaceLicense", () => {
     const replacement = await replaceLicense(db as never, licenseId);
     expect(replacement).not.toBeNull();
     expect(replacement!.serial.startsWith("REPL-")).toBe(true);
+    expect(replacement!.materialName).toBe("Replace Material");
 
     const old = db.raw.prepare("SELECT status FROM licenses WHERE id=?").get(licenseId) as { status: string };
     expect(old.status).toBe("revoked");
