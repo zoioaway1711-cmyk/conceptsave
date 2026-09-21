@@ -3,8 +3,9 @@ import { requirePermission } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit, maskSerial } from "@/lib/audit-log";
 import { getLicense, replaceLicense, resetLicense, revealLicenseSerial, revokeLicense, updateLicense } from "@/lib/licenses";
+import { maybeAlertLicenseRevokeBurst } from "@/lib/alerts";
 import { recordLiveEvent } from "@/lib/live-events";
-import { clientIp } from "@/lib/rate-limit";
+import { clientIp, consumeRateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
 
 function db() {
@@ -64,6 +65,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!revoked) return Response.json({ error: "not_revocable" }, { status: 409 });
     await logAudit(db(), { actor: admin.username, action: "LICENSE_REVOKED", resource: "licenses", resourceId: String(id), result: "success", ip });
     await recordLiveEvent(db(), { type: "LICENSE_REVOKED", severity: "warning", actorAdminId: admin.id, licenseId: id, ip });
+    // Pure counter, not a real limit (1000 is never meant to be hit) — just
+    // tracks how many revokes this admin has done in the last 10 minutes so
+    // maybeAlertLicenseRevokeBurst can fire exactly once at the threshold.
+    const burst = await consumeRateLimit(db(), "license_revoke_burst", admin.id, 1000, 600);
+    await maybeAlertLicenseRevokeBurst(db(), admin.username, ip, burst.count, 5);
     return Response.json({ revoked: true });
   }
 

@@ -119,6 +119,7 @@ export function AuditClient() {
                   <TableHead>Resource</TableHead>
                   <TableHead>Result</TableHead>
                   <TableHead>IP</TableHead>
+                  <TableHead>Device / details</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -136,6 +137,9 @@ export function AuditClient() {
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{record.ip || "—"}</TableCell>
+                    <TableCell className="max-w-[220px] text-xs text-muted-foreground" title={Object.keys(record.metadata || {}).length ? JSON.stringify(record.metadata) : undefined}>
+                      {formatMetadata(record.metadata)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -145,4 +149,21 @@ export function AuditClient() {
       </Card>
     </div>
   );
+}
+
+/**
+ * `device` (when present, e.g. every login/rate-limit entry — see
+ * app/api/admin/session/route.ts) is the one field worth a dedicated,
+ * always-visible summary; everything else in metadata (raw user-agent,
+ * reason, admin id, changed fields…) is still there, just in the cell's
+ * title tooltip (full JSON) rather than cluttering the table by default.
+ */
+function formatMetadata(metadata: Record<string, unknown> | undefined): string {
+  if (!metadata || Object.keys(metadata).length === 0) return "—";
+  if (typeof metadata.device === "string" && metadata.device) return metadata.device;
+  const summary = Object.entries(metadata)
+    .filter(([key]) => key !== "userAgent") // the raw UA string is long and redundant with `device` — still in the tooltip
+    .map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}`)
+    .join(", ");
+  return summary || "—";
 }

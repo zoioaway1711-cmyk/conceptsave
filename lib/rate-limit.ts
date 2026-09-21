@@ -15,7 +15,7 @@ export function clientIp(request: Request) {
   return request.headers.get("cf-connecting-ip") || "unknown";
 }
 
-export type RateLimitResult = { allowed: boolean; retryAfterSeconds: number };
+export type RateLimitResult = { allowed: boolean; retryAfterSeconds: number; count: number };
 
 /**
  * Fixed-window counter stored in D1. Each window mints a fresh row (key
@@ -38,20 +38,20 @@ export async function consumeRateLimit(db: D1Database, scope: string, identifier
       await db.prepare(`DELETE FROM rate_limits WHERE expires_at < ?`).bind(Date.now()).run().catch(() => {});
     }
     const count = row?.count ?? 1;
-    return { allowed: count <= limit, retryAfterSeconds: Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)) };
+    return { allowed: count <= limit, retryAfterSeconds: Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)), count };
   } catch (error) {
     // Fail OPEN, not closed: a missing/broken rate_limits table (e.g. the
     // 0002 migration hasn't been applied yet) must never turn into a hard
     // outage for admin/customer login. This trades away rate limiting
     // during that specific failure, not general security.
     console.error("rate limit check failed, allowing request", error);
-    return { allowed: true, retryAfterSeconds: 0 };
+    return { allowed: true, retryAfterSeconds: 0, count: 0 };
   }
 }
 
 /** Applies several windows (burst + sustained) and fails closed on the tightest one. */
 export async function enforceRateLimits(db: D1Database, scope: string, identifier: string, windows: Array<{ limit: number; windowSeconds: number }>): Promise<RateLimitResult> {
-  let worst: RateLimitResult = { allowed: true, retryAfterSeconds: 0 };
+  let worst: RateLimitResult = { allowed: true, retryAfterSeconds: 0, count: 0 };
   for (const { limit, windowSeconds } of windows) {
     const result = await consumeRateLimit(db, scope, identifier, limit, windowSeconds);
     if (!result.allowed && (worst.allowed || result.retryAfterSeconds > worst.retryAfterSeconds)) worst = result;
