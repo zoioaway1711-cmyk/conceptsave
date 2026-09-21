@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Ban, Eye, EyeOff, Fingerprint, KeyRound, MapPin, MapPinOff, NotebookPen, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Ban, Download, Eye, EyeOff, Fingerprint, KeyRound, MapPin, MapPinOff, NotebookPen, ShieldCheck, User as UserIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { formatRelativeTime } from "@/lib/presence";
 import { RankBadge } from "@/components/clube-save/RankBadge";
 import { LicenseStatusBadge } from "../_components/license-status-badge";
 import { apiFetch, apiPatch, apiPost } from "../_lib/api";
+import { downloadJson } from "../_lib/csv";
 import { formatLocation } from "./format";
 
 type LicenseDetail = { id: number; material: { name: string }; serial: string; status: string; lot: string; createdAt: string; activatedAt: string | null; expiresAt: string | null };
@@ -39,6 +40,7 @@ type ActivityEvent = {
   createdAt: string;
 };
 type AdminNote = { id: number; adminId: string; adminUsername: string; body: string; createdAt: string };
+type ProfileChange = { id: number; adminId: string; adminUsername: string; fields: Record<string, { from: unknown; to: unknown }>; createdAt: string };
 type Inspection = {
   account: { id: string; status: string; presence: string; createdAt: string; lastActivity: string; lastSeenAt: string | null; preferredLanguage: string; rankOverride: number };
   gamification: { points: number; level: number; levelName: string; benefits: unknown[] };
@@ -78,6 +80,7 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState<AdminNote[]>([]);
   const [notesReloadToken, setNotesReloadToken] = useState(0);
+  const [changes, setChanges] = useState<ProfileChange[]>([]);
   // Same contract as the Licenses page's own reveal toggle (see
   // licenses-client.tsx): decrypted server-side and audit-logged on every
   // fetch, kept only in this component's memory, and discarded (not just
@@ -148,6 +151,51 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
     };
   }, [profileId, notesReloadToken]);
 
+  // Keyed off the same reloadToken as the main profile fetch (bumped by
+  // both toggleBlocked() and EditForm's onSaved) so a fresh edit shows up
+  // here immediately, without a separate token to keep in sync.
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!profileId) {
+        setChanges([]);
+        return;
+      }
+      apiFetch<{ changes: ProfileChange[] }>(`/api/admin/users/${encodeURIComponent(profileId)}/changes`).then((result) => {
+        if (cancelled) return;
+        if (result.ok) setChanges(result.data.changes);
+      });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [profileId, reloadToken]);
+
+  // LGPD Art. 9 / GDPR Art. 15 data-portability response: everything this
+  // screen already shows about the person, in one file — not a new query,
+  // just the data already fetched into state. Includes admin notes and the
+  // change history too: both are data *about* this specific individual,
+  // not just internal admin chatter, so they're in scope for an access
+  // request even though they weren't authored by the customer themselves.
+  function exportProfileData() {
+    if (!data) return;
+    downloadJson(`dados-cliente-${data.account.id}-${new Date().toISOString().slice(0, 10)}.json`, {
+      exportedAt: new Date().toISOString(),
+      account: data.account,
+      gamification: data.gamification,
+      consent: data.consent,
+      licenses: data.licenses,
+      device: data.device,
+      location: data.location,
+      geoPermission: data.geoPermission,
+      lastKnownIp: data.lastKnownIp,
+      adminNotes: notes,
+      changeHistory: changes,
+      activity: data.activity,
+    });
+  }
+
   async function toggleBlocked() {
     if (!data) return;
     const nextBlocked = data.account.status !== "blocked";
@@ -214,6 +262,9 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
                     {rankState ? rankState.rank.name.pt : data.gamification.levelName} · Level {data.gamification.level}
                   </Badge>
                 </div>
+                <Button variant="outline" size="sm" onClick={exportProfileData} title="Exporta tudo que está nesta tela em um arquivo — atende pedidos de acesso a dados (LGPD/GDPR)">
+                  <Download className="size-3.5" /> Baixar dados (LGPD)
+                </Button>
               </section>
 
               <section className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/20 p-3 text-center">
@@ -315,6 +366,8 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
                   </div>
                 ) : null}
               </section>
+
+              <ChangeHistorySection changes={changes} />
 
               <NotesSection profileId={data.account.id} notes={notes} onAdded={() => setNotesReloadToken((n) => n + 1)} />
 
@@ -438,6 +491,53 @@ function EditForm({ data, onCancel, onSaved }: { data: Inspection; onCancel: () 
         <Button variant="outline" className="flex-1" onClick={onCancel} disabled={saving}>Cancel</Button>
         <Button className="flex-1" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
       </div>
+    </section>
+  );
+}
+
+const CHANGE_FIELD_LABELS: Record<string, string> = {
+  points: "Points",
+  level: "Level",
+  levelName: "Level name",
+  rankOverride: "Rank override",
+  blocked: "Blocked",
+};
+
+function formatChangeValue(field: string, value: unknown): string {
+  if (field === "blocked") return value ? "Blocked" : "Active";
+  return String(value);
+}
+
+/**
+ * Read-only — there's no "undo" action here on purpose. Reverting a
+ * points/rank change is just editing the profile again with the old
+ * values, which itself becomes a new, equally visible entry; a one-click
+ * "revert" would make it too easy to lose track of which edit was the
+ * real one an admin intended to keep.
+ */
+function ChangeHistorySection({ changes }: { changes: ProfileChange[] }) {
+  if (changes.length === 0) return null;
+  return (
+    <section className="space-y-2">
+      <SectionTitle>Change history</SectionTitle>
+      <ul className="space-y-2">
+        {changes.map((change) => (
+          <li key={change.id} className="rounded-lg border bg-card/60 p-3 text-sm">
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>{change.adminUsername}</span>
+              <span>{formatDate(change.createdAt)}</span>
+            </div>
+            <ul className="mt-1.5 space-y-0.5">
+              {Object.entries(change.fields).map(([field, { from, to }]) => (
+                <li key={field}>
+                  <span className="text-muted-foreground">{CHANGE_FIELD_LABELS[field] ?? field}: </span>
+                  <span className="font-medium">{formatChangeValue(field, from)} → {formatChangeValue(field, to)}</span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

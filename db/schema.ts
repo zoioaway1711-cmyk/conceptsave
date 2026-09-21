@@ -195,6 +195,25 @@ export const adminNotes = sqliteTable("admin_notes", {
   profileIdx: index("idx_admin_notes_profile").on(table.profileId, table.id),
 }));
 
+// Field-level diff every time an admin edits a profile's gamification
+// fields (points/level/rankOverride/blocked) via POST /api/admin/profiles.
+// Separate from `audit_logs`, whose customer_profiles rows key off a
+// masked (last-4) resource id — fine for a general "something happened"
+// trail, but not safe to look up by for a specific profile's own history
+// (two different profile ids can share the same last 4 characters).
+// `changesJson` holds only the fields that actually changed, each as
+// {from, to} — never a full before/after snapshot of the whole row.
+export const adminProfileChanges = sqliteTable("admin_profile_changes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  profileId: text("profile_id").notNull(),
+  adminId: text("admin_id").notNull(),
+  adminUsername: text("admin_username").notNull(),
+  changesJson: text("changes_json").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => ({
+  profileIdx: index("idx_admin_profile_changes_profile").on(table.profileId, table.id),
+}));
+
 // Unified feed powering /admin/live — deliberately separate from
 // `audit_logs` (admin-action trail) and `verification_events` (legacy
 // history): this table's shape is purpose-built for the live feed/security

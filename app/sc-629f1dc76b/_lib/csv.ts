@@ -25,6 +25,16 @@ export function downloadCsv(filename: string, rows: Array<Record<string, unknown
   ];
   // Leading BOM so Excel opens UTF-8 accented characters (ç, ã, é…) correctly.
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  downloadBlob(filename, blob);
+}
+
+/** Used for the LGPD/GDPR "export this customer's data" action — a plain, human-readable JSON dump, not a new API shape to keep in sync elsewhere. */
+export function downloadJson(filename: string, data: unknown) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8;" });
+  downloadBlob(filename, blob);
+}
+
+function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

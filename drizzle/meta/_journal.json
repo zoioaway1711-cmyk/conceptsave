@@ -64,6 +64,13 @@
       "when": 1789885230134,
       "tag": "0008_add_admin_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789949485412,
+      "tag": "0009_fancy_karma",
+      "breakpoints": true
     }
   ]
 }
