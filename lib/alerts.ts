@@ -77,3 +77,16 @@ export async function notifyReturningCustomerActivation(db: D1Database, params: 
   await logAudit(db, { actor: "customer-activity", action: "CUSTOMER_LICENSE_ACTIVATED", resource: "customer_profiles", result: "success", ip: params.ip, metadata: { profileId: params.profileId, material: params.materialName, activeLicenses: params.activeLicenseCount, firstSeen: params.firstSeen }, silent: true });
   await sendTelegramAlert(`✅ SAVE LOGS: cliente (cliente desde ${new Date(params.firstSeen).toLocaleDateString("pt-BR")}) ativou mais um produto: "${params.materialName}". Licenças ativas dele agora: ${params.activeLicenseCount}.`);
 }
+
+/**
+ * Escalation beyond the throttled rate-limit ping above: fires once, at
+ * the exact moment lib/ip-blocks.ts:blockIp() is called for this IP — by
+ * the time a second request from the same IP would reach this code path,
+ * isIpBlocked() already short-circuits it earlier in the route, so there's
+ * no separate throttle needed here the way maybeAlertAdminLoginRateLimited
+ * needs one.
+ */
+export async function notifyIpAutoBlocked(db: D1Database, ip: string, attemptCount: number): Promise<void> {
+  await logAudit(db, { actor: "security-alert", action: "ALERT_IP_AUTO_BLOCKED", result: "failure", ip, metadata: { attemptCount, durationHours: 24 } });
+  await sendTelegramAlert(`🚫 SAVE LOGS: IP ${ip} foi BLOQUEADO automaticamente por 24h após ${attemptCount} tentativas de login admin em 15 minutos. Desbloqueie em Admins → Blocked IPs (ou mande /desbloquear ${ip} aqui no Telegram) se foi engano.`);
+}

@@ -73,3 +73,42 @@ describe("POST /api/admin/session — detailed audit trail for every attempt", (
     expect(metadata.adminId).toMatch(/^adm_/);
   });
 });
+
+describe("POST /api/admin/session — IP auto-block on sustained abuse", () => {
+  it("blocks the IP outright once the sustained 20-in-15min cap is crossed, and every request after that is refused before even touching credentials", async () => {
+    let last!: Response;
+    for (let i = 0; i < 21; i++) {
+      last = await POST(loginRequest({ user: "owner", password: "wrong" }, { ip: "198.51.100.7" }));
+    }
+    // The 21st request is the one that crossed the threshold — it's still
+    // a normal rate-limit response, not the block itself surfacing yet.
+    expect(last.status).toBe(429);
+    expect((await db.raw.prepare("SELECT ip FROM blocked_ips").get()) as { ip: string }).toMatchObject({ ip: "198.51.100.7" });
+
+    // The 22nd request — now genuinely blocked — gets a distinct response
+    // and (critically) never reaches the password check, even with the
+    // CORRECT password.
+    db.raw.prepare("DELETE FROM admin_users").run();
+    env.ADMIN_USER = "owner";
+    env.ADMIN_PASSWORD = "correct horse battery staple";
+    const blocked = await POST(loginRequest({ user: "owner", password: "correct horse battery staple" }, { ip: "198.51.100.7" }));
+    expect(blocked.status).toBe(403);
+    expect(await blocked.json()).toMatchObject({ error: "ip_blocked" });
+    expect((await db.raw.prepare("SELECT COUNT(*) AS c FROM admin_users").get()) as { c: number }).toMatchObject({ c: 0 }); // bootstrap never ran — proves credentials were never even checked
+  });
+
+  it("never blocks an IP that only trips the tighter burst limit (8/60s) without sustained abuse", async () => {
+    for (let i = 0; i < 10; i++) {
+      await POST(loginRequest({ user: "owner", password: "wrong" }, { ip: "198.51.100.8" }));
+    }
+    expect(await db.raw.prepare("SELECT COUNT(*) AS c FROM blocked_ips").get()).toMatchObject({ c: 0 });
+  });
+
+  it("a different IP is completely unaffected by another IP's block", async () => {
+    for (let i = 0; i < 21; i++) {
+      await POST(loginRequest({ user: "owner", password: "wrong" }, { ip: "198.51.100.9" }));
+    }
+    const response = await POST(loginRequest({ user: "owner", password: "wrong" }, { ip: "198.51.100.10" }));
+    expect(response.status).toBe(401); // invalid_credentials, not ip_blocked — this IP has never been seen
+  });
+});

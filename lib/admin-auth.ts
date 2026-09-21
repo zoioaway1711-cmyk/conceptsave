@@ -112,6 +112,19 @@ export async function listAdminSessions(db: D1Database, adminId?: string): Promi
 }
 
 /**
+ * Session ids are long (`ses_<uuid>`), impractical to type in a Telegram
+ * message — the bot shows only the last 8 characters (see
+ * lib/telegram-commands.ts), and this resolves that suffix back to a full
+ * id so /revogar can take the short form. Only matches non-revoked
+ * sessions (nothing useful to do with an already-dead one), and returns
+ * null rather than guessing if the suffix is ambiguous.
+ */
+export async function findActiveSessionIdBySuffix(db: D1Database, suffix: string): Promise<string | null> {
+  const { results } = await db.prepare("SELECT id FROM admin_sessions WHERE revoked_at IS NULL AND id LIKE '%' || ?").bind(suffix).all<{ id: string }>();
+  return results.length === 1 ? results[0].id : null;
+}
+
+/**
  * Revoking is allowed on your own session unconditionally (that's just
  * "sign out this device"), or on ANY admin's session when the caller has
  * admin.admins.manage — the "notebook was stolen, kill it from here"

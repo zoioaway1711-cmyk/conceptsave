@@ -295,3 +295,20 @@ export const liveEvents = sqliteTable("live_events", {
   severityCheck: check("live_events_severity_check", sql`${table.severity} IN ('info','warning','critical')`),
   geoPermissionCheck: check("live_events_geo_permission_check", sql`${table.geoPermission} IN ('','granted','denied','unavailable','unsupported')`),
 }));
+
+// Hard IP blocks for the admin login endpoint — a step beyond the
+// rate-limiting in lib/rate-limit.ts, which only ever slows an attacker
+// down (the window always rolls over). An IP row here is refused outright
+// (see app/api/admin/session/route.ts), checked BEFORE the rate limiter so
+// an already-blocked attacker doesn't keep consuming rate_limits writes.
+// `expiresAt` NULL means indefinite (only ever set that way by an admin's
+// own manual block via the panel/Telegram — the automatic block on
+// sustained brute-force always sets a 24h expiry, never permanent, so a
+// shared/dynamic IP doesn't stay locked out forever on its own).
+export const blockedIps = sqliteTable("blocked_ips", {
+  ip: text("ip").primaryKey(),
+  reason: text("reason").notNull().default(""),
+  blockedBy: text("blocked_by").notNull(),
+  blockedAt: text("blocked_at").notNull(),
+  expiresAt: text("expires_at"),
+});

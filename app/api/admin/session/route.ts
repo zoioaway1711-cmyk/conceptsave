@@ -2,10 +2,20 @@ import { env } from "cloudflare:workers";
 import { ADMIN_SESSION_MAX_AGE_SECONDS, adminConfigured, authenticateAdmin, createAdminCookie, resolveAdmin, revokeAdminSession } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit } from "@/lib/audit-log";
-import { maybeAlertAdminLoginRateLimited, maybeAlertUnrecognizedAdminLogin } from "@/lib/alerts";
+import { maybeAlertAdminLoginRateLimited, maybeAlertUnrecognizedAdminLogin, notifyIpAutoBlocked } from "@/lib/alerts";
+import { blockIp, isIpBlocked } from "@/lib/ip-blocks";
 import { describeDevice, recordLiveEvent } from "@/lib/live-events";
-import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
+import { clientIp, consumeRateLimit, rateLimitResponse, type RateLimitResult } from "@/lib/rate-limit";
 import { z } from "zod";
+
+// Crossing this many attempts within the sustained window (see below)
+// escalates from "slow this IP down" to "block this IP outright for
+// 24h" — see lib/ip-blocks.ts. Deliberately the same number as the
+// sustained window's own rate-limit ceiling: by definition, the first
+// request that gets rejected for exceeding it IS the one that just
+// crossed this threshold.
+const SUSTAINED_LIMIT = 20;
+const SUSTAINED_WINDOW_SECONDS = 900;
 
 export async function GET(request: Request) {
   const admin = await resolveAdmin(request);
@@ -18,12 +28,25 @@ export async function POST(request: Request) {
   const ip = clientIp(request);
   const device = describeDevice(request.headers.get("user-agent"));
   const userAgent = request.headers.get("user-agent") || "";
+
+  // Checked before the rate limiter touches anything, so an IP that's
+  // already blocked (see below) never consumes another rate_limits write
+  // just to get told "no" again.
+  if (await isIpBlocked(db, ip)) {
+    return Response.json({ error: "ip_blocked" }, { status: 403 });
+  }
+
   // Tight burst limit plus a longer sustained cap — both scoped to the
-  // client IP, independent of the username/password guessed.
-  const limit = await enforceRateLimits(db, "admin_login", ip, [
-    { limit: 8, windowSeconds: 60 },
-    { limit: 20, windowSeconds: 900 },
-  ]);
+  // client IP, independent of the username/password guessed. Called
+  // directly (not via enforceRateLimits) so `sustained.count` is visible
+  // here — that's what decides whether this specific attempt is the one
+  // that escalates to a full IP block, not just another rate-limit reply.
+  const burst = await consumeRateLimit(db, "admin_login", ip, 8, 60);
+  const sustained = await consumeRateLimit(db, "admin_login", ip, SUSTAINED_LIMIT, SUSTAINED_WINDOW_SECONDS);
+  let limit: RateLimitResult = { allowed: true, retryAfterSeconds: 0, count: 0 };
+  if (!burst.allowed) limit = burst;
+  if (!sustained.allowed && (limit.allowed || sustained.retryAfterSeconds > limit.retryAfterSeconds)) limit = sustained;
+
   if (!limit.allowed) {
     await recordLiveEvent(db, { type: "RATE_LIMITED", severity: "critical", ip, reason: "admin_login", device });
     // Every blocked attempt gets its own audit row — the Audit Log is the
@@ -36,6 +59,13 @@ export async function POST(request: Request) {
     // condition actually needs.
     await logAudit(db, { actor: "unknown", action: "ADMIN_LOGIN_RATE_LIMITED", result: "failure", ip, metadata: { device, userAgent }, silent: true });
     await maybeAlertAdminLoginRateLimited(db, ip);
+    if (!sustained.allowed) {
+      // Sustained cap just got crossed for the first time this window —
+      // isIpBlocked() above means we'll never reach this branch again for
+      // this IP until the 24h block itself expires.
+      await blockIp(db, ip, { reason: "sustained_admin_login_abuse", blockedBy: "auto", durationHours: 24 });
+      await notifyIpAutoBlocked(db, ip, sustained.count);
+    }
     return rateLimitResponse(limit);
   }
   const body = await readBody(request, z.object({ user: z.string().trim().max(200), password: z.string().max(1000) }));
