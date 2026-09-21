@@ -81,6 +81,7 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
   const [notes, setNotes] = useState<AdminNote[]>([]);
   const [notesReloadToken, setNotesReloadToken] = useState(0);
   const [changes, setChanges] = useState<ProfileChange[]>([]);
+  const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   // Same contract as the Licenses page's own reveal toggle (see
   // licenses-client.tsx): decrypted server-side and audit-logged on every
   // fetch, kept only in this component's memory, and discarded (not just
@@ -219,6 +220,7 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
   const rankState = data ? computeRank({ activeLicenseCount: activeLicenses, rankOverride: data.account.rankOverride }) : null;
 
   return (
+    <>
     <Dialog open={Boolean(profileId)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader className="sr-only">
@@ -360,8 +362,17 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
                 {data.sameDeviceProfiles.length > 0 ? (
                   <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600 dark:text-amber-400">
                     <div className="font-medium">Same device also seen on {data.sameDeviceProfiles.length} other profile{data.sameDeviceProfiles.length > 1 ? "s" : ""}</div>
-                    <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 font-mono">
-                      {data.sameDeviceProfiles.map((profileId) => <span key={profileId}>{profileId}</span>)}
+                    <div className="mt-1.5 space-y-1">
+                      {data.sameDeviceProfiles.map((profileId) => (
+                        <div key={profileId} className="flex items-center justify-between gap-2 font-mono">
+                          <span>{profileId}</span>
+                          {canManageProfiles ? (
+                            <Button variant="outline" size="sm" className="h-6 shrink-0 px-2 text-xs" onClick={() => setMergeTarget(profileId)}>
+                              Merge
+                            </Button>
+                          ) : null}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ) : null}
@@ -436,6 +447,16 @@ export function UserInspector({ profileId, canManageProfiles = false, canRevealS
         ) : null}
       </DialogContent>
     </Dialog>
+    <MergeProfileDialog
+      currentProfileId={data?.account.id ?? null}
+      otherProfileId={mergeTarget}
+      onClose={() => setMergeTarget(null)}
+      onMerged={() => {
+        setMergeTarget(null);
+        onClose();
+      }}
+    />
+    </>
   );
 }
 
@@ -628,4 +649,111 @@ function formatDate(value: string | null | undefined) {
   } catch {
     return value;
   }
+}
+
+type MergeCandidate = { id: string; points: number; level: number; levelName: string; licenseCount: number; createdAt: string };
+
+/**
+ * Opened from the "same device also seen on N other profiles" signal —
+ * the admin picks which of the two ids survives (keeps its id, absorbs
+ * the other's licenses/notes/history — see lib/profile-merge.ts). Not a
+ * silent auto-merge on purpose: picking the wrong survivor is exactly
+ * backwards from what an admin looking at two accounts would expect, and
+ * there's no undo for a merge.
+ */
+function MergeProfileDialog({ currentProfileId, otherProfileId, onClose, onMerged }: { currentProfileId: string | null; otherProfileId: string | null; onClose: () => void; onMerged: () => void }) {
+  const [current, setCurrent] = useState<MergeCandidate | null>(null);
+  const [other, setOther] = useState<MergeCandidate | null>(null);
+  const [survivorId, setSurvivorId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!currentProfileId || !otherProfileId) {
+        setCurrent(null);
+        setOther(null);
+        return;
+      }
+      setLoading(true);
+      setSurvivorId(currentProfileId);
+      Promise.all([
+        apiFetch<Inspection>(`/api/admin/users/${encodeURIComponent(currentProfileId)}`),
+        apiFetch<Inspection>(`/api/admin/users/${encodeURIComponent(otherProfileId)}`),
+      ]).then(([a, b]) => {
+        if (cancelled) return;
+        setCurrent(a.ok ? { id: currentProfileId, points: a.data.gamification.points, level: a.data.gamification.level, levelName: a.data.gamification.levelName, licenseCount: a.data.licenses.length, createdAt: a.data.account.createdAt } : null);
+        setOther(b.ok ? { id: otherProfileId, points: b.data.gamification.points, level: b.data.gamification.level, levelName: b.data.gamification.levelName, licenseCount: b.data.licenses.length, createdAt: b.data.account.createdAt } : null);
+        setLoading(false);
+      });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [currentProfileId, otherProfileId]);
+
+  async function confirmMerge() {
+    if (!currentProfileId || !otherProfileId || !survivorId) return;
+    const loserId = survivorId === currentProfileId ? otherProfileId : currentProfileId;
+    setMerging(true);
+    const result = await apiPost<{ profile: { points: number; level: number } }>("/api/admin/profiles/merge", { survivorId, loserId });
+    setMerging(false);
+    if (!result.ok) {
+      toast.error("Could not merge profiles", { description: result.error });
+      return;
+    }
+    toast.success(`Profiles merged — ${result.data.profile.points} points, level ${result.data.profile.level}. Reopen ${survivorId} to see the combined record.`);
+    onMerged();
+  }
+
+  const open = Boolean(currentProfileId && otherProfileId);
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Merge profiles</DialogTitle>
+          <DialogDescription>Pick which profile survives. The other is absorbed into it — licenses, notes and history all move over, and its old login cookie keeps working, just pointed at the survivor. This can&apos;t be undone.</DialogDescription>
+        </DialogHeader>
+        {loading || !current || !other ? (
+          <div className="flex items-center justify-center py-10"><Spinner className="size-6" /></div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              {[current, other].map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() => setSurvivorId(candidate.id)}
+                  className={cn(
+                    "rounded-lg border p-3 text-left text-sm transition",
+                    survivorId === candidate.id ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:bg-muted/40",
+                  )}
+                >
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <Badge variant={survivorId === candidate.id ? "default" : "outline"}>{survivorId === candidate.id ? "Survivor" : "Absorbed"}</Badge>
+                  </div>
+                  <div className="truncate font-mono text-xs text-muted-foreground">{candidate.id}</div>
+                  <dl className="mt-2 space-y-0.5 text-xs">
+                    <div><dt className="inline text-muted-foreground">Points: </dt><dd className="inline font-medium">{candidate.points}</dd></div>
+                    <div><dt className="inline text-muted-foreground">Level: </dt><dd className="inline font-medium">{candidate.levelName} ({candidate.level})</dd></div>
+                    <div><dt className="inline text-muted-foreground">Licenses: </dt><dd className="inline font-medium">{candidate.licenseCount}</dd></div>
+                    <div><dt className="inline text-muted-foreground">First seen: </dt><dd className="inline font-medium">{formatDate(candidate.createdAt)}</dd></div>
+                  </dl>
+                </button>
+              ))}
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+              After merging: <span className="font-medium text-foreground">{current.points + other.points} points</span>, level <span className="font-medium text-foreground">{Math.max(current.level, other.level)}</span>, {current.licenseCount + other.licenseCount} total licenses — all under the survivor above.
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={merging}>Cancel</Button>
+          <Button onClick={() => void confirmMerge()} disabled={merging || loading || !current || !other}>{merging ? "Merging…" : "Merge profiles"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

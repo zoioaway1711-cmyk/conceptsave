@@ -1,6 +1,6 @@
 import { isSameOrigin } from "@/lib/api-validation";
 import { customerId } from "@/lib/customer-auth";
-import { database } from "@/lib/customer-profile";
+import { database, resolveMergedProfileId } from "@/lib/customer-profile";
 import { touchPresence } from "@/lib/presence";
 import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -12,8 +12,9 @@ import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit
  */
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
-  const profileId = await customerId(request);
-  if (!profileId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const rawId = await customerId(request);
+  if (!rawId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const profileId = await resolveMergedProfileId(rawId);
   const db = database();
   const limit = await enforceRateLimits(db, "presence_heartbeat", `${clientIp(request)}:${profileId}`, [{ limit: 6, windowSeconds: 60 }]);
   if (!limit.allowed) return rateLimitResponse(limit);

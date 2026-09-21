@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { isSameOrigin, readBody, sessionLoginSchema } from "@/lib/api-validation";
 import { CUSTOMER_SESSION_MAX_AGE_SECONDS, customerCookie, customerId } from "@/lib/customer-auth";
-import { database, getProfile, getProfileWithLicenses } from "@/lib/customer-profile";
+import { database, getProfile, getProfileWithLicenses, resolveMergedProfileId } from "@/lib/customer-profile";
 import { claimLicense, findLicenseByInput, effectiveStatus, recalculatePoints } from "@/lib/licenses";
 import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, recordLiveEvent } from "@/lib/live-events";
 import { touchPresence } from "@/lib/presence";
@@ -105,7 +105,8 @@ export async function POST(request: Request) {
 }
 export async function DELETE(request: Request) {
   const db = database();
-  const profileId = await customerId(request);
+  const rawId = await customerId(request);
+  const profileId = rawId ? await resolveMergedProfileId(rawId) : null;
   if (profileId) await recordLiveEvent(db, { type: "USER_LOGOUT", actorProfileId: profileId, ip: clientIp(request) });
   return Response.json({ authenticated: false }, { headers: { "set-cookie": "vf_customer=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0", "cache-control": "no-store" } });
 }

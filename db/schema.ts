@@ -14,6 +14,18 @@ export const customerProfiles = sqliteTable("customer_profiles", {
   consentJson: text("consent_json").notNull().default("{}"),
   rankOverride: integer("rank_override").notNull().default(0),
   blocked: integer("blocked", { mode: "boolean" }).notNull().default(false),
+  // Set when an admin merges this profile into another (see
+  // lib/profile-merge.ts). The row is kept, never deleted — its licenses,
+  // notes, change history and live_events are all reassigned to the
+  // target — specifically so a customer who still has THIS profile's old
+  // session cookie on some device doesn't get permanently locked out:
+  // every customer-facing route resolves the cookie's id through this
+  // column before using it, so that device transparently lands on the
+  // merged (target) account instead of a dead end. There is no "forgot
+  // password" flow and serials are single-use, so losing that cookie
+  // would otherwise be unrecoverable.
+  mergedInto: text("merged_into"),
+  mergedAt: text("merged_at"),
 }, (table) => ({
   pointsCheck: check("customer_profiles_points_check", sql`${table.points} >= 0`),
   levelCheck: check("customer_profiles_level_check", sql`${table.level} BETWEEN 1 AND 5`),

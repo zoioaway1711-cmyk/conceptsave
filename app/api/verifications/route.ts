@@ -1,6 +1,6 @@
 import { isSameOrigin, licenseCheckSchema, readBody } from "@/lib/api-validation";
 import { customerId } from "@/lib/customer-auth";
-import { database, getProfile, getProfileWithLicenses } from "@/lib/customer-profile";
+import { database, getProfile, getProfileWithLicenses, resolveMergedProfileId } from "@/lib/customer-profile";
 import { claimLicense, effectiveStatus, findLicenseByInput, recalculatePoints } from "@/lib/licenses";
 import { getMaterial } from "@/lib/materials";
 import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, recordLiveEvent } from "@/lib/live-events";
@@ -9,8 +9,9 @@ import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
-  const profileId = await customerId(request);
-  if (!profileId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const rawId = await customerId(request);
+  if (!rawId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const profileId = await resolveMergedProfileId(rawId);
   const db = database();
   const limit = await enforceRateLimits(db, "verification_submit", `${clientIp(request)}:${profileId}`, [
     { limit: 20, windowSeconds: 60 },
@@ -21,7 +22,12 @@ export async function POST(request: Request) {
   }
   const body = await readBody(request, licenseCheckSchema);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
-  if (body.profileId !== "anonymous" && body.profileId !== profileId) return Response.json({ error: "forbidden" }, { status: 403 });
+  // `rawId` (the cookie's own, possibly pre-merge id) is accepted here
+  // too — a device whose profile was since merged into another still
+  // sends its old cached client-side id for a request or two after the
+  // merge, and self-heals to the new one from this response's `profile.id`
+  // the moment it succeeds instead of getting stuck on a permanent 403.
+  if (body.profileId !== "anonymous" && body.profileId !== profileId && body.profileId !== rawId) return Response.json({ error: "forbidden" }, { status: 403 });
   const profile = await getProfile(profileId);
   if (!profile || profile.blocked) return Response.json({ error: "profile_blocked" }, { status: 403 });
 

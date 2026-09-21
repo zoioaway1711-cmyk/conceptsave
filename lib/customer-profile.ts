@@ -23,3 +23,26 @@ export async function getProfileWithLicenses(id: string) {
   if (!profile) return null;
   return { ...profile, licenses: await listLicensesForOwner(database(), id) };
 }
+
+/**
+ * Every customer-facing route calls this on the raw id it gets back from
+ * customerId(request) (cookie signature check only, no DB access by
+ * design — see lib/customer-auth.ts) before using it for anything. If an
+ * admin merged that profile into another one (lib/profile-merge.ts), this
+ * follows `merged_into` to the still-active target so a customer whose
+ * device still holds the OLD profile's cookie keeps working transparently
+ * instead of hitting a dead profile id — there's no other way back in
+ * once a serial's been claimed (single-use) and there's no password/
+ * reset flow. Looping (capped) instead of a single hop only as a
+ * defensive backstop; mergeProfiles() itself never creates a chain longer
+ * than one hop.
+ */
+export async function resolveMergedProfileId(id: string): Promise<string> {
+  let current = id;
+  for (let i = 0; i < 5; i++) {
+    const row = await database().prepare("SELECT merged_into AS mergedInto FROM customer_profiles WHERE id=?").bind(current).first<{ mergedInto: string | null }>();
+    if (!row?.mergedInto) return current;
+    current = row.mergedInto;
+  }
+  return current;
+}

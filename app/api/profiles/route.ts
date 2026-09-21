@@ -1,14 +1,16 @@
 import { isSameOrigin, profileSchema, readBody } from "@/lib/api-validation";
 import { customerId } from "@/lib/customer-auth";
-import { database, getProfile, getProfileWithLicenses } from "@/lib/customer-profile";
+import { database, getProfile, getProfileWithLicenses, resolveMergedProfileId } from "@/lib/customer-profile";
 import { countActiveLicensesForOwner } from "@/lib/licenses";
 import { touchPresence } from "@/lib/presence";
 
 export async function GET(request: Request) {
-  const id = await customerId(request);
-  if (!id) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const rawId = await customerId(request);
+  if (!rawId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const id = await resolveMergedProfileId(rawId);
   const requested = new URL(request.url).searchParams.get("id");
-  if (requested && requested !== id) return Response.json({ error: "forbidden" }, { status: 403 });
+  // Accepts the pre-merge rawId too — see verifications/route.ts's identical comment.
+  if (requested && requested !== id && requested !== rawId) return Response.json({ error: "forbidden" }, { status: 403 });
   const profile = await getProfile(id);
   if (profile?.blocked) return Response.json({ error: "profile_blocked" }, { status: 403 });
   await touchPresence(database(), id);
@@ -16,11 +18,12 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
-  const id = await customerId(request);
-  if (!id) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const rawId = await customerId(request);
+  if (!rawId) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const id = await resolveMergedProfileId(rawId);
   const body = await readBody(request, profileSchema);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
-  if (body.id !== id) return Response.json({ error: "forbidden" }, { status: 403 });
+  if (body.id !== id && body.id !== rawId) return Response.json({ error: "forbidden" }, { status: 403 });
   const profile = await getProfile(id);
   if (!profile || profile.blocked) return Response.json({ error: "profile_blocked" }, { status: 403 });
   const db = database();

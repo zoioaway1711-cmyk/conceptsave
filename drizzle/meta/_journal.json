@@ -71,6 +71,13 @@
       "when": 1789949485412,
       "tag": "0009_fancy_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789950411917,
+      "tag": "0010_bright_mysterio",
+      "breakpoints": true
     }
   ]
 }
