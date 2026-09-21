@@ -21,7 +21,7 @@ export async function maybeAlertAdminLoginRateLimited(db: D1Database, ip: string
   // about this attack" is answerable from the Audit Log alone even
   // without Telegram configured or reachable.
   await logAudit(db, { actor: "security-alert", action: "ALERT_ADMIN_LOGIN_RATE_LIMITED", result: "failure", ip, metadata: { channel: "telegram" } });
-  await sendTelegramAlert(`🚨 VerificaFarma: múltiplas tentativas de login admin bloqueadas (IP ${ip}). Se não foi você, considere revisar as sessões ativas.`);
+  await sendTelegramAlert(`🚨 SAVE LOGS: múltiplas tentativas de login admin bloqueadas (IP ${ip}). Se não foi você, considere revisar as sessões ativas.`);
 }
 
 /**
@@ -35,7 +35,7 @@ export async function maybeAlertUnrecognizedAdminLogin(db: D1Database, adminId: 
   const seenBefore = await db.prepare("SELECT 1 FROM admin_sessions WHERE admin_id=? AND ip=? LIMIT 1").bind(adminId, ip).first();
   if (seenBefore) return;
   await logAudit(db, { actor: username, action: "ALERT_ADMIN_LOGIN_NEW_IP", result: "failure", ip, metadata: { device, channel: "telegram" } });
-  await sendTelegramAlert(`⚠️ VerificaFarma: login do admin "${username}" de um endereço IP novo (${ip}${device ? `, ${device}` : ""}). Se não foi você, revogue essa sessão em Admins → Sessions.`);
+  await sendTelegramAlert(`⚠️ SAVE LOGS: login do admin "${username}" de um endereço IP novo (${ip}${device ? `, ${device}` : ""}). Se não foi você, revogue essa sessão em Admins → Sessions.`);
 }
 
 /**
@@ -49,7 +49,7 @@ export async function maybeAlertUnrecognizedAdminLogin(db: D1Database, adminId: 
 export async function maybeAlertLicenseRevokeBurst(db: D1Database, adminUsername: string, ip: string, count: number, threshold: number): Promise<void> {
   if (count !== threshold) return;
   await logAudit(db, { actor: adminUsername, action: "ALERT_LICENSE_REVOKE_BURST", result: "failure", ip, metadata: { count, channel: "telegram" } });
-  await sendTelegramAlert(`⚠️ VerificaFarma: admin "${adminUsername}" revogou ${count} licenças em poucos minutos. Confirme se é uma ação esperada (ex: substituição em massa) em Audit Log.`);
+  await sendTelegramAlert(`⚠️ SAVE LOGS: admin "${adminUsername}" revogou ${count} licenças em poucos minutos. Confirme se é uma ação esperada (ex: substituição em massa) em Audit Log.`);
 }
 
 /**
@@ -69,11 +69,11 @@ export async function notifyNewCustomerFirstAccess(db: D1Database, params: { pro
   // the custom message right below would go out TWICE: once here, once
   // generic. This entry still writes to the Audit Log exactly as normal.
   await logAudit(db, { actor: "customer-activity", action: "CUSTOMER_FIRST_ACCESS", resource: "customer_profiles", result: "success", ip: params.ip, metadata: { profileId: params.profileId, material: params.materialName, activeLicenses: params.activeLicenseCount, firstSeen: params.firstSeen }, silent: true });
-  await sendTelegramAlert(`🆕 VerificaFarma: novo cliente ativou "${params.materialName}" pela primeira vez (primeiro acesso em ${new Date(params.firstSeen).toLocaleString("pt-BR")}). Licenças ativas dele agora: ${params.activeLicenseCount}.`);
+  await sendTelegramAlert(`🆕 SAVE LOGS: novo cliente ativou "${params.materialName}" pela primeira vez (primeiro acesso em ${new Date(params.firstSeen).toLocaleString("pt-BR")}). Licenças ativas dele agora: ${params.activeLicenseCount}.`);
 }
 
 export async function notifyReturningCustomerActivation(db: D1Database, params: { profileId: string; materialName: string; activeLicenseCount: number; firstSeen: string; ip: string }): Promise<void> {
   // silent: true — same reasoning as notifyNewCustomerFirstAccess above.
   await logAudit(db, { actor: "customer-activity", action: "CUSTOMER_LICENSE_ACTIVATED", resource: "customer_profiles", result: "success", ip: params.ip, metadata: { profileId: params.profileId, material: params.materialName, activeLicenses: params.activeLicenseCount, firstSeen: params.firstSeen }, silent: true });
-  await sendTelegramAlert(`✅ VerificaFarma: cliente (cliente desde ${new Date(params.firstSeen).toLocaleDateString("pt-BR")}) ativou mais um produto: "${params.materialName}". Licenças ativas dele agora: ${params.activeLicenseCount}.`);
+  await sendTelegramAlert(`✅ SAVE LOGS: cliente (cliente desde ${new Date(params.firstSeen).toLocaleDateString("pt-BR")}) ativou mais um produto: "${params.materialName}". Licenças ativas dele agora: ${params.activeLicenseCount}.`);
 }

@@ -36,7 +36,7 @@ function isAlreadyAlerted(action: string): boolean {
 const RESULT_ICON: Record<AuditEntry["result"], string> = { success: "✅", failure: "❌" };
 
 function formatAuditTelegramMessage(entry: AuditEntry): string {
-  const lines = [`${RESULT_ICON[entry.result]} VerificaFarma — ${entry.action}`, `Por: ${entry.actor}`];
+  const lines = [`${RESULT_ICON[entry.result]} SAVE LOGS — ${entry.action}`, `Por: ${entry.actor}`];
   if (entry.resource) lines.push(`Recurso: ${entry.resource}${entry.resourceId ? ` #${entry.resourceId}` : ""}`);
   if (entry.ip) lines.push(`IP: ${entry.ip}`);
   return lines.join("\n");
