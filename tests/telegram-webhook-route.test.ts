@@ -60,6 +60,17 @@ describe("POST /api/telegram/webhook", () => {
     expect(text).toContain("Resumo do painel");
   });
 
+  it("passes the message id through so /limpar knows where to start deleting", async () => {
+    const response = await POST(webhookRequest({ message: { chat: { id: 8976669233 }, message_id: 777, text: "/limpar 3" } }));
+    expect(response.status).toBe(200);
+    // Two Telegram calls: the bulk delete, then the confirmation reply.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const deleteCall = fetchMock.mock.calls.find((c) => (c[0] as string).includes("/deleteMessages"));
+    expect(deleteCall).toBeDefined();
+    const body = JSON.parse(deleteCall![1].body) as { message_ids: number[] };
+    expect(body.message_ids).toEqual([777, 776, 775]);
+  });
+
   it("a malformed body never throws — responds ok and sends nothing", async () => {
     const response = await POST(new Request("https://verificafarma.example/api/telegram/webhook", {
       method: "POST",

@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const secret = request.headers.get("x-telegram-bot-api-secret-token");
   if (secret !== TELEGRAM_WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
 
-  const update = await request.json().catch(() => null) as { message?: { chat?: { id?: number | string }; text?: string } } | null;
+  const update = await request.json().catch(() => null) as { message?: { chat?: { id?: number | string }; message_id?: number; text?: string } } | null;
   const message = update?.message;
   const chatId = message?.chat?.id?.toString();
   const text = message?.text?.trim();
@@ -40,7 +40,8 @@ export async function POST(request: Request) {
     return new Response("ok");
   }
 
-  const reply = await handleTelegramCommand(DB, text);
+  const messageId = message?.message_id;
+  const reply = await handleTelegramCommand(DB, text, messageId ? { chatId, messageId } : undefined);
   await sendTelegramAlert(reply);
   return new Response("ok");
 }

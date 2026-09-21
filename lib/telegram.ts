@@ -30,3 +30,25 @@ export async function sendTelegramAlert(message: string): Promise<void> {
     // Never let a Telegram outage affect the admin action that triggered this.
   }
 }
+
+/**
+ * Best-effort bulk delete for the /limpar command. Telegram's own
+ * limitations apply (max 100 ids per call, nothing older than 48h can be
+ * deleted, service messages are skipped) — this never throws, it just
+ * deletes what it can.
+ */
+export async function deleteTelegramMessages(chatId: string, messageIds: number[]): Promise<boolean> {
+  const { TELEGRAM_BOT_TOKEN: token } = runtime();
+  if (!token || messageIds.length === 0) return false;
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/deleteMessages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_ids: messageIds }),
+    });
+    const data = (await response.json()) as { ok?: boolean };
+    return Boolean(data.ok);
+  } catch {
+    return false;
+  }
+}

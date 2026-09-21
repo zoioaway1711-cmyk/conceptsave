@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeD1 } from "./helpers/fake-d1";
 import { applyMigrations } from "./helpers/apply-migrations";
 
@@ -10,11 +10,19 @@ const { createAdminCookie } = await import("../lib/admin-auth");
 const { blockIp } = await import("../lib/ip-blocks");
 
 let db: ReturnType<typeof createFakeD1>;
+let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   db = createFakeD1();
   applyMigrations(db);
   env.DB = db;
+  env.TELEGRAM_BOT_TOKEN = "123:ABC";
+  fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("handleTelegramCommand — /ajuda", () => {
@@ -113,5 +121,46 @@ describe("handleTelegramCommand — /resumo", () => {
     db.raw.prepare("INSERT INTO customer_profiles (id, first_seen, last_active, blocked) VALUES ('cus_2', '2026-01-01', '2026-01-01', 1)").run();
     const reply = await handleTelegramCommand(db as never, "/resumo");
     expect(reply).toContain("Clientes: 2 (1 bloqueados)");
+  });
+});
+
+describe("handleTelegramCommand — /limpar", () => {
+  it("without chat context, explains it can't clear instead of crashing", async () => {
+    const reply = await handleTelegramCommand(db as never, "/limpar");
+    expect(reply).toContain("Não consigo limpar");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes the default 50-message range ending at this message's id, in one batch call", async () => {
+    const reply = await handleTelegramCommand(db as never, "/limpar", { chatId: "999", messageId: 500 });
+    expect(reply).toContain("50 mensagens");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body) as { chat_id: string; message_ids: number[] };
+    expect(body.chat_id).toBe("999");
+    expect(body.message_ids).toHaveLength(50);
+    expect(body.message_ids[0]).toBe(500);
+    expect(body.message_ids[49]).toBe(451);
+  });
+
+  it("honors a custom count, capped at 200, splitting into batches of 100", async () => {
+    const reply = await handleTelegramCommand(db as never, "/limpar 250", { chatId: "999", messageId: 1000 });
+    expect(reply).toContain("200 mensagens");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstBatch = JSON.parse(fetchMock.mock.calls[0][1].body).message_ids as number[];
+    const secondBatch = JSON.parse(fetchMock.mock.calls[1][1].body).message_ids as number[];
+    expect(firstBatch).toHaveLength(100);
+    expect(secondBatch).toHaveLength(100);
+  });
+
+  it("never deletes message id 0 or below, even near the start of the chat", async () => {
+    const reply = await handleTelegramCommand(db as never, "/limpar", { chatId: "999", messageId: 5 });
+    expect(reply).toContain("5 mensagens");
+    const ids = JSON.parse(fetchMock.mock.calls[0][1].body).message_ids as number[];
+    expect(ids).toEqual([5, 4, 3, 2, 1]);
+  });
+
+  it("ignores a garbage argument and falls back to the default count", async () => {
+    const reply = await handleTelegramCommand(db as never, "/limpar abc", { chatId: "999", messageId: 500 });
+    expect(reply).toContain("50 mensagens");
   });
 });
