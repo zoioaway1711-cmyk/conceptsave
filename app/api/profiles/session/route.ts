@@ -2,8 +2,10 @@ import { env } from "cloudflare:workers";
 import { isSameOrigin, readBody, sessionLoginSchema } from "@/lib/api-validation";
 import { CUSTOMER_SESSION_MAX_AGE_SECONDS, customerCookie, customerId } from "@/lib/customer-auth";
 import { database, getProfile, getProfileWithLicenses, resolveMergedProfileId } from "@/lib/customer-profile";
-import { claimLicense, findLicenseByInput, effectiveStatus, recalculatePoints } from "@/lib/licenses";
+import { claimLicense, countActiveLicensesForOwner, findLicenseByInput, effectiveStatus, recalculatePoints } from "@/lib/licenses";
 import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, recordLiveEvent } from "@/lib/live-events";
+import { getMaterial } from "@/lib/materials";
+import { notifyNewCustomerFirstAccess } from "@/lib/alerts";
 import { touchPresence } from "@/lib/presence";
 import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -81,6 +83,9 @@ export async function POST(request: Request) {
     profileId = candidateId;
     await recalculatePoints(db, profileId, now);
     await recordLiveEvent(db, { type: "LICENSE_ACTIVATED", actorProfileId: profileId, materialId: license.materialId, licenseId: license.id, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
+    const material = await getMaterial(db, license.materialId);
+    const activeLicenseCount = await countActiveLicensesForOwner(db, profileId);
+    await notifyNewCustomerFirstAccess(db, { profileId, materialName: material?.name ?? `material #${license.materialId}`, activeLicenseCount, firstSeen: now, ip });
   } else {
     // Lost a narrow race against a duplicate submit of this same request
     // (e.g. a double-tap) — re-resolve from the DB rather than trust our

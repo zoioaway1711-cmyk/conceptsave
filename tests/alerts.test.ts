@@ -5,7 +5,7 @@ import { applyMigrations } from "./helpers/apply-migrations";
 const env: Record<string, unknown> = {};
 vi.mock("cloudflare:workers", () => ({ env }));
 
-const { sendTelegramAlert, maybeAlertAdminLoginRateLimited, maybeAlertUnrecognizedAdminLogin, maybeAlertLicenseRevokeBurst } = await import("../lib/alerts");
+const { sendTelegramAlert, maybeAlertAdminLoginRateLimited, maybeAlertUnrecognizedAdminLogin, maybeAlertLicenseRevokeBurst, notifyNewCustomerFirstAccess, notifyReturningCustomerActivation } = await import("../lib/alerts");
 
 let db: ReturnType<typeof createFakeD1>;
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -117,5 +117,37 @@ describe("maybeAlertLicenseRevokeBurst", () => {
     await maybeAlertLicenseRevokeBurst(db as never, "owner", "1.2.3.4", 12, 5);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(auditActions().filter((a) => a === "ALERT_LICENSE_REVOKE_BURST")).toHaveLength(1);
+  });
+});
+
+describe("customer activity notifications — must never double-send", () => {
+  // logAudit() itself now auto-forwards every non-ALERT_, non-silent entry
+  // to Telegram (see lib/audit-log.ts). These two functions ALSO send
+  // their own custom-worded message, so they must mark their own
+  // logAudit() call `silent: true` — this test is exactly what would
+  // catch it regressing back to a double-send if that flag were ever
+  // accidentally dropped.
+  beforeEach(() => {
+    env.TELEGRAM_BOT_TOKEN = "123:ABC";
+    env.TELEGRAM_CHAT_ID = "999";
+  });
+
+  it("notifyNewCustomerFirstAccess sends exactly one Telegram message, not two", async () => {
+    await notifyNewCustomerFirstAccess(db as never, { profileId: "cus_1", materialName: "Testenat", activeLicenseCount: 1, firstSeen: "2026-01-01T00:00:00.000Z", ip: "1.2.3.4" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).toContain("Testenat");
+    expect(text).toContain("primeira vez");
+    const row = db.raw.prepare("SELECT action FROM audit_logs WHERE action='CUSTOMER_FIRST_ACCESS'").get() as { action: string } | undefined;
+    expect(row).toBeDefined();
+  });
+
+  it("notifyReturningCustomerActivation sends exactly one Telegram message, not two", async () => {
+    await notifyReturningCustomerActivation(db as never, { profileId: "cus_1", materialName: "Melatonina", activeLicenseCount: 3, firstSeen: "2026-01-01T00:00:00.000Z", ip: "1.2.3.4" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).toContain("Melatonina");
+    const row = db.raw.prepare("SELECT action FROM audit_logs WHERE action='CUSTOMER_LICENSE_ACTIVATED'").get() as { action: string } | undefined;
+    expect(row).toBeDefined();
   });
 });

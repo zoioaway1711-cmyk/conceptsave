@@ -1,33 +1,8 @@
-import { env } from "cloudflare:workers";
 import { logAudit } from "./audit-log";
 import { enforceRateLimits } from "./rate-limit";
+import { sendTelegramAlert } from "./telegram";
 
-function runtime() {
-  return env as unknown as { TELEGRAM_BOT_TOKEN?: string; TELEGRAM_CHAT_ID?: string };
-}
-
-/**
- * Best-effort push notification for events an admin should know about
- * without having the Live Intelligence feed open — never allowed to throw
- * or slow down the request that triggered it (same contract as
- * lib/audit-log.ts's logAudit). A no-op, not an error, when the two
- * TELEGRAM_* secrets haven't been configured yet, so this is safe to call
- * unconditionally from anywhere without an adminConfigured()-style guard
- * at every call site.
- */
-export async function sendTelegramAlert(message: string): Promise<void> {
-  const { TELEGRAM_BOT_TOKEN: token, TELEGRAM_CHAT_ID: chatId } = runtime();
-  if (!token || !chatId) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: message }),
-    });
-  } catch {
-    // Never let a Telegram outage affect the admin action that triggered this.
-  }
-}
+export { sendTelegramAlert };
 
 /**
  * Fires at most once per 15 minutes per IP, regardless of how many times
@@ -75,4 +50,30 @@ export async function maybeAlertLicenseRevokeBurst(db: D1Database, adminUsername
   if (count !== threshold) return;
   await logAudit(db, { actor: adminUsername, action: "ALERT_LICENSE_REVOKE_BURST", result: "failure", ip, metadata: { count, channel: "telegram" } });
   await sendTelegramAlert(`⚠️ VerificaFarma: admin "${adminUsername}" revogou ${count} licenças em poucos minutos. Confirme se é uma ação esperada (ex: substituição em massa) em Audit Log.`);
+}
+
+/**
+ * Customer activity notifications — a different category from the three
+ * security alerts above (those are throttled/threshold-gated because
+ * they're about detecting abuse; these are one-per-real-event on purpose,
+ * since a real product activation is exactly the business event the
+ * whole app exists to produce, not noise to suppress). Both branch off
+ * the same underlying fact (a license just got claimed) but are worded
+ * differently depending on whether the claim also minted a brand-new
+ * profile (this customer's first-ever access) or added to an existing
+ * one (a returning customer verifying another product).
+ */
+export async function notifyNewCustomerFirstAccess(db: D1Database, params: { profileId: string; materialName: string; activeLicenseCount: number; firstSeen: string; ip: string }): Promise<void> {
+  // silent: true — logAudit() itself now forwards every non-ALERT_ entry to
+  // Telegram automatically (see lib/audit-log.ts), so without this flag
+  // the custom message right below would go out TWICE: once here, once
+  // generic. This entry still writes to the Audit Log exactly as normal.
+  await logAudit(db, { actor: "customer-activity", action: "CUSTOMER_FIRST_ACCESS", resource: "customer_profiles", result: "success", ip: params.ip, metadata: { profileId: params.profileId, material: params.materialName, activeLicenses: params.activeLicenseCount, firstSeen: params.firstSeen }, silent: true });
+  await sendTelegramAlert(`🆕 VerificaFarma: novo cliente ativou "${params.materialName}" pela primeira vez (primeiro acesso em ${new Date(params.firstSeen).toLocaleString("pt-BR")}). Licenças ativas dele agora: ${params.activeLicenseCount}.`);
+}
+
+export async function notifyReturningCustomerActivation(db: D1Database, params: { profileId: string; materialName: string; activeLicenseCount: number; firstSeen: string; ip: string }): Promise<void> {
+  // silent: true — same reasoning as notifyNewCustomerFirstAccess above.
+  await logAudit(db, { actor: "customer-activity", action: "CUSTOMER_LICENSE_ACTIVATED", resource: "customer_profiles", result: "success", ip: params.ip, metadata: { profileId: params.profileId, material: params.materialName, activeLicenses: params.activeLicenseCount, firstSeen: params.firstSeen }, silent: true });
+  await sendTelegramAlert(`✅ VerificaFarma: cliente (cliente desde ${new Date(params.firstSeen).toLocaleDateString("pt-BR")}) ativou mais um produto: "${params.materialName}". Licenças ativas dele agora: ${params.activeLicenseCount}.`);
 }

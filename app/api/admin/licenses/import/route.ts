@@ -61,14 +61,14 @@ export async function POST(request: Request) {
         } else {
           const prefixCode = serial.split("-")[0]?.slice(0, 10) || "SAVEC";
           const material = await createMaterial(database, { name: row.product, prefixCode, maker: body.maker, brand: body.brand });
-          await logAudit(database, { actor: admin.username, action: "MATERIAL_CREATED", resource: "materials", resourceId: String(material.id), result: "success", ip, metadata: { name: material.name, prefixCode: material.prefixCode, source: "bulk_import" } });
+          await logAudit(database, { actor: admin.username, action: "MATERIAL_CREATED", resource: "materials", resourceId: String(material.id), result: "success", ip, metadata: { name: material.name, prefixCode: material.prefixCode, source: "bulk_import" }, silent: true });
           materialId = material.id;
         }
         materialCache.set(slug, materialId);
       }
 
       const license = await importLicense(database, materialId, serial, { lot: row.lot, expiresAt: row.expiresAt });
-      await logAudit(database, { actor: admin.username, action: "LICENSE_CREATED", resource: "licenses", resourceId: String(license.id), result: "success", ip, metadata: { serial: maskSerial(license.serial), source: "bulk_import" } });
+      await logAudit(database, { actor: admin.username, action: "LICENSE_CREATED", resource: "licenses", resourceId: String(license.id), result: "success", ip, metadata: { serial: maskSerial(license.serial), source: "bulk_import" }, silent: true });
       await recordLiveEvent(database, { type: "LICENSE_CREATED", actorAdminId: admin.id, materialId, licenseId: license.id, ip });
       results.push({ index, status: "created", product: row.product, materialId, licenseId: license.id, serial: license.serial });
       created++;

@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { maskSerial } from "../lib/audit-log";
+import { describe, expect, it, vi } from "vitest";
+
+// audit-log.ts now forwards entries to lib/telegram.ts (which reads
+// `cloudflare:workers`'s `env` for the bot token) — this file only tests
+// the pure maskSerial() helper, but the module-level import still needs
+// something to resolve against.
+vi.mock("cloudflare:workers", () => ({ env: {} }));
+
+const { maskSerial } = await import("../lib/audit-log");
 
 describe("maskSerial", () => {
   it("masks every digit except the last four, for 5/6/8-digit serials", () => {

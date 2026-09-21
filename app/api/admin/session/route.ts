@@ -26,11 +26,15 @@ export async function POST(request: Request) {
   ]);
   if (!limit.allowed) {
     await recordLiveEvent(db, { type: "RATE_LIMITED", severity: "critical", ip, reason: "admin_login", device });
-    // Every blocked attempt gets its own audit row — unlike the Telegram
-    // ping (throttled to one per 15min so an attacker can't spam your
-    // phone), the Audit Log is the permanent record and deliberately
-    // keeps every occurrence, each with its own timestamp/IP/device.
-    await logAudit(db, { actor: "unknown", action: "ADMIN_LOGIN_RATE_LIMITED", result: "failure", ip, metadata: { device, userAgent } });
+    // Every blocked attempt gets its own audit row — the Audit Log is the
+    // permanent record and deliberately keeps every occurrence, each with
+    // its own timestamp/IP/device. `silent: true` because this one action
+    // is adversary-paced: an attacker hammering this endpoint controls how
+    // many of these get logged, and forwarding each to Telegram would let
+    // them flood your phone. maybeAlertAdminLoginRateLimited() right below
+    // already sends the one curated, throttled (1/15min) ping this
+    // condition actually needs.
+    await logAudit(db, { actor: "unknown", action: "ADMIN_LOGIN_RATE_LIMITED", result: "failure", ip, metadata: { device, userAgent }, silent: true });
     await maybeAlertAdminLoginRateLimited(db, ip);
     return rateLimitResponse(limit);
   }

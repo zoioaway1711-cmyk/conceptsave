@@ -1,8 +1,9 @@
 import { isSameOrigin, licenseCheckSchema, readBody } from "@/lib/api-validation";
 import { customerId } from "@/lib/customer-auth";
 import { database, getProfile, getProfileWithLicenses, resolveMergedProfileId } from "@/lib/customer-profile";
-import { claimLicense, effectiveStatus, findLicenseByInput, recalculatePoints } from "@/lib/licenses";
+import { claimLicense, countActiveLicensesForOwner, effectiveStatus, findLicenseByInput, recalculatePoints } from "@/lib/licenses";
 import { getMaterial } from "@/lib/materials";
+import { notifyReturningCustomerActivation } from "@/lib/alerts";
 import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, recordLiveEvent } from "@/lib/live-events";
 import { touchPresence } from "@/lib/presence";
 import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
@@ -70,6 +71,10 @@ export async function POST(request: Request) {
   if (credited) await recalculatePoints(db, profileId, now);
 
   const material = await getMaterial(db, license.materialId);
+  if (credited && material) {
+    const activeLicenseCount = await countActiveLicensesForOwner(db, profileId);
+    await notifyReturningCustomerActivation(db, { profileId, materialName: material.name, activeLicenseCount, firstSeen: (profile as unknown as { firstSeen: string }).firstSeen, ip });
+  }
   const maskedSerial = `${license.displayPrefix}-••••-••••-••••-${license.displaySuffix}`;
   return Response.json({
     recorded: true,
