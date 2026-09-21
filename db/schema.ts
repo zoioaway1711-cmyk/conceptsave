@@ -189,6 +189,27 @@ export const adminUsers = sqliteTable("admin_users", {
   usernameIdx: uniqueIndex("idx_admin_users_username").on(table.username),
 }));
 
+// One row per issued admin login — what makes "view/revoke active
+// sessions" possible at all. Before this, vf_admin was a purely stateless
+// signed cookie (see lib/admin-auth.ts) with nothing server-side to look
+// up or invalidate short of rotating SESSION_SECRET (which logs out
+// EVERY admin, not just one). `id` is embedded in the cookie payload
+// itself (still HMAC-signed, so a session id alone isn't enough to forge
+// one); `revokedAt` is what an explicit "sign out this device" / logout
+// actually sets — the row is kept afterward as a record, never deleted.
+export const adminSessions = sqliteTable("admin_sessions", {
+  id: text("id").primaryKey(),
+  adminId: text("admin_id").notNull(),
+  createdAt: text("created_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  ip: text("ip").notNull().default(""),
+  device: text("device").notNull().default(""),
+  revokedAt: text("revoked_at"),
+}, (table) => ({
+  adminIdx: index("idx_admin_sessions_admin").on(table.adminId, table.id),
+}));
+
 // Free-text notes admins leave on a customer profile, visible to every
 // admin who can open that profile (see admin.users.inspect) — an
 // append-only log (not a single overwritable field) so one admin's note

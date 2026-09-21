@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { adminConfigured, authenticateAdmin, createAdminCookie, resolveAdmin } from "@/lib/admin-auth";
+import { ADMIN_SESSION_MAX_AGE_SECONDS, adminConfigured, authenticateAdmin, createAdminCookie, resolveAdmin, revokeAdminSession } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit } from "@/lib/audit-log";
 import { describeDevice, recordLiveEvent } from "@/lib/live-events";
@@ -34,10 +34,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_credentials" }, { status: 401 });
   }
   await logAudit(db, { actor: admin.username, action: "ADMIN_LOGIN", result: "success", ip });
-  await recordLiveEvent(db, { type: "ADMIN_LOGIN", severity: "info", actorAdminId: admin.id, ip, device: describeDevice(request.headers.get("user-agent")) });
-  const cookie = await createAdminCookie(admin.id);
-  return Response.json({ authenticated: true, username: admin.username, permissions: admin.permissions }, { headers: { "cache-control": "no-store", "set-cookie": `vf_admin=${cookie}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800` } });
+  const device = describeDevice(request.headers.get("user-agent"));
+  await recordLiveEvent(db, { type: "ADMIN_LOGIN", severity: "info", actorAdminId: admin.id, ip, device });
+  const cookie = await createAdminCookie(admin.id, { ip, device });
+  return Response.json({ authenticated: true, username: admin.username, permissions: admin.permissions }, { headers: { "cache-control": "no-store", "set-cookie": `vf_admin=${cookie}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${ADMIN_SESSION_MAX_AGE_SECONDS}` } });
 }
-export async function DELETE() {
+export async function DELETE(request: Request) {
+  const admin = await resolveAdmin(request);
+  if (admin?.sessionId) {
+    const db = (env as unknown as { DB: D1Database }).DB;
+    await revokeAdminSession(db, admin.sessionId, { id: admin.id, canManageAll: false });
+    await logAudit(db, { actor: admin.username, action: "ADMIN_LOGOUT", result: "success", ip: clientIp(request) });
+  }
   return Response.json({ authenticated: false }, { headers: { "cache-control": "no-store", "set-cookie": "vf_admin=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0" } });
 }

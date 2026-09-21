@@ -22,7 +22,7 @@ beforeEach(async () => {
 });
 
 async function postAsAdmin(body: unknown) {
-  const cookie = await createAdminCookie(adminId);
+  const cookie = await createAdminCookie(adminId, { ip: "127.0.0.1", device: "test" });
   return POST(new Request("https://verificafarma.example/api/admin/profiles", {
     method: "POST",
     headers: { "content-type": "application/json", cookie: `vf_admin=${cookie}`, origin: "https://verificafarma.example" },
@@ -83,7 +83,7 @@ describe("POST /api/admin/profiles audit trail", () => {
   it("403s an admin who lacks admin.profiles.manage", async () => {
     const otherId = `adm_${crypto.randomUUID()}`;
     db.raw.prepare("INSERT INTO admin_users (id, username, password_hash, permissions_json, created_at) VALUES (?, 'no-perms', 'x', '[]', '2026-01-01T00:00:00.000Z')").run(otherId);
-    const cookie = await createAdminCookie(otherId);
+    const cookie = await createAdminCookie(otherId, { ip: "127.0.0.1", device: "test" });
     const response = await POST(new Request("https://verificafarma.example/api/admin/profiles", {
       method: "POST",
       headers: { "content-type": "application/json", cookie: `vf_admin=${cookie}`, origin: "https://verificafarma.example" },

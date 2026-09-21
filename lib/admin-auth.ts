@@ -14,7 +14,13 @@ export function adminConfigured() {
   return Boolean(runtime().SESSION_SECRET);
 }
 
-export type AdminUser = { id: string; username: string; permissions: Permission[] };
+// `sessionId` is only ever present when resolved from an actual cookie
+// (resolveAdmin/resolveAdminFromCookieHeader) — authenticateAdmin() (a bare
+// credentials check, called before any cookie/session exists yet) returns
+// the same shape without one.
+export type AdminUser = { id: string; username: string; permissions: Permission[]; sessionId?: string };
+
+export const ADMIN_SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
 
 async function signingKey() {
   const secret = runtime().SESSION_SECRET;
@@ -22,33 +28,57 @@ async function signingKey() {
   return crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
-export async function createAdminCookie(adminUserId: string) {
-  const payload = `admin.${adminUserId}.${Date.now() + 8 * 60 * 60 * 1000}`;
+/**
+ * Every login mints a new row in `admin_sessions` — see db/schema.ts's
+ * comment for why: a purely stateless signed cookie (the previous design)
+ * has no way to list "what's logged in right now" or kill one specific
+ * device without rotating SESSION_SECRET and logging out every admin at
+ * once. The session id rides inside the signed payload (still can't be
+ * forged without the secret) so resolveAdminFromCookieHeader can look it
+ * up and check `revoked_at` on every request.
+ */
+export async function createAdminCookie(adminUserId: string, meta: { ip: string; device: string }) {
+  const sessionId = `ses_${crypto.randomUUID()}`;
+  const expiresAt = Date.now() + ADMIN_SESSION_MAX_AGE_SECONDS * 1000;
+  const now = new Date().toISOString();
+  await db().prepare(
+    "INSERT INTO admin_sessions (id, admin_id, created_at, last_seen_at, expires_at, ip, device) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).bind(sessionId, adminUserId, now, now, new Date(expiresAt).toISOString(), meta.ip, meta.device).run();
+  const payload = `admin.${adminUserId}.${sessionId}.${expiresAt}`;
   const signature = await crypto.subtle.sign("HMAC", await signingKey(), new TextEncoder().encode(payload));
   return `${payload}.${[...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 /**
- * Resolves the full admin identity (id/username/permissions) from a raw
- * Cookie header value, or null if absent/invalid/expired/disabled. Split
- * out from resolveAdmin() so Server Components — which have a Cookies jar
- * from next/headers, not a Request — can gate a whole page server-side
- * (see app/admin/layout.tsx) without a fake Request object.
+ * Resolves the full admin identity (id/username/permissions/sessionId)
+ * from a raw Cookie header value, or null if absent/invalid/expired/
+ * disabled/revoked. Split out from resolveAdmin() so Server Components —
+ * which have a Cookies jar from next/headers, not a Request — can gate a
+ * whole page server-side (see app/admin/layout.tsx) without a fake
+ * Request object.
  */
 export async function resolveAdminFromCookieHeader(cookieHeader: string | null | undefined): Promise<AdminUser | null> {
   const secret = runtime().SESSION_SECRET;
   if (!secret) return null;
   const cookie = cookieHeader?.match(/(?:^|;\s*)vf_admin=([^;]+)/)?.[1];
-  const match = cookie?.match(/^admin\.([A-Za-z0-9_-]{1,80})\.(\d+)\.([a-f0-9]{64})$/);
-  if (!match || !Number.isSafeInteger(Number(match[2])) || Number(match[2]) <= Date.now()) return null;
-  const signature = Uint8Array.from(match[3].match(/../g)!, (byte) => parseInt(byte, 16));
-  const valid = await crypto.subtle.verify("HMAC", await signingKey(), signature, new TextEncoder().encode(`admin.${match[1]}.${match[2]}`));
+  const match = cookie?.match(/^admin\.([A-Za-z0-9_-]{1,80})\.(ses_[A-Za-z0-9-]{1,80})\.(\d+)\.([a-f0-9]{64})$/);
+  if (!match || !Number.isSafeInteger(Number(match[3])) || Number(match[3]) <= Date.now()) return null;
+  const [, adminId, sessionId, expiresAtRaw] = match;
+  const signature = Uint8Array.from(match[4].match(/../g)!, (byte) => parseInt(byte, 16));
+  const valid = await crypto.subtle.verify("HMAC", await signingKey(), signature, new TextEncoder().encode(`admin.${adminId}.${sessionId}.${expiresAtRaw}`));
   if (!valid) return null;
-  const row = await db().prepare("SELECT id, username, permissions_json AS permissionsJson, disabled FROM admin_users WHERE id=?").bind(match[1]).first<{ id: string; username: string; permissionsJson: string; disabled: number }>();
-  if (!row || row.disabled) return null;
+  const row = await db().prepare(
+    `SELECT au.id, au.username, au.permissions_json AS permissionsJson, au.disabled, s.revoked_at AS revokedAt
+     FROM admin_sessions s JOIN admin_users au ON au.id = s.admin_id
+     WHERE s.id = ? AND s.admin_id = ?`,
+  ).bind(sessionId, adminId).first<{ id: string; username: string; permissionsJson: string; disabled: number; revokedAt: string | null }>();
+  if (!row || row.disabled || row.revokedAt) return null;
+  // Best-effort presence touch for the sessions list — never allowed to
+  // fail or slow down the auth check itself.
+  db().prepare("UPDATE admin_sessions SET last_seen_at=? WHERE id=?").bind(new Date().toISOString(), sessionId).run().catch(() => {});
   let permissions: Permission[] = [];
   try { permissions = JSON.parse(row.permissionsJson); } catch { permissions = []; }
-  return { id: row.id, username: row.username, permissions };
+  return { id: row.id, username: row.username, permissions, sessionId };
 }
 
 export async function resolveAdmin(request: Request): Promise<AdminUser | null> {
@@ -57,6 +87,44 @@ export async function resolveAdmin(request: Request): Promise<AdminUser | null> 
 
 export async function isAdmin(request: Request): Promise<boolean> {
   return (await resolveAdmin(request)) !== null;
+}
+
+export type AdminSessionRow = { id: string; adminId: string; adminUsername: string; createdAt: string; lastSeenAt: string; expiresAt: string; ip: string; device: string; revokedAt: string | null };
+
+/**
+ * `adminId` scopes to one admin's own sessions (e.g. a "log out my other
+ * devices" self-service view); omit it for the admin.admins.manage-only
+ * "everyone who's currently logged in" view. Only non-expired-by-schedule
+ * rows within the last 30 days are returned — a session past its own
+ * `expires_at` can no longer authenticate anything (resolveAdminFromCookieHeader
+ * already refuses it), so listing it forever would just be clutter with
+ * no revoke action that does anything.
+ */
+export async function listAdminSessions(db: D1Database, adminId?: string): Promise<AdminSessionRow[]> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { results } = await db.prepare(
+    `SELECT s.id, s.admin_id AS adminId, au.username AS adminUsername, s.created_at AS createdAt, s.last_seen_at AS lastSeenAt, s.expires_at AS expiresAt, s.ip, s.device, s.revoked_at AS revokedAt
+     FROM admin_sessions s JOIN admin_users au ON au.id = s.admin_id
+     WHERE s.created_at >= ? ${adminId ? "AND s.admin_id = ?" : ""}
+     ORDER BY s.last_seen_at DESC LIMIT 200`,
+  ).bind(...(adminId ? [since, adminId] : [since])).all<AdminSessionRow>();
+  return results;
+}
+
+/**
+ * Revoking is allowed on your own session unconditionally (that's just
+ * "sign out this device"), or on ANY admin's session when the caller has
+ * admin.admins.manage — the "notebook was stolen, kill it from here"
+ * case, since the affected admin may not be the one able to act. Returns
+ * false (not an error) for a session that's already revoked or doesn't
+ * exist, so callers can treat it as an idempotent "make sure it's off".
+ */
+export async function revokeAdminSession(db: D1Database, sessionId: string, requester: { id: string; canManageAll: boolean }): Promise<boolean> {
+  const session = await db.prepare("SELECT admin_id AS adminId, revoked_at AS revokedAt FROM admin_sessions WHERE id=?").bind(sessionId).first<{ adminId: string; revokedAt: string | null }>();
+  if (!session || session.revokedAt) return false;
+  if (session.adminId !== requester.id && !requester.canManageAll) return false;
+  const result = await db.prepare("UPDATE admin_sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL").bind(new Date().toISOString(), sessionId).run();
+  return result.meta.changes > 0;
 }
 
 export function hasPermission(admin: AdminUser | null, permission: Permission): boolean {

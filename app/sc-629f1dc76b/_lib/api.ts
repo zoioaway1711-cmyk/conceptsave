@@ -42,3 +42,7 @@ export function apiPost<T = unknown>(input: string, body: unknown) {
 export function apiPatch<T = unknown>(input: string, body: unknown) {
   return apiFetch<T>(input, { method: "PATCH", body: JSON.stringify(body) });
 }
+
+export function apiDelete<T = unknown>(input: string) {
+  return apiFetch<T>(input, { method: "DELETE" });
+}
