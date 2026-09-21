@@ -46,6 +46,20 @@ describe("logAudit — every entry forwards to Telegram by default", () => {
     expect(text).toContain("Produto: LIPOLESS 2.5MG");
   });
 
+  it("shows a clean, clickable customer id line for any customer_profiles-resource entry", async () => {
+    await logAudit(db as never, { actor: "owner", action: "ADMIN_PROFILE_BLOCKED", resource: "customer_profiles", resourceId: "****7890", result: "success", ip: "1.2.3.4" });
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).toContain("Cliente: ...7890");
+    expect(text).toContain("/cliente 7890");
+    expect(text).toContain("IP: 1.2.3.4");
+  });
+
+  it("omits the customer id line for entries about a different resource", async () => {
+    await logAudit(db as never, { actor: "owner", action: "MATERIAL_CREATED", resource: "materials", resourceId: "7", result: "success", metadata: { name: "X" } });
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).not.toContain("Cliente:");
+  });
+
   it("omits the product line entirely when metadata has no name/material", async () => {
     await logAudit(db as never, { actor: "owner", action: "LICENSE_REVOKED", resource: "licenses", resourceId: "42", result: "success" });
     const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;

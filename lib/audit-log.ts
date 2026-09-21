@@ -47,9 +47,27 @@ export function productNameFromMetadata(metadata: Record<string, unknown> | unde
   return typeof candidate === "string" && candidate.trim() ? candidate : null;
 }
 
+/**
+ * Every customer_profiles-resource entry already carries the profile id as
+ * `resourceId` — but pre-masked by the caller (e.g. `maskSerial(id)` ->
+ * "****7890") before it ever reaches logAudit, on purpose: the raw id is
+ * never written to the Audit Log or forwarded anywhere (see
+ * app/api/admin/profiles/route.ts's comment on why). Stripping the leading
+ * asterisks just turns that same masked value into a clean, labeled line
+ * with the exact suffix /cliente already knows how to look up — no new
+ * data is exposed that wasn't already sitting in the "Recurso" line.
+ */
+function customerIdFromEntry(entry: AuditEntry): string | null {
+  if (entry.resource !== "customer_profiles" || !entry.resourceId) return null;
+  const suffix = entry.resourceId.replace(/^\*+/, "");
+  return suffix || null;
+}
+
 function formatAuditTelegramMessage(entry: AuditEntry): string {
   const lines = [`${RESULT_ICON[entry.result]} SAVE LOGS — ${entry.action}`, `Por: ${entry.actor}`];
   if (entry.resource) lines.push(`Recurso: ${entry.resource}${entry.resourceId ? ` #${entry.resourceId}` : ""}`);
+  const customerId = customerIdFromEntry(entry);
+  if (customerId) lines.push(`Cliente: ...${customerId} (use /cliente ${customerId})`);
   const productName = productNameFromMetadata(entry.metadata);
   if (productName) lines.push(`Produto: ${productName}`);
   if (entry.ip) lines.push(`IP: ${entry.ip}`);
