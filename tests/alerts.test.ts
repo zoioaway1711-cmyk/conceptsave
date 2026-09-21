@@ -138,8 +138,17 @@ describe("customer activity notifications — must never double-send", () => {
     const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
     expect(text).toContain("Testenat");
     expect(text).toContain("primeira vez");
+    expect(text).toContain("ID ...cus_1"); // full id here since "cus_1" is under 8 chars — shortProfileId() just slices, never pads
+    expect(text).toContain("/cliente cus_1");
     const row = db.raw.prepare("SELECT action FROM audit_logs WHERE action='CUSTOMER_FIRST_ACCESS'").get() as { action: string } | undefined;
     expect(row).toBeDefined();
+  });
+
+  it("notifyNewCustomerFirstAccess shows only the last 8 characters of a longer profile id, not the whole thing", async () => {
+    await notifyNewCustomerFirstAccess(db as never, { profileId: "cus_abcdef1234567890", materialName: "Testenat", activeLicenseCount: 1, firstSeen: "2026-01-01T00:00:00.000Z", ip: "1.2.3.4" });
+    const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
+    expect(text).toContain("ID ...34567890");
+    expect(text).not.toContain("cus_abcdef1234567890");
   });
 
   it("notifyReturningCustomerActivation sends exactly one Telegram message, not two", async () => {
@@ -147,6 +156,8 @@ describe("customer activity notifications — must never double-send", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const text = JSON.parse(fetchMock.mock.calls[0][1].body).text as string;
     expect(text).toContain("Melatonina");
+    expect(text).toContain("ID ...cus_1");
+    expect(text).toContain("/cliente cus_1");
     const row = db.raw.prepare("SELECT action FROM audit_logs WHERE action='CUSTOMER_LICENSE_ACTIVATED'").get() as { action: string } | undefined;
     expect(row).toBeDefined();
   });

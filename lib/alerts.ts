@@ -63,19 +63,24 @@ export async function maybeAlertLicenseRevokeBurst(db: D1Database, adminUsername
  * profile (this customer's first-ever access) or added to an existing
  * one (a returning customer verifying another product).
  */
+/** Last 8 chars of the profile id — enough to plug into /cliente on Telegram or search the admin panel, without pasting the full internal id into chat. */
+function shortProfileId(id: string): string {
+  return id.slice(-8);
+}
+
 export async function notifyNewCustomerFirstAccess(db: D1Database, params: { profileId: string; materialName: string; activeLicenseCount: number; firstSeen: string; ip: string }): Promise<void> {
   // silent: true — logAudit() itself now forwards every non-ALERT_ entry to
   // Telegram automatically (see lib/audit-log.ts), so without this flag
   // the custom message right below would go out TWICE: once here, once
   // generic. This entry still writes to the Audit Log exactly as normal.
   await logAudit(db, { actor: "customer-activity", action: "CUSTOMER_FIRST_ACCESS", resource: "customer_profiles", result: "success", ip: params.ip, metadata: { profileId: params.profileId, material: params.materialName, activeLicenses: params.activeLicenseCount, firstSeen: params.firstSeen }, silent: true });
-  await sendTelegramAlert(`🆕 SAVE LOGS: novo cliente ativou "${params.materialName}" pela primeira vez (primeiro acesso em ${new Date(params.firstSeen).toLocaleString("pt-BR")}). Licenças ativas dele agora: ${params.activeLicenseCount}.`);
+  await sendTelegramAlert(`🆕 SAVE LOGS: novo cliente (ID ...${shortProfileId(params.profileId)}) ativou "${params.materialName}" pela primeira vez (primeiro acesso em ${new Date(params.firstSeen).toLocaleString("pt-BR")}). Licenças ativas dele agora: ${params.activeLicenseCount}. Use /cliente ${shortProfileId(params.profileId)} para localizar.`);
 }
 
 export async function notifyReturningCustomerActivation(db: D1Database, params: { profileId: string; materialName: string; activeLicenseCount: number; firstSeen: string; ip: string }): Promise<void> {
   // silent: true — same reasoning as notifyNewCustomerFirstAccess above.
   await logAudit(db, { actor: "customer-activity", action: "CUSTOMER_LICENSE_ACTIVATED", resource: "customer_profiles", result: "success", ip: params.ip, metadata: { profileId: params.profileId, material: params.materialName, activeLicenses: params.activeLicenseCount, firstSeen: params.firstSeen }, silent: true });
-  await sendTelegramAlert(`✅ SAVE LOGS: cliente (cliente desde ${new Date(params.firstSeen).toLocaleDateString("pt-BR")}) ativou mais um produto: "${params.materialName}". Licenças ativas dele agora: ${params.activeLicenseCount}.`);
+  await sendTelegramAlert(`✅ SAVE LOGS: cliente (ID ...${shortProfileId(params.profileId)}, cliente desde ${new Date(params.firstSeen).toLocaleDateString("pt-BR")}) ativou mais um produto: "${params.materialName}". Licenças ativas dele agora: ${params.activeLicenseCount}. Use /cliente ${shortProfileId(params.profileId)} para localizar.`);
 }
 
 /**
