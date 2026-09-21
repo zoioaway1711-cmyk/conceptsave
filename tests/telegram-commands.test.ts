@@ -8,6 +8,7 @@ vi.mock("cloudflare:workers", () => ({ env }));
 const { handleTelegramCommand } = await import("../lib/telegram-commands");
 const { createAdminCookie } = await import("../lib/admin-auth");
 const { blockIp } = await import("../lib/ip-blocks");
+const { seedMaterial, seedLicense, upsertProfile } = await import("./helpers/seed");
 
 let db: ReturnType<typeof createFakeD1>;
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -31,6 +32,20 @@ describe("handleTelegramCommand — /ajuda", () => {
       const reply = await handleTelegramCommand(db as never, cmd);
       expect(reply).toContain("/sessoes");
       expect(reply).toContain("/revogar");
+    }
+  });
+
+  it("mentions every real command — catches a command added to the switch but forgotten in the text", async () => {
+    const reply = await handleTelegramCommand(db as never, "/ajuda");
+    const everyCommand = [
+      "/sessoes", "/revogar", "/ips", "/bloquear", "/desbloquear", "/resumo", "/limpar",
+      "/produto", "/licenca", "/cliente", "/expirando", "/ultimos", "/saude", "/materiais",
+      "/bloquearcliente", "/desbloquearcliente", "/ajuda",
+    ];
+    for (const command of everyCommand) {
+      // Word-boundary-ish check so "/bloquear" doesn't false-positive-match
+      // inside "/bloquearcliente" and mask a missing line for the shorter one.
+      expect(reply, `esperava encontrar "${command}" no texto de ajuda`).toMatch(new RegExp(`(^|\\n)${command.replace("/", "\\/")}[ \\[<—]`));
     }
   });
 
@@ -162,5 +177,185 @@ describe("handleTelegramCommand — /limpar", () => {
   it("ignores a garbage argument and falls back to the default count", async () => {
     const reply = await handleTelegramCommand(db as never, "/limpar abc", { chatId: "999", messageId: 500 });
     expect(reply).toContain("50 mensagens");
+  });
+});
+
+describe("handleTelegramCommand — /produto", () => {
+  it("without an argument, explains usage", async () => {
+    expect(await handleTelegramCommand(db as never, "/produto")).toContain("Uso:");
+  });
+
+  it("no match says so", async () => {
+    expect(await handleTelegramCommand(db as never, "/produto inexistente")).toContain("Nenhum produto");
+  });
+
+  it("a single name match reports counts", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "LIPO", name: "LIPOLESS 2.5MG" });
+    await seedLicense(db, materialId, { serial: "LIPO-AAAA-BBBB-CCCC-1111", status: "active" });
+    await seedLicense(db, materialId, { serial: "LIPO-AAAA-BBBB-CCCC-2222", status: "active", ownerProfileId: "cus_owner" });
+    await seedLicense(db, materialId, { serial: "LIPO-AAAA-BBBB-CCCC-3333", status: "revoked" });
+    const reply = await handleTelegramCommand(db as never, "/produto lipoless");
+    expect(reply).toContain("LIPOLESS 2.5MG (LIPO)");
+    expect(reply).toContain("Licenças totais: 3");
+    expect(reply).toContain("Já ativadas por clientes: 1");
+    expect(reply).toContain("Revogadas: 1");
+  });
+
+  it("multiple name matches without an exact prefix ask to refine", async () => {
+    seedMaterial(db, { prefixCode: "AAA1", name: "Produto Alfa 1" });
+    seedMaterial(db, { prefixCode: "AAA2", name: "Produto Alfa 2" });
+    const reply = await handleTelegramCommand(db as never, "/produto alfa");
+    expect(reply).toContain("2 produtos encontrados");
+  });
+
+  it("an exact prefix match resolves even with other name matches around", async () => {
+    seedMaterial(db, { prefixCode: "BETA", name: "Beta Um" });
+    seedMaterial(db, { prefixCode: "BETB", name: "Beta Dois" });
+    const reply = await handleTelegramCommand(db as never, "/produto BETA");
+    expect(reply).toContain("Beta Um (BETA)");
+  });
+});
+
+describe("handleTelegramCommand — /licenca", () => {
+  it("without an id, explains usage", async () => {
+    expect(await handleTelegramCommand(db as never, "/licenca")).toContain("Uso:");
+  });
+
+  it("an id that doesn't exist says so", async () => {
+    expect(await handleTelegramCommand(db as never, "/licenca 999999")).toContain("Não encontrei");
+  });
+
+  it("reports the product, masked serial, status and dates for an unactivated license", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "CURA", name: "Curso A" });
+    const licenseId = await seedLicense(db, materialId, { serial: "CURA-AAAA-BBBB-CCCC-9999" });
+    const reply = await handleTelegramCommand(db as never, `/licenca ${licenseId}`);
+    expect(reply).toContain(`Licença #${licenseId}`);
+    expect(reply).toContain("CURA-••••-••••-••••-9999");
+    expect(reply).toContain("Curso A");
+    expect(reply).toContain("Status: ativa");
+    expect(reply).toContain("não ativada");
+  });
+
+  it("reports a revoked license's status correctly, and accepts a leading #", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "REVK", name: "Revoke Material" });
+    const licenseId = await seedLicense(db, materialId, { serial: "REVK-AAAA-BBBB-CCCC-8888", status: "revoked", activatedAt: "2026-01-02T00:00:00.000Z" });
+    const reply = await handleTelegramCommand(db as never, `/licenca #${licenseId}`);
+    expect(reply).toContain("Status: revogada");
+    expect(reply).toContain("Ativada em:");
+  });
+});
+
+describe("handleTelegramCommand — /cliente", () => {
+  it("without an argument, explains usage", async () => {
+    expect(await handleTelegramCommand(db as never, "/cliente")).toContain("Uso:");
+  });
+
+  it("no match says so", async () => {
+    expect(await handleTelegramCommand(db as never, "/cliente zzzznotfound")).toContain("Nenhum cliente");
+  });
+
+  it("resolves by the end of the id and reports points/level/licenses/blocked", async () => {
+    upsertProfile(db, "cus_abc123def456");
+    db.raw.prepare("UPDATE customer_profiles SET points=150, level=3, level_name='Prata' WHERE id=?").run("cus_abc123def456");
+    const materialId = seedMaterial(db, { prefixCode: "CURA", name: "Curso A" });
+    await seedLicense(db, materialId, { serial: "CURA-AAAA-BBBB-CCCC-7777", ownerProfileId: "cus_abc123def456" });
+    const reply = await handleTelegramCommand(db as never, "/cliente def456");
+    expect(reply).toContain("Pontos: 150 | Nível: Prata (3)");
+    expect(reply).toContain("Licenças ativas: 1");
+    expect(reply).toContain("Bloqueado: não");
+  });
+
+  it("an ambiguous suffix lists the matches instead of guessing", async () => {
+    upsertProfile(db, "cus_aaaa0001");
+    upsertProfile(db, "cus_bbbb0001");
+    const reply = await handleTelegramCommand(db as never, "/cliente 0001");
+    expect(reply).toContain("2 clientes encontrados");
+  });
+});
+
+describe("handleTelegramCommand — /bloquearcliente and /desbloquearcliente", () => {
+  it("without an argument, explains usage", async () => {
+    expect(await handleTelegramCommand(db as never, "/bloquearcliente")).toContain("Uso:");
+  });
+
+  it("blocks and then unblocks a resolved customer", async () => {
+    upsertProfile(db, "cus_blockme");
+    const blockReply = await handleTelegramCommand(db as never, "/bloquearcliente blockme");
+    expect(blockReply).toContain("bloqueado");
+    expect((db.raw.prepare("SELECT blocked FROM customer_profiles WHERE id=?").get("cus_blockme") as { blocked: number }).blocked).toBe(1);
+
+    const unblockReply = await handleTelegramCommand(db as never, "/desbloquearcliente blockme");
+    expect(unblockReply).toContain("desbloqueado");
+    expect((db.raw.prepare("SELECT blocked FROM customer_profiles WHERE id=?").get("cus_blockme") as { blocked: number }).blocked).toBe(0);
+  });
+
+  it("a customer that doesn't exist says so instead of pretending it worked", async () => {
+    expect(await handleTelegramCommand(db as never, "/bloquearcliente naoexiste")).toContain("Nenhum cliente");
+  });
+});
+
+describe("handleTelegramCommand — /expirando", () => {
+  it("reports none when nothing is expiring", async () => {
+    expect(await handleTelegramCommand(db as never, "/expirando")).toContain("Nenhuma licença expirando");
+  });
+
+  it("lists active licenses expiring within the window, ignoring ones further out or already revoked", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "EXPR", name: "Expira Já" });
+    const soon = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    const far = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    await seedLicense(db, materialId, { serial: "EXPR-AAAA-BBBB-CCCC-1111", status: "active", expiresAt: soon });
+    await seedLicense(db, materialId, { serial: "EXPR-AAAA-BBBB-CCCC-2222", status: "active", expiresAt: far });
+    await seedLicense(db, materialId, { serial: "EXPR-AAAA-BBBB-CCCC-3333", status: "revoked", expiresAt: soon });
+    const reply = await handleTelegramCommand(db as never, "/expirando 30");
+    expect(reply).toContain("1 licença(s) expirando");
+    expect(reply).toContain("Expira Já");
+    expect(reply).toContain("1111");
+    expect(reply).not.toContain("2222");
+    expect(reply).not.toContain("3333");
+  });
+});
+
+describe("handleTelegramCommand — /ultimos", () => {
+  it("reports nothing when the audit log is empty", async () => {
+    expect(await handleTelegramCommand(db as never, "/ultimos")).toContain("Nenhuma entrada");
+  });
+
+  it("lists recent entries newest first, with the product name when metadata has one", async () => {
+    db.raw.prepare("INSERT INTO audit_logs (actor, action, resource, resource_id, result, metadata_json, created_at) VALUES ('owner','MATERIAL_CREATED','materials','7','success', ?, '2026-01-01T00:00:00.000Z')").run(JSON.stringify({ name: "LIPOLESS 2.5MG" }));
+    db.raw.prepare("INSERT INTO audit_logs (actor, action, resource, resource_id, result, metadata_json, created_at) VALUES ('owner','LICENSE_REVOKED','licenses','9','failure', '{}', '2026-01-02T00:00:00.000Z')").run();
+    const reply = await handleTelegramCommand(db as never, "/ultimos 5");
+    const lines = reply.split("\n");
+    expect(lines[1]).toContain("LICENSE_REVOKED"); // newest first
+    expect(reply).toContain("LIPOLESS 2.5MG");
+  });
+
+  it("caps the count at 30 even if a larger number is requested", async () => {
+    for (let i = 0; i < 35; i++) {
+      db.raw.prepare("INSERT INTO audit_logs (actor, action, result, metadata_json, created_at) VALUES ('owner','X','success','{}', '2026-01-01T00:00:00.000Z')").run();
+    }
+    const reply = await handleTelegramCommand(db as never, "/ultimos 999");
+    expect(reply).toContain("Últimas 30 entrada(s)");
+  });
+});
+
+describe("handleTelegramCommand — /saude", () => {
+  it("reports healthy when the database responds", async () => {
+    expect(await handleTelegramCommand(db as never, "/saude")).toContain("✅");
+  });
+});
+
+describe("handleTelegramCommand — /materiais", () => {
+  it("reports none when nothing is registered", async () => {
+    expect(await handleTelegramCommand(db as never, "/materiais")).toContain("Nenhum produto");
+  });
+
+  it("lists materials with their license counts", async () => {
+    const materialId = seedMaterial(db, { prefixCode: "CURA", name: "Curso A" });
+    await seedLicense(db, materialId, { serial: "CURA-AAAA-BBBB-CCCC-1111" });
+    await seedLicense(db, materialId, { serial: "CURA-AAAA-BBBB-CCCC-2222" });
+    seedMaterial(db, { prefixCode: "SEMU", name: "Sem Uso" });
+    const reply = await handleTelegramCommand(db as never, "/materiais");
+    expect(reply).toContain("Curso A (CURA) — 2 licença(s)");
+    expect(reply).toContain("Sem Uso (SEMU) — 0 licença(s)");
   });
 });
