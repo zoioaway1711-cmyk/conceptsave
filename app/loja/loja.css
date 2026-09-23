@@ -1,0 +1,494 @@
+/*
+ * Scoped "neon blue + black" theme for the public storefront (/loja) —
+ * mirrors the same Cyber Premium palette used by the verification portal's
+ * dark mode and by /clube-save (app/clube-save/clube-save.css: --cs-primary
+ * #2f7bff, --cs-cyan #22d3ff, #050810 background) so the store reads as the
+ * same Save Concept product. Everything here is scoped under .loja-theme so
+ * it never leaks into /admin, which ships its own theme.
+ */
+.loja-theme {
+  --lj-ink: #f2f6fc;
+  --lj-muted: #8ca0be;
+  --lj-bg: #050810;
+  --lj-surface: #0b1220;
+  --lj-soft: #101a2c;
+  --lj-line: rgba(122, 162, 255, 0.18);
+  --lj-accent: #2f7bff;
+  --lj-accent-2: #22d3ff;
+  --lj-gold: #f5a623;
+  --lj-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.65), 0 0 40px rgba(47, 123, 255, 0.12);
+  --lj-glow: 0 0 0 1px rgba(47, 123, 255, 0.1), 0 20px 50px -20px rgba(47, 123, 255, 0.35);
+
+  position: relative;
+  min-height: 100vh;
+  color: var(--lj-ink);
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 12% -8%, rgba(47, 123, 255, 0.22), transparent 38%),
+    radial-gradient(circle at 100% 0%, rgba(34, 211, 255, 0.16), transparent 34%),
+    linear-gradient(rgba(122, 162, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(122, 162, 255, 0.05) 1px, transparent 1px),
+    var(--lj-bg);
+  background-size: auto, auto, 32px 32px, 32px 32px, auto;
+}
+
+.loja-theme ::selection {
+  background: rgba(47, 123, 255, 0.35);
+  color: var(--lj-ink);
+}
+
+/* Same type pairing as the rest of the product (public/theme.css): Manrope
+   for display headings, DM Sans (set on body in app/globals.css) for
+   everything else — headings were inheriting DM Sans by default. */
+.loja-theme h1,
+.loja-theme h2,
+.loja-theme h3 {
+  font-family: "Manrope", "DM Sans", Arial, Helvetica, sans-serif;
+}
+
+/* Two blurred neon-blue/cyan blobs behind the content, purely decorative. */
+.loja-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.loja-ambient::before,
+.loja-ambient::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(100px);
+}
+.loja-ambient::before {
+  top: -10rem;
+  right: -6rem;
+  height: 28rem;
+  width: 28rem;
+  background: rgba(47, 123, 255, 0.22);
+}
+.loja-ambient::after {
+  bottom: -14rem;
+  left: -10rem;
+  height: 26rem;
+  width: 26rem;
+  background: rgba(34, 211, 255, 0.14);
+}
+
+.loja-theme main {
+  position: relative;
+  z-index: 1;
+}
+
+/* Frosted glass surface — dark gradient + blurred backdrop + neon-tinted
+   border/shadow, same recipe as /clube-save's .cs-glass. */
+.loja-glass {
+  background:
+    radial-gradient(circle at 85% 0%, rgba(47, 123, 255, 0.14), transparent 45%),
+    linear-gradient(155deg, #0d1526, #0a0f1c);
+  border: 1px solid var(--lj-line);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--lj-glow);
+}
+
+.loja-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(5, 8, 16, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--lj-line);
+}
+
+.loja-hero-copy h1 em {
+  font-style: normal;
+  background: linear-gradient(115deg, var(--lj-accent), var(--lj-accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Decorative floating vial + spinning orbit rings behind the hero copy —
+   pure CSS/SVG-free 3D flourish: two conic-gradient rings rotate at
+   different speeds/tilts while the vial itself floats via framer-motion
+   (inline, not here), reading as a product suspended in space. */
+.loja-hero-visual {
+  width: 320px;
+  height: 320px;
+  display: grid;
+  place-items: center;
+}
+.loja-hero-ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent, rgba(47, 123, 255, 0.5), transparent 35%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+  animation: loja-spin 9s linear infinite;
+  transform: rotateX(62deg);
+}
+.loja-hero-ring-2 {
+  width: 330px;
+  height: 330px;
+  background: conic-gradient(from 180deg, transparent, rgba(34, 211, 255, 0.4), transparent 30%);
+  animation: loja-spin-reverse 14s linear infinite;
+  transform: rotateX(62deg);
+}
+.loja-hero-vial {
+  filter: drop-shadow(0 30px 40px rgba(47, 123, 255, 0.35));
+}
+.loja-hero-vial::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(47, 123, 255, 0.35), transparent 70%);
+  transform: translate(-50%, -50%);
+  z-index: -1;
+}
+
+@keyframes loja-spin {
+  to {
+    transform: rotateX(62deg) rotate(360deg);
+  }
+}
+@keyframes loja-spin-reverse {
+  from {
+    transform: rotateX(62deg) rotate(360deg);
+  }
+  to {
+    transform: rotateX(62deg) rotate(0deg);
+  }
+}
+
+/* 3D "pressable" button: a bright top edge + a solid dark rim underneath
+   read as a raised bevel; translateY + shrinking the rim on :active sells
+   the press without any JS. */
+.loja-cta-primary {
+  position: relative;
+  background: linear-gradient(115deg, #2f7bff, #22d3ff);
+  color: #04101f;
+  box-shadow: 0 14px 34px -10px rgba(47, 123, 255, 0.55), 0 3px 0 0 #0b3fa8, inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transform: translateY(0);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.2s ease;
+}
+.loja-cta-primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 18px 38px -10px rgba(47, 123, 255, 0.6), 0 4px 0 0 #0b3fa8, inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.loja-cta-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 8px 20px -10px rgba(47, 123, 255, 0.5), 0 1px 0 0 #0b3fa8, inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.loja-cta-primary:disabled {
+  transform: none;
+}
+
+.loja-btn-ghost {
+  background: rgba(16, 26, 44, 0.7);
+  border: 1px solid var(--lj-line);
+  color: var(--lj-accent-2);
+  transition: transform 0.15s ease, border-color 0.2s ease;
+}
+.loja-btn-ghost:active {
+  transform: translateY(1px) scale(0.98);
+}
+.loja-btn-ghost:hover {
+  border-color: var(--lj-accent);
+}
+
+.loja-card {
+  background: linear-gradient(155deg, #0d1526, #0a0f1c);
+  border: 1px solid var(--lj-line);
+  box-shadow: var(--lj-shadow), inset 0 1px 0 rgba(122, 162, 255, 0.12);
+  transition: box-shadow 0.35s ease, border-color 0.35s ease;
+}
+.loja-card:hover {
+  border-color: rgba(47, 123, 255, 0.4);
+  box-shadow: 0 40px 90px -25px rgba(0, 0, 0, 0.7), 0 0 50px rgba(47, 123, 255, 0.2),
+    inset 0 1px 0 rgba(122, 162, 255, 0.16);
+}
+
+/* 3D tilt: perspective on the wrapping motion.div (inline) + a transform
+   here that mousemove overwrites via inline style every frame — the
+   transition below is what makes those inline updates glide instead of
+   snapping frame to frame. */
+.loja-tilt {
+  transition: transform 0.15s ease-out;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Specular highlight that tracks the cursor, layered above the card
+   content but below badges (z-index via DOM order) — classic "glass card
+   under a light" trick: a soft white radial following --shine position,
+   screened onto the dark gradient so it reads as a sheen, not a wash. */
+.loja-tilt-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  transition: opacity 0.3s ease;
+}
+
+/* Product photos keep a light "spotlight" panel behind them — most of our
+   real product photography is shot on a white/studio background, so
+   forcing the tile itself dark would clip or discolor those photos. A
+   glowing light disc reads as an intentional premium spotlight against the
+   neon-dark card instead of a mismatched background. */
+.loja-media {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(47, 123, 255, 0.25), transparent 60%),
+    linear-gradient(160deg, #0d1526, #080d18);
+}
+.loja-photo-frame {
+  position: relative;
+  border-radius: 20px;
+  background: radial-gradient(circle at 30% 20%, #ffffff, #eef4fc);
+  box-shadow: 0 0 0 1px rgba(47, 123, 255, 0.25), 0 20px 50px -18px rgba(47, 123, 255, 0.5);
+}
+.loja-media img {
+  transition: transform 0.6s ease;
+}
+.loja-card:hover .loja-media img {
+  transform: scale(1.045);
+}
+
+.loja-media-icon {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(34, 211, 255, 0.25), transparent 55%),
+    linear-gradient(155deg, #2f7bff, #22d3ff);
+  color: #04101f;
+}
+
+.loja-badge-authentic {
+  background: rgba(47, 123, 255, 0.16);
+  color: var(--lj-accent-2);
+  border: 1px solid rgba(47, 123, 255, 0.32);
+}
+
+.loja-price em {
+  font-style: normal;
+  color: var(--lj-muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-decoration: line-through;
+}
+
+.loja-trust-strip {
+  border-top: 1px solid var(--lj-line);
+  border-bottom: 1px solid var(--lj-line);
+  background: rgba(11, 18, 32, 0.55);
+}
+
+.loja-cart-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 22px;
+  z-index: 50;
+  background: linear-gradient(115deg, #2f7bff, #22d3ff);
+  color: #04101f;
+  box-shadow: 0 18px 40px -14px rgba(47, 123, 255, 0.6);
+}
+
+.loja-cart-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--lj-gold);
+  color: #33230a;
+}
+
+.loja-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(2, 4, 10, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.loja-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(420px, 100vw);
+  background: linear-gradient(165deg, #0d1526, #070b14);
+  border-left: 1px solid var(--lj-line);
+  box-shadow: -30px 0 80px -30px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+}
+
+.loja-footer {
+  border-top: 1px solid var(--lj-line);
+  background: rgba(5, 8, 16, 0.7);
+}
+
+.loja-star {
+  color: var(--lj-gold);
+}
+.loja-star-empty {
+  color: var(--lj-line);
+}
+
+.loja-about-media {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 30% 10%, rgba(34, 211, 255, 0.2), transparent 55%),
+    linear-gradient(160deg, #0b1a33, #050a16);
+}
+
+.loja-testimonial {
+  background: linear-gradient(155deg, #0d1526, #0a0f1c);
+  border: 1px solid var(--lj-line);
+  box-shadow: var(--lj-shadow);
+}
+
+.loja-faq-item {
+  border-bottom: 1px solid var(--lj-line);
+}
+.loja-faq-item:last-child {
+  border-bottom: none;
+}
+
+.loja-newsletter {
+  background: linear-gradient(120deg, #0b5fd6, #0ea5c9);
+  box-shadow: 0 30px 70px -30px rgba(47, 123, 255, 0.5);
+}
+
+.loja-input {
+  background: rgba(5, 8, 16, 0.55);
+  color: var(--lj-ink);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.loja-input::placeholder {
+  color: rgba(242, 246, 252, 0.65);
+}
+/* The className applies Tailwind's `outline-none`, which removes the
+   browser's default focus ring — this replaces it so keyboard users still
+   get a visible focus indicator (WCAG 2.4.7). */
+.loja-input:focus-visible {
+  outline: 2px solid var(--lj-accent-2);
+  outline-offset: 2px;
+}
+
+/* Global focus-visible safety net for this theme: every interactive
+   element gets a visible ring by default so a stray `outline-none` on a
+   future button/link doesn't silently break keyboard navigation. */
+.loja-theme a:focus-visible,
+.loja-theme button:focus-visible {
+  outline: 2px solid var(--lj-accent-2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.loja-zoom-hint {
+  background: rgba(4, 16, 31, 0.8);
+  box-shadow: 0 0 0 1px rgba(47, 123, 255, 0.35);
+}
+
+.loja-lens {
+  border: 2px solid var(--lj-accent-2);
+  box-shadow: 0 0 0 3px rgba(4, 16, 31, 0.6), 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 0 24px rgba(34, 211, 255, 0.35);
+}
+
+.loja-zoom-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 4, 10, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.loja-zoom-frame {
+  position: relative;
+  width: min(92vw, 720px);
+  height: min(85vh, 720px);
+  background: radial-gradient(circle at 50% 45%, rgba(47, 123, 255, 0.18), transparent 60%), #0a0f1c;
+  border: 1px solid var(--lj-line);
+  border-radius: 24px;
+  box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+
+.loja-zoom-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  background: rgba(4, 16, 31, 0.75);
+  color: #fff;
+  border: 1px solid var(--lj-line);
+}
+.loja-zoom-close:hover {
+  border-color: var(--lj-accent);
+}
+
+.loja-spec-dot::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--lj-accent-2);
+  margin-right: 6px;
+}
+
+.loja-stock-dot::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #2fe3a0;
+  margin-right: 6px;
+  box-shadow: 0 0 0 3px rgba(47, 227, 160, 0.18);
+}
+
+@media (max-width: 640px) {
+  .loja-hero-copy h1 {
+    font-size: clamp(28px, 8vw, 40px);
+  }
+}
+
+/* Respect the OS-level "reduce motion" setting: stop the auto-playing
+   orbit rings and product-photo hover zoom outright (the framer-motion
+   float/tilt/entrance animations are turned off in page.tsx itself via
+   useReducedMotion(), which this can't reach since those run as inline
+   styles, not this stylesheet). */
+@media (prefers-reduced-motion: reduce) {
+  .loja-hero-ring,
+  .loja-hero-ring-2 {
+    animation: none;
+  }
+  .loja-card,
+  .loja-tilt,
+  .loja-media img,
+  .loja-cta-primary,
+  .loja-btn-ghost {
+    transition: none !important;
+  }
+}
