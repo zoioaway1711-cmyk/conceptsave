@@ -1,494 +1,1153 @@
 /*
- * Scoped "neon blue + black" theme for the public storefront (/loja) —
- * mirrors the same Cyber Premium palette used by the verification portal's
- * dark mode and by /clube-save (app/clube-save/clube-save.css: --cs-primary
- * #2f7bff, --cs-cyan #22d3ff, #050810 background) so the store reads as the
- * same Save Concept product. Everything here is scoped under .loja-theme so
- * it never leaks into /admin, which ships its own theme.
+ * VerificaFarma / Save Concept — storefront design system (/loja only).
+ *
+ * Everything is scoped under `.lj-scope` so it never leaks into /admin or
+ * the verification portal. Portaled overlays (mini-cart, mobile menu,
+ * filter sheet) render outside the page wrapper, so they add `lj-scope`
+ * to their own root to receive the same tokens.
+ *
+ * Rules of thumb:
+ *  - Colors, radii, shadows and type sizes come from the tokens below;
+ *    components never introduce their own literal values.
+ *  - One brand blue for actions, one orange only for real discounts, green
+ *    only for availability/success, red only for errors/removal.
+ *  - Every interactive element keeps a visible :focus-visible ring.
  */
-.loja-theme {
-  --lj-ink: #f2f6fc;
-  --lj-muted: #8ca0be;
-  --lj-bg: #050810;
-  --lj-surface: #0b1220;
-  --lj-soft: #101a2c;
-  --lj-line: rgba(122, 162, 255, 0.18);
-  --lj-accent: #2f7bff;
-  --lj-accent-2: #22d3ff;
-  --lj-gold: #f5a623;
-  --lj-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.65), 0 0 40px rgba(47, 123, 255, 0.12);
-  --lj-glow: 0 0 0 1px rgba(47, 123, 255, 0.1), 0 20px 50px -20px rgba(47, 123, 255, 0.35);
 
-  position: relative;
+/* Same layer order Tailwind declares in app/globals.css, restated here so
+   it holds whichever stylesheet the bundler emits first. Living in
+   `components` lets Tailwind utilities (hidden, sm:flex, w-full…) on the
+   same element still win, while Tailwind's preflight can't reset us. */
+@layer theme, base, components, utilities;
+
+@layer components {
+.lj-scope {
+  /* color */
+  --lj-bg: #f5f8fc;
+  --lj-surface: #ffffff;
+  --lj-soft: #eef3fa;
+  --lj-ink: #0b1b33;
+  --lj-text: #2f3d55;
+  --lj-muted: #56657d;
+  --lj-line: #e1e8f1;
+  --lj-line-strong: #c7d3e3;
+  --lj-primary: #0b5fc4;
+  --lj-primary-hover: #094fa4;
+  --lj-primary-soft: #e7f0fc;
+  --lj-on-primary: #ffffff;
+  --lj-accent: #0e9fc4;
+  --lj-deal: #c2410c;
+  --lj-deal-soft: #fff1e8;
+  --lj-success: #0f7a5c;
+  --lj-success-soft: #e5f5ef;
+  --lj-warning: #8a5300;
+  --lj-warning-soft: #fff6e2;
+  --lj-danger: #b42335;
+  --lj-danger-soft: #fdecef;
+  --lj-star: #d98e04;
+  --lj-overlay: rgba(11, 27, 51, 0.45);
+
+  /* shape */
+  --lj-r-sm: 8px;
+  --lj-r-md: 12px;
+  --lj-r-lg: 16px;
+  --lj-r-xl: 24px;
+  --lj-r-pill: 999px;
+
+  /* elevation — kept deliberately soft */
+  --lj-shadow-sm: 0 1px 2px rgba(11, 27, 51, 0.05), 0 1px 3px rgba(11, 27, 51, 0.04);
+  --lj-shadow-md: 0 10px 28px -14px rgba(11, 27, 51, 0.22);
+  --lj-shadow-lg: 0 24px 60px -20px rgba(11, 27, 51, 0.3);
+  --lj-ring: 0 0 0 3px rgba(11, 95, 196, 0.28);
+
+  /* type */
+  --lj-font-display: "Manrope", "DM Sans", system-ui, sans-serif;
+  --lj-font-body: "DM Sans", system-ui, sans-serif;
+
+  /* layout */
+  --lj-container: 1200px;
+  --lj-gutter: 16px;
+  --lj-section: clamp(40px, 6vw, 72px);
+  --lj-header-h: 64px;
+
+  --lj-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  color: var(--lj-text);
+  font-family: var(--lj-font-body);
+}
+
+@media (min-width: 640px) {
+  .lj-scope {
+    --lj-gutter: 24px;
+  }
+}
+
+.lj-page {
   min-height: 100vh;
-  color: var(--lj-ink);
-  isolation: isolate;
-  background:
-    radial-gradient(circle at 12% -8%, rgba(47, 123, 255, 0.22), transparent 38%),
-    radial-gradient(circle at 100% 0%, rgba(34, 211, 255, 0.16), transparent 34%),
-    linear-gradient(rgba(122, 162, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(122, 162, 255, 0.05) 1px, transparent 1px),
-    var(--lj-bg);
-  background-size: auto, auto, 32px 32px, 32px 32px, auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--lj-bg);
+}
+.lj-page > main {
+  flex: 1;
 }
 
-.loja-theme ::selection {
-  background: rgba(47, 123, 255, 0.35);
+.lj-scope ::selection {
+  background: var(--lj-primary-soft);
   color: var(--lj-ink);
 }
 
-/* Same type pairing as the rest of the product (public/theme.css): Manrope
-   for display headings, DM Sans (set on body in app/globals.css) for
-   everything else — headings were inheriting DM Sans by default. */
-.loja-theme h1,
-.loja-theme h2,
-.loja-theme h3 {
-  font-family: "Manrope", "DM Sans", Arial, Helvetica, sans-serif;
+.lj-scope h1,
+.lj-scope h2,
+.lj-scope h3,
+.lj-display {
+  font-family: var(--lj-font-display);
+  color: var(--lj-ink);
+  letter-spacing: -0.02em;
 }
 
-/* Two blurred neon-blue/cyan blobs behind the content, purely decorative. */
-.loja-ambient {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
+/* ---------- layout ---------- */
+
+.lj-container {
+  width: 100%;
+  max-width: var(--lj-container);
+  margin-inline: auto;
+  padding-inline: var(--lj-gutter);
+}
+.lj-section {
+  padding-block: var(--lj-section);
+}
+.lj-section + .lj-section {
+  padding-top: 0;
+}
+
+.lj-grid-products {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 768px) {
+  .lj-grid-products {
+    gap: 20px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .lj-grid-products--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+/* Horizontally scrollable rail on mobile, grid from tablet up. */
+.lj-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(168px, 46%);
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+  margin-inline: calc(var(--lj-gutter) * -1);
+  padding-inline: var(--lj-gutter);
+  scrollbar-width: thin;
+}
+.lj-rail > * {
+  scroll-snap-align: start;
+}
+@media (min-width: 768px) {
+  .lj-rail {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-columns: unset;
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+    gap: 20px;
+  }
+}
+
+/* ---------- typography ---------- */
+
+.lj-h1 {
+  font-size: clamp(28px, 4.4vw, 46px);
+  line-height: 1.08;
+  font-weight: 800;
+}
+.lj-h2 {
+  font-size: clamp(21px, 2.6vw, 28px);
+  line-height: 1.2;
+  font-weight: 800;
+}
+.lj-h3 {
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 700;
+}
+.lj-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lj-primary);
+}
+.lj-lead {
+  font-size: clamp(15px, 1.6vw, 17px);
+  line-height: 1.6;
+  color: var(--lj-muted);
+}
+.lj-muted {
+  color: var(--lj-muted);
+}
+.lj-ink {
+  color: var(--lj-ink);
+}
+.lj-small {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lj-tiny {
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lj-link {
+  color: var(--lj-primary);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+.lj-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- buttons ---------- */
+
+.lj-btn {
+  --btn-h: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--btn-h);
+  padding: 0 18px;
+  border-radius: var(--lj-r-md);
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+.lj-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.lj-btn:disabled,
+.lj-btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.lj-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.lj-btn--sm {
+  --btn-h: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: var(--lj-r-sm);
+}
+.lj-btn--sm svg {
+  width: 16px;
+  height: 16px;
+}
+.lj-btn--lg {
+  --btn-h: 52px;
+  padding: 0 24px;
+  font-size: 15px;
+}
+.lj-btn--block {
+  width: 100%;
+}
+.lj-btn--icon {
+  padding: 0;
+  width: var(--btn-h);
+}
+
+.lj-btn--primary {
+  background: var(--lj-primary);
+  color: var(--lj-on-primary);
+  box-shadow: 0 6px 16px -8px rgba(11, 95, 196, 0.55);
+}
+.lj-btn--primary:hover:not(:disabled) {
+  background: var(--lj-primary-hover);
+}
+.lj-btn--secondary {
+  background: var(--lj-surface);
+  color: var(--lj-primary);
+  border-color: var(--lj-line-strong);
+}
+.lj-btn--secondary:hover:not(:disabled) {
+  border-color: var(--lj-primary);
+  background: var(--lj-primary-soft);
+}
+.lj-btn--soft {
+  background: var(--lj-primary-soft);
+  color: var(--lj-primary);
+}
+.lj-btn--soft:hover:not(:disabled) {
+  background: #d9e7fa;
+}
+.lj-btn--ghost {
+  background: transparent;
+  color: var(--lj-ink);
+}
+.lj-btn--ghost:hover:not(:disabled) {
+  background: var(--lj-soft);
+}
+.lj-btn--danger-ghost {
+  background: transparent;
+  color: var(--lj-danger);
+}
+.lj-btn--danger-ghost:hover:not(:disabled) {
+  background: var(--lj-danger-soft);
+}
+
+.lj-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: lj-spin 0.7s linear infinite;
+}
+@keyframes lj-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- focus ---------- */
+
+.lj-scope :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--lj-primary);
+  outline-offset: 2px;
+  border-radius: var(--lj-r-sm);
+}
+.lj-btn:focus-visible {
+  outline: 2px solid var(--lj-primary);
+  outline-offset: 2px;
+  box-shadow: var(--lj-ring);
+}
+
+.lj-skip-link {
+  position: absolute;
+  left: 12px;
+  top: -100px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: var(--lj-r-sm);
+  background: var(--lj-primary);
+  color: var(--lj-on-primary);
+  font-weight: 700;
+}
+.lj-skip-link:focus {
+  top: 12px;
+}
+
+/* ---------- form fields ---------- */
+
+.lj-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.lj-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lj-ink);
+}
+.lj-label small {
+  font-weight: 500;
+  color: var(--lj-muted);
+}
+.lj-input,
+.lj-select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: var(--lj-r-md);
+  border: 1px solid var(--lj-line-strong);
+  background: var(--lj-surface);
+  color: var(--lj-ink);
+  font-size: 16px; /* 16px stops iOS from zooming on focus */
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.lj-input::placeholder {
+  color: #7d8aa0;
+}
+.lj-input:hover,
+.lj-select:hover {
+  border-color: #a9b8cc;
+}
+.lj-scope .lj-input:focus-visible,
+.lj-scope .lj-select:focus-visible,
+.lj-input:focus,
+.lj-select:focus {
+  outline: none;
+  border-color: var(--lj-primary);
+  box-shadow: var(--lj-ring);
+}
+.lj-input[aria-invalid="true"] {
+  border-color: var(--lj-danger);
+}
+.lj-input[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px rgba(180, 35, 53, 0.2);
+}
+.lj-input:disabled {
+  background: var(--lj-soft);
+  color: var(--lj-muted);
+}
+.lj-field-error {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lj-danger);
+}
+.lj-field-hint {
+  font-size: 12px;
+  color: var(--lj-muted);
+}
+
+.lj-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  font-size: 14px;
+  color: var(--lj-ink);
+  cursor: pointer;
+}
+.lj-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lj-primary);
+  flex-shrink: 0;
+}
+
+/* Selectable option card (payment method, etc.) */
+.lj-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--lj-r-md);
+  border: 1px solid var(--lj-line-strong);
+  background: var(--lj-surface);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.lj-option:hover {
+  border-color: var(--lj-primary);
+}
+.lj-option:has(input:checked) {
+  border-color: var(--lj-primary);
+  background: var(--lj-primary-soft);
+  box-shadow: inset 0 0 0 1px var(--lj-primary);
+}
+.lj-option input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lj-primary);
+  flex-shrink: 0;
+}
+
+/* ---------- badges ---------- */
+
+.lj-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--lj-r-pill);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.lj-badge svg {
+  width: 12px;
+  height: 12px;
+}
+.lj-badge--deal {
+  background: var(--lj-deal);
+  color: #fff;
+}
+.lj-badge--info {
+  background: var(--lj-primary-soft);
+  color: var(--lj-primary);
+}
+.lj-badge--success {
+  background: var(--lj-success-soft);
+  color: var(--lj-success);
+}
+.lj-badge--neutral {
+  background: var(--lj-soft);
+  color: var(--lj-text);
+}
+.lj-badge--warning {
+  background: var(--lj-warning-soft);
+  color: var(--lj-warning);
+}
+
+/* ---------- surfaces ---------- */
+
+.lj-card {
+  background: var(--lj-surface);
+  border: 1px solid var(--lj-line);
+  border-radius: var(--lj-r-lg);
+  box-shadow: var(--lj-shadow-sm);
+}
+.lj-card--pad {
+  padding: 20px;
+}
+@media (min-width: 640px) {
+  .lj-card--pad {
+    padding: 24px;
+  }
+}
+.lj-panel {
+  background: var(--lj-soft);
+  border-radius: var(--lj-r-lg);
+}
+.lj-divider {
+  height: 1px;
+  background: var(--lj-line);
+  border: 0;
+}
+
+.lj-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--lj-r-md);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lj-alert svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.lj-alert--info {
+  background: var(--lj-primary-soft);
+  color: #0a4488;
+}
+.lj-alert--warning {
+  background: var(--lj-warning-soft);
+  color: var(--lj-warning);
+}
+.lj-alert--success {
+  background: var(--lj-success-soft);
+  color: var(--lj-success);
+}
+.lj-alert--error {
+  background: var(--lj-danger-soft);
+  color: var(--lj-danger);
+}
+
+/* ---------- skeleton ---------- */
+
+.lj-skeleton {
+  position: relative;
   overflow: hidden;
-  pointer-events: none;
+  background: var(--lj-soft);
+  border-radius: var(--lj-r-sm);
 }
-.loja-ambient::before,
-.loja-ambient::after {
+.lj-skeleton::after {
   content: "";
   position: absolute;
-  border-radius: 9999px;
-  filter: blur(100px);
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: lj-shimmer 1.3s infinite;
 }
-.loja-ambient::before {
-  top: -10rem;
-  right: -6rem;
-  height: 28rem;
-  width: 28rem;
-  background: rgba(47, 123, 255, 0.22);
-}
-.loja-ambient::after {
-  bottom: -14rem;
-  left: -10rem;
-  height: 26rem;
-  width: 26rem;
-  background: rgba(34, 211, 255, 0.14);
+@keyframes lj-shimmer {
+  to {
+    transform: translateX(100%);
+  }
 }
 
-.loja-theme main {
-  position: relative;
-  z-index: 1;
-}
+/* ---------- header ---------- */
 
-/* Frosted glass surface — dark gradient + blurred backdrop + neon-tinted
-   border/shadow, same recipe as /clube-save's .cs-glass. */
-.loja-glass {
-  background:
-    radial-gradient(circle at 85% 0%, rgba(47, 123, 255, 0.14), transparent 45%),
-    linear-gradient(155deg, #0d1526, #0a0f1c);
-  border: 1px solid var(--lj-line);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: var(--lj-glow);
-}
-
-.loja-header {
+.lj-header {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(5, 8, 16, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(1.4) blur(12px);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px);
   border-bottom: 1px solid var(--lj-line);
 }
-
-.loja-hero-copy h1 em {
-  font-style: normal;
-  background: linear-gradient(115deg, var(--lj-accent), var(--lj-accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.lj-topbar {
+  background: var(--lj-ink);
+  color: #dbe5f3;
+  font-size: 12px;
 }
-
-/* Decorative floating vial + spinning orbit rings behind the hero copy —
-   pure CSS/SVG-free 3D flourish: two conic-gradient rings rotate at
-   different speeds/tilts while the vial itself floats via framer-motion
-   (inline, not here), reading as a product suspended in space. */
-.loja-hero-visual {
-  width: 320px;
-  height: 320px;
-  display: grid;
-  place-items: center;
-}
-.loja-hero-ring {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent, rgba(47, 123, 255, 0.5), transparent 35%);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
-  animation: loja-spin 9s linear infinite;
-  transform: rotateX(62deg);
-}
-.loja-hero-ring-2 {
-  width: 330px;
-  height: 330px;
-  background: conic-gradient(from 180deg, transparent, rgba(34, 211, 255, 0.4), transparent 30%);
-  animation: loja-spin-reverse 14s linear infinite;
-  transform: rotateX(62deg);
-}
-.loja-hero-vial {
-  filter: drop-shadow(0 30px 40px rgba(47, 123, 255, 0.35));
-}
-.loja-hero-vial::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle, rgba(47, 123, 255, 0.35), transparent 70%);
-  transform: translate(-50%, -50%);
-  z-index: -1;
-}
-
-@keyframes loja-spin {
-  to {
-    transform: rotateX(62deg) rotate(360deg);
-  }
-}
-@keyframes loja-spin-reverse {
-  from {
-    transform: rotateX(62deg) rotate(360deg);
-  }
-  to {
-    transform: rotateX(62deg) rotate(0deg);
-  }
-}
-
-/* 3D "pressable" button: a bright top edge + a solid dark rim underneath
-   read as a raised bevel; translateY + shrinking the rim on :active sells
-   the press without any JS. */
-.loja-cta-primary {
+.lj-header-icon {
   position: relative;
-  background: linear-gradient(115deg, #2f7bff, #22d3ff);
-  color: #04101f;
-  box-shadow: 0 14px 34px -10px rgba(47, 123, 255, 0.55), 0 3px 0 0 #0b3fa8, inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  transform: translateY(0);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.2s ease;
-}
-.loja-cta-primary:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-  box-shadow: 0 18px 38px -10px rgba(47, 123, 255, 0.6), 0 4px 0 0 #0b3fa8, inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-.loja-cta-primary:active {
-  transform: translateY(2px);
-  box-shadow: 0 8px 20px -10px rgba(47, 123, 255, 0.5), 0 1px 0 0 #0b3fa8, inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-.loja-cta-primary:disabled {
-  transform: none;
-}
-
-.loja-btn-ghost {
-  background: rgba(16, 26, 44, 0.7);
-  border: 1px solid var(--lj-line);
-  color: var(--lj-accent-2);
-  transition: transform 0.15s ease, border-color 0.2s ease;
-}
-.loja-btn-ghost:active {
-  transform: translateY(1px) scale(0.98);
-}
-.loja-btn-ghost:hover {
-  border-color: var(--lj-accent);
-}
-
-.loja-card {
-  background: linear-gradient(155deg, #0d1526, #0a0f1c);
-  border: 1px solid var(--lj-line);
-  box-shadow: var(--lj-shadow), inset 0 1px 0 rgba(122, 162, 255, 0.12);
-  transition: box-shadow 0.35s ease, border-color 0.35s ease;
-}
-.loja-card:hover {
-  border-color: rgba(47, 123, 255, 0.4);
-  box-shadow: 0 40px 90px -25px rgba(0, 0, 0, 0.7), 0 0 50px rgba(47, 123, 255, 0.2),
-    inset 0 1px 0 rgba(122, 162, 255, 0.16);
-}
-
-/* 3D tilt: perspective on the wrapping motion.div (inline) + a transform
-   here that mousemove overwrites via inline style every frame — the
-   transition below is what makes those inline updates glide instead of
-   snapping frame to frame. */
-.loja-tilt {
-  transition: transform 0.15s ease-out;
-  transform-style: preserve-3d;
-  will-change: transform;
-}
-
-/* Specular highlight that tracks the cursor, layered above the card
-   content but below badges (z-index via DOM order) — classic "glass card
-   under a light" trick: a soft white radial following --shine position,
-   screened onto the dark gradient so it reads as a sheen, not a wash. */
-.loja-tilt-shine {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  transition: opacity 0.3s ease;
-}
-
-/* Product photos keep a light "spotlight" panel behind them — most of our
-   real product photography is shot on a white/studio background, so
-   forcing the tile itself dark would clip or discolor those photos. A
-   glowing light disc reads as an intentional premium spotlight against the
-   neon-dark card instead of a mismatched background. */
-.loja-media {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 45%, rgba(47, 123, 255, 0.25), transparent 60%),
-    linear-gradient(160deg, #0d1526, #080d18);
-}
-.loja-photo-frame {
-  position: relative;
-  border-radius: 20px;
-  background: radial-gradient(circle at 30% 20%, #ffffff, #eef4fc);
-  box-shadow: 0 0 0 1px rgba(47, 123, 255, 0.25), 0 20px 50px -18px rgba(47, 123, 255, 0.5);
-}
-.loja-media img {
-  transition: transform 0.6s ease;
-}
-.loja-card:hover .loja-media img {
-  transform: scale(1.045);
-}
-
-.loja-media-icon {
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(circle at 30% 20%, rgba(34, 211, 255, 0.25), transparent 55%),
-    linear-gradient(155deg, #2f7bff, #22d3ff);
-  color: #04101f;
-}
-
-.loja-badge-authentic {
-  background: rgba(47, 123, 255, 0.16);
-  color: var(--lj-accent-2);
-  border: 1px solid rgba(47, 123, 255, 0.32);
-}
-
-.loja-price em {
-  font-style: normal;
-  color: var(--lj-muted);
-  font-weight: 600;
-  font-size: 0.72rem;
-  text-decoration: line-through;
-}
-
-.loja-trust-strip {
-  border-top: 1px solid var(--lj-line);
-  border-bottom: 1px solid var(--lj-line);
-  background: rgba(11, 18, 32, 0.55);
-}
-
-.loja-cart-fab {
-  position: fixed;
-  right: 20px;
-  bottom: 22px;
-  z-index: 50;
-  background: linear-gradient(115deg, #2f7bff, #22d3ff);
-  color: #04101f;
-  box-shadow: 0 18px 40px -14px rgba(47, 123, 255, 0.6);
-}
-
-.loja-cart-count {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: var(--lj-gold);
-  color: #33230a;
-}
-
-.loja-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  background: rgba(2, 4, 10, 0.6);
-  backdrop-filter: blur(2px);
-}
-
-.loja-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 61;
-  width: min(420px, 100vw);
-  background: linear-gradient(165deg, #0d1526, #070b14);
-  border-left: 1px solid var(--lj-line);
-  box-shadow: -30px 0 80px -30px rgba(0, 0, 0, 0.7);
-  display: flex;
-  flex-direction: column;
-}
-
-.loja-footer {
-  border-top: 1px solid var(--lj-line);
-  background: rgba(5, 8, 16, 0.7);
-}
-
-.loja-star {
-  color: var(--lj-gold);
-}
-.loja-star-empty {
-  color: var(--lj-line);
-}
-
-.loja-about-media {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 30% 10%, rgba(34, 211, 255, 0.2), transparent 55%),
-    linear-gradient(160deg, #0b1a33, #050a16);
-}
-
-.loja-testimonial {
-  background: linear-gradient(155deg, #0d1526, #0a0f1c);
-  border: 1px solid var(--lj-line);
-  box-shadow: var(--lj-shadow);
-}
-
-.loja-faq-item {
-  border-bottom: 1px solid var(--lj-line);
-}
-.loja-faq-item:last-child {
-  border-bottom: none;
-}
-
-.loja-newsletter {
-  background: linear-gradient(120deg, #0b5fd6, #0ea5c9);
-  box-shadow: 0 30px 70px -30px rgba(47, 123, 255, 0.5);
-}
-
-.loja-input {
-  background: rgba(5, 8, 16, 0.55);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 10px;
+  border-radius: var(--lj-r-md);
   color: var(--lj-ink);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 0.15s ease;
 }
-.loja-input::placeholder {
-  color: rgba(242, 246, 252, 0.65);
+.lj-header-icon:hover {
+  background: var(--lj-soft);
 }
-/* The className applies Tailwind's `outline-none`, which removes the
-   browser's default focus ring — this replaces it so keyboard users still
-   get a visible focus indicator (WCAG 2.4.7). */
-.loja-input:focus-visible {
-  outline: 2px solid var(--lj-accent-2);
-  outline-offset: 2px;
+.lj-header-icon svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.lj-count {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--lj-r-pill);
+  background: var(--lj-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--lj-surface);
+}
+.lj-catnav a {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lj-text);
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.lj-catnav a:hover,
+.lj-catnav a[aria-current="page"] {
+  color: var(--lj-primary);
+  border-bottom-color: var(--lj-primary);
 }
 
-/* Global focus-visible safety net for this theme: every interactive
-   element gets a visible ring by default so a stray `outline-none` on a
-   future button/link doesn't silently break keyboard navigation. */
-.loja-theme a:focus-visible,
-.loja-theme button:focus-visible {
-  outline: 2px solid var(--lj-accent-2);
-  outline-offset: 2px;
-  border-radius: 4px;
+/* ---------- search ---------- */
+
+.lj-search {
+  position: relative;
+  width: 100%;
+}
+.lj-search-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 48px 0 44px;
+  border-radius: var(--lj-r-md);
+  border: 1px solid var(--lj-line-strong);
+  background: var(--lj-soft);
+  color: var(--lj-ink);
+  font-size: 16px;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.lj-search-input::placeholder {
+  color: #6b7a91;
+}
+.lj-search-input:hover {
+  border-color: #a9b8cc;
+}
+.lj-scope .lj-search-input:focus-visible,
+.lj-search-input:focus {
+  outline: none;
+  background: var(--lj-surface);
+  border-color: var(--lj-primary);
+  box-shadow: var(--lj-ring);
+}
+.lj-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+.lj-search-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 45;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  background: var(--lj-surface);
+  border: 1px solid var(--lj-line);
+  border-radius: var(--lj-r-lg);
+  box-shadow: var(--lj-shadow-lg);
+  padding: 8px;
+}
+.lj-search-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: var(--lj-r-md);
+  text-align: left;
+  color: var(--lj-ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+.lj-search-option[aria-selected="true"],
+.lj-search-option:hover {
+  background: var(--lj-soft);
+}
+.lj-search-group {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lj-muted);
+}
+.lj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--lj-r-pill);
+  border: 1px solid var(--lj-line-strong);
+  background: var(--lj-surface);
+  color: var(--lj-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.lj-chip:hover {
+  border-color: var(--lj-primary);
+  background: var(--lj-primary-soft);
+}
+.lj-chip svg {
+  width: 14px;
+  height: 14px;
+}
+.lj-chip--active {
+  border-color: var(--lj-primary);
+  background: var(--lj-primary-soft);
+  color: var(--lj-primary);
 }
 
-.loja-zoom-hint {
-  background: rgba(4, 16, 31, 0.8);
-  box-shadow: 0 0 0 1px rgba(47, 123, 255, 0.35);
-}
+/* ---------- product media ---------- */
 
-.loja-lens {
-  border: 2px solid var(--lj-accent-2);
-  box-shadow: 0 0 0 3px rgba(4, 16, 31, 0.6), 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 0 24px rgba(34, 211, 255, 0.35);
-}
-
-.loja-zoom-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
+.lj-media {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: rgba(2, 4, 10, 0.82);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.loja-zoom-frame {
-  position: relative;
-  width: min(92vw, 720px);
-  height: min(85vh, 720px);
-  background: radial-gradient(circle at 50% 45%, rgba(47, 123, 255, 0.18), transparent 60%), #0a0f1c;
-  border: 1px solid var(--lj-line);
-  border-radius: 24px;
-  box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.7);
   overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #ffffff 0%, var(--lj-soft) 75%);
+}
+.lj-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
-.loja-zoom-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 1;
-  background: rgba(4, 16, 31, 0.75);
-  color: #fff;
+/* ---------- product card ---------- */
+
+.lj-pcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--lj-surface);
   border: 1px solid var(--lj-line);
+  border-radius: var(--lj-r-lg);
+  box-shadow: var(--lj-shadow-sm);
+  overflow: hidden;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s var(--lj-ease);
 }
-.loja-zoom-close:hover {
-  border-color: var(--lj-accent);
+.lj-pcard:hover {
+  border-color: var(--lj-line-strong);
+  box-shadow: var(--lj-shadow-md);
 }
-
-.loja-spec-dot::before {
+@media (hover: hover) {
+  .lj-pcard:hover {
+    transform: translateY(-2px);
+  }
+  .lj-pcard:hover .lj-media img {
+    transform: scale(1.03);
+  }
+}
+.lj-pcard .lj-media {
+  aspect-ratio: 1 / 1;
+  padding: 14px;
+}
+.lj-pcard .lj-media img {
+  transition: transform 0.4s var(--lj-ease);
+}
+/* Whole card is clickable through the title link's ::after, while the
+   favorite and add-to-cart buttons stay independently focusable above it. */
+.lj-pcard-link::after {
   content: "";
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--lj-accent-2);
-  margin-right: 6px;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.lj-pcard-link:focus-visible {
+  outline: none;
+}
+.lj-pcard:has(.lj-pcard-link:focus-visible) {
+  outline: 2px solid var(--lj-primary);
+  outline-offset: 2px;
+}
+.lj-pcard-raise {
+  position: relative;
+  z-index: 2;
+}
+.lj-fav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--lj-muted);
+  border: 1px solid var(--lj-line);
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+.lj-fav:hover {
+  color: var(--lj-danger);
+}
+.lj-fav[aria-pressed="true"] {
+  color: var(--lj-danger);
+}
+.lj-fav[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+.lj-fav svg {
+  width: 18px;
+  height: 18px;
 }
 
-.loja-stock-dot::before {
+.lj-price-old {
+  font-size: 13px;
+  color: var(--lj-muted);
+  text-decoration: line-through;
+}
+.lj-price {
+  font-family: var(--lj-font-display);
+  font-weight: 800;
+  color: var(--lj-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.lj-stock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lj-success);
+}
+.lj-stock::before {
   content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #2fe3a0;
-  margin-right: 6px;
-  box-shadow: 0 0 0 3px rgba(47, 227, 160, 0.18);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.lj-stock--out {
+  color: var(--lj-muted);
 }
 
-@media (max-width: 640px) {
-  .loja-hero-copy h1 {
-    font-size: clamp(28px, 8vw, 40px);
+.lj-stars {
+  display: inline-flex;
+  gap: 1px;
+  color: var(--lj-star);
+}
+.lj-stars svg {
+  width: 14px;
+  height: 14px;
+}
+.lj-stars .is-empty {
+  color: var(--lj-line-strong);
+}
+
+/* ---------- quantity stepper ---------- */
+
+.lj-stepper {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  border: 1px solid var(--lj-line-strong);
+  border-radius: var(--lj-r-md);
+  background: var(--lj-surface);
+}
+.lj-stepper button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  color: var(--lj-ink);
+  border-radius: var(--lj-r-md);
+}
+.lj-stepper button:hover:not(:disabled) {
+  background: var(--lj-soft);
+}
+.lj-stepper button:disabled {
+  color: var(--lj-line-strong);
+  cursor: not-allowed;
+}
+.lj-stepper svg {
+  width: 16px;
+  height: 16px;
+}
+.lj-stepper output {
+  min-width: 32px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--lj-ink);
+  font-variant-numeric: tabular-nums;
+}
+.lj-stepper--sm {
+  height: 36px;
+}
+.lj-stepper--sm button {
+  width: 36px;
+}
+
+/* ---------- breadcrumbs ---------- */
+
+.lj-breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 13px;
+  color: var(--lj-muted);
+}
+.lj-breadcrumbs a {
+  color: var(--lj-muted);
+}
+.lj-breadcrumbs a:hover {
+  color: var(--lj-primary);
+  text-decoration: underline;
+}
+.lj-breadcrumbs [aria-current="page"] {
+  color: var(--lj-ink);
+  font-weight: 600;
+}
+.lj-breadcrumbs svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- overlays (portaled — carry `lj-scope` themselves) ---------- */
+
+.lj-sheet {
+  background: var(--lj-surface) !important;
+  color: var(--lj-text);
+  border-color: var(--lj-line) !important;
+  box-shadow: var(--lj-shadow-lg);
+}
+.lj-sheet-overlay {
+  background: var(--lj-overlay) !important;
+}
+
+.lj-toast {
+  position: fixed;
+  z-index: 70;
+  right: 16px;
+  left: 16px;
+  bottom: 16px;
+  max-width: 400px;
+  margin-left: auto;
+  background: var(--lj-surface);
+  border: 1px solid var(--lj-line);
+  border-radius: var(--lj-r-lg);
+  box-shadow: var(--lj-shadow-lg);
+}
+@media (min-width: 768px) {
+  .lj-toast {
+    left: auto;
+    bottom: auto;
+    top: calc(var(--lj-header-h) + 60px);
+    width: 380px;
   }
 }
 
-/* Respect the OS-level "reduce motion" setting: stop the auto-playing
-   orbit rings and product-photo hover zoom outright (the framer-motion
-   float/tilt/entrance animations are turned off in page.tsx itself via
-   useReducedMotion(), which this can't reach since those run as inline
-   styles, not this stylesheet). */
+/* PDP sticky buy bar (mobile only) */
+.lj-buybar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--lj-line);
+  padding: 10px var(--lj-gutter) calc(10px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1024px) {
+  .lj-buybar {
+    display: none;
+  }
+}
+
+/* ---------- zoom ---------- */
+
+.lj-lens {
+  pointer-events: none;
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid var(--lj-surface);
+  box-shadow:
+    0 0 0 1px var(--lj-line-strong),
+    var(--lj-shadow-lg);
+  background-repeat: no-repeat;
+  background-color: var(--lj-surface);
+}
+
+/* ---------- checkout steps ---------- */
+
+.lj-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  counter-reset: step;
+}
+.lj-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lj-muted);
+}
+.lj-step::before {
+  content: "";
+  height: 4px;
+  border-radius: var(--lj-r-pill);
+  background: var(--lj-line);
+}
+.lj-step[data-state="done"]::before,
+.lj-step[data-state="current"]::before {
+  background: var(--lj-primary);
+}
+.lj-step[data-state="current"] {
+  color: var(--lj-ink);
+}
+
+/* ---------- footer ---------- */
+
+.lj-footer {
+  background: var(--lj-surface);
+  border-top: 1px solid var(--lj-line);
+}
+.lj-footer a:hover {
+  color: var(--lj-primary);
+}
+
+/* ---------- misc ---------- */
+
+.lj-icon-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--lj-primary-soft);
+  color: var(--lj-primary);
+  flex-shrink: 0;
+}
+.lj-icon-circle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.lj-hero {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(14, 159, 196, 0.12), transparent 45%),
+    linear-gradient(180deg, var(--lj-surface), var(--lj-bg));
+  border-bottom: 1px solid var(--lj-line);
+}
+
+.lj-faq summary {
+  list-style: none;
+  cursor: pointer;
+}
+.lj-faq summary::-webkit-details-marker {
+  display: none;
+}
+.lj-faq details[open] .lj-faq-chevron {
+  transform: rotate(180deg);
+}
+.lj-faq-chevron {
+  transition: transform 0.2s ease;
+}
+
+.lj-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .loja-hero-ring,
-  .loja-hero-ring-2 {
-    animation: none;
-  }
-  .loja-card,
-  .loja-tilt,
-  .loja-media img,
-  .loja-cta-primary,
-  .loja-btn-ghost {
-    transition: none !important;
+  .lj-scope *,
+  .lj-scope *::before,
+  .lj-scope *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
+} /* @layer components */
