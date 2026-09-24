@@ -461,7 +461,14 @@ export function CheckoutView() {
                 onChange={(e) => update("cpf", maskCpf(e.target.value))}
                 onBlur={() => onBlurValidate("cpf")}
                 error={errors.cpf}
-                hint="Necessário para emitir a nota fiscal. Não fica salvo neste navegador."
+                hint={
+                  <>
+                    Necessário para emitir a nota fiscal; guardado criptografado.{" "}
+                    <Link href="/loja/privacidade" className="lj-link" target="_blank">
+                      Como usamos seus dados
+                    </Link>
+                  </>
+                }
               />
               <Field
                 id="phone"

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Eye, RefreshCw } from "lucide-react";
+import { Download, Eye, RefreshCw, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PRODUCTS, STORE, formatBRL } from "@/app/loja/_lib/catalog";
 import { ALLOWED_TRANSITIONS, ORDER_STATUSES, ORDER_STATUS_LABEL, type OrderStatus } from "@/app/loja/_lib/order-status";
-import { apiFetch, apiPatch, apiPost } from "../_lib/api";
+import { apiDelete, apiFetch, apiPatch, apiPost } from "../_lib/api";
+import { downloadCsv } from "../_lib/csv";
 
 type AdminOrder = {
   id: string;
@@ -210,6 +211,33 @@ function OrdersTab() {
         ))}
         <Button size="sm" variant="ghost" onClick={() => void load()}>
           <RefreshCw className="size-4" /> Atualizar
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!orders?.length}
+          onClick={() =>
+            downloadCsv(
+              `pedidos-loja-${new Date().toISOString().slice(0, 10)}.csv`,
+              (orders ?? []).map((o) => ({
+                numero: o.number,
+                data: fmt.format(new Date(o.createdAt)),
+                status: ORDER_STATUS_LABEL[o.status],
+                total: o.total.toFixed(2).replace(".", ","),
+                pagamento: paymentLabel(o.payment.method),
+                parcelas: o.payment.installments,
+                cliente: o.customer.name,
+                email: o.customer.email,
+                celular: o.customer.phone,
+                cpf: o.customer.cpfMasked,
+                cidade: `${o.address.city}/${o.address.uf}`,
+                itens: o.items.map((i) => `${i.qty}x ${i.name}`).join(" | "),
+                rastreio: o.trackingCode ?? "",
+              })),
+            )
+          }
+        >
+          <Download className="size-4" /> Exportar CSV (lista carregada)
         </Button>
       </div>
       {error && <p className="text-sm text-destructive">Erro ao carregar: {error}</p>}
@@ -473,6 +501,134 @@ function MetricsTab() {
   );
 }
 
+type Summary = {
+  awaitingPayment: { n: number; value: number };
+  toShip: { n: number };
+  confirmed: { n: number; value: number };
+  lastWeek: number;
+  subscribers: { news?: number; restock?: number };
+};
+
+function SummaryCards() {
+  const [data, setData] = useState<Summary | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void apiFetch<Summary>("/api/admin/loja/summary").then((r) => alive && r.ok && setData(r.data));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const cards = [
+    { label: "Aguardando pagamento", value: data ? `${data.awaitingPayment.n}` : "–", hint: data ? formatBRL(data.awaitingPayment.value) : "" },
+    { label: "A preparar/enviar", value: data ? `${data.toShip.n}` : "–", hint: "pagos, ainda não enviados" },
+    { label: "Receita confirmada", value: data ? formatBRL(data.confirmed.value) : "–", hint: data ? `${data.confirmed.n} pedidos pagos` : "" },
+    { label: "Pedidos em 7 dias", value: data ? `${data.lastWeek}` : "–", hint: "todos os status" },
+    { label: "Inscritos", value: data ? `${(data.subscribers.news ?? 0) + (data.subscribers.restock ?? 0)}` : "–", hint: data ? `${data.subscribers.news ?? 0} novidades · ${data.subscribers.restock ?? 0} reposição` : "" },
+  ];
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {cards.map((c) => (
+        <Card key={c.label}>
+          <CardHeader className="pb-2">
+            <CardDescription>{c.label}</CardDescription>
+            <CardTitle className="text-2xl">{c.value}</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 text-xs text-muted-foreground">{c.hint}</CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+type Subscriber = { id: number; email: string; kind: "news" | "restock"; sku: string; consentText: string; createdAt: string };
+
+function SubscribersTab() {
+  const [rows, setRows] = useState<Subscriber[] | null>(null);
+  const load = useCallback(async () => {
+    const r = await apiFetch<{ subscribers: Subscriber[] }>("/api/admin/loja/subscribers");
+    if (r.ok) setRows(r.data.subscribers);
+    else toast.error(`Erro: ${r.error}`);
+  }, []);
+  useEffect(() => {
+    const t = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(t);
+  }, [load]);
+
+  async function remove(s: Subscriber) {
+    if (!window.confirm(`Remover ${s.email} da lista? (use quando a pessoa pedir a exclusão)`)) return;
+    const r = await apiDelete(`/api/admin/loja/subscribers?id=${s.id}`);
+    if (r.ok) {
+      setRows((cur) => cur?.filter((x) => x.id !== s.id) ?? null);
+      toast.success("Removido");
+    } else toast.error(`Erro: ${r.error}`);
+  }
+
+  const productName = (sku: string) => PRODUCTS.find((p) => p.sku === sku)?.name ?? sku;
+  if (!rows) return <Spinner />;
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="text-base">Inscritos por e-mail</CardTitle>
+          <CardDescription>
+            Pessoas que autorizaram receber avisos. Nenhum e-mail é enviado automaticamente — exporte a lista para a sua ferramenta de
+            envio e respeite a finalidade autorizada (novidades ou reposição de um produto).
+          </CardDescription>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!rows.length}
+          onClick={() =>
+            downloadCsv(
+              `inscritos-loja-${new Date().toISOString().slice(0, 10)}.csv`,
+              rows.map((r) => ({
+                email: r.email,
+                tipo: r.kind === "news" ? "Novidades" : "Reposição",
+                produto: r.kind === "restock" ? productName(r.sku) : "",
+                data: fmt.format(new Date(r.createdAt)),
+                consentimento: r.consentText,
+              })),
+            )
+          }
+        >
+          <Download className="size-4" /> Exportar CSV
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Ninguém se inscreveu ainda.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>E-mail</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Data</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{r.email}</TableCell>
+                  <TableCell>{r.kind === "news" ? "Novidades" : `Reposição: ${productName(r.sku)}`}</TableCell>
+                  <TableCell>{fmt.format(new Date(r.createdAt))}</TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" aria-label={`Remover ${r.email}`} onClick={() => remove(r)}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function LojaAdminClient({ canOrders, canAnalytics }: { canOrders: boolean; canAnalytics: boolean }) {
   return (
     <div className="space-y-6 p-6 lg:p-8">
@@ -482,10 +638,12 @@ export function LojaAdminClient({ canOrders, canAnalytics }: { canOrders: boolea
           Pedidos da loja online (pagamento combinado pela equipe — não há cobrança automática), estoque e métricas anônimas.
         </p>
       </div>
+      {canOrders && <SummaryCards />}
       <Tabs defaultValue={canOrders ? "pedidos" : "metricas"}>
         <TabsList>
           {canOrders && <TabsTrigger value="pedidos">Pedidos</TabsTrigger>}
           {canOrders && <TabsTrigger value="estoque">Estoque</TabsTrigger>}
+          {canOrders && <TabsTrigger value="inscritos">Inscritos</TabsTrigger>}
           {canAnalytics && <TabsTrigger value="metricas">Métricas</TabsTrigger>}
         </TabsList>
         {canOrders && (
@@ -496,6 +654,11 @@ export function LojaAdminClient({ canOrders, canAnalytics }: { canOrders: boolea
         {canOrders && (
           <TabsContent value="estoque" className="pt-4">
             <StockTab />
+          </TabsContent>
+        )}
+        {canOrders && (
+          <TabsContent value="inscritos" className="pt-4">
+            <SubscribersTab />
           </TabsContent>
         )}
         {canAnalytics && (

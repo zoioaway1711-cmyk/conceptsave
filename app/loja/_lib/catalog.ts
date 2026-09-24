@@ -73,6 +73,9 @@ export const STORE = {
   supportHours: "Seg. a sex., 9h às 18h",
   /** Left empty on purpose: no real number/profile is configured yet. */
   whatsappUrl: "",
+  /** Privacy/LGPD contact e-mail (encarregado). Empty until the owner provides one. */
+  privacyEmail: "",
+  supportEmail: "",
   instagramUrl: "",
   maxInstallments: 3,
   delivery: {

@@ -395,3 +395,28 @@ export async function transitionOrder(
   return { ok: true, order: { ...order, items, status: to, trackingCode: tracking, history, updatedAt: at }, from: order.status };
 
 }
+
+/* ---------- admin summary ---------- */
+
+export async function ordersSummary(db: D1Database) {
+  const since7 = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const [byStatus, week, subs] = await Promise.all([
+    db.prepare("SELECT status, COUNT(*) AS n, COALESCE(SUM(total), 0) AS value FROM loja_orders GROUP BY status").all<{ status: OrderStatus; n: number; value: number }>(),
+    db.prepare("SELECT COUNT(*) AS n FROM loja_orders WHERE created_at >= ?").bind(since7).first<{ n: number }>(),
+    db.prepare("SELECT kind, COUNT(*) AS n FROM loja_subscribers GROUP BY kind").all<{ kind: "news" | "restock"; n: number }>(),
+  ]);
+  const status = Object.fromEntries(byStatus.results.map((r) => [r.status, { n: r.n, value: r.value }])) as Partial<
+    Record<OrderStatus, { n: number; value: number }>
+  >;
+  const confirmed = (["payment_approved", "preparing", "shipped", "delivered"] as const).reduce(
+    (acc, s) => ({ n: acc.n + (status[s]?.n ?? 0), value: acc.value + (status[s]?.value ?? 0) }),
+    { n: 0, value: 0 },
+  );
+  return {
+    awaitingPayment: status.received ?? { n: 0, value: 0 },
+    toShip: { n: (status.payment_approved?.n ?? 0) + (status.preparing?.n ?? 0) },
+    confirmed,
+    lastWeek: week?.n ?? 0,
+    subscribers: Object.fromEntries(subs.results.map((r) => [r.kind, r.n])) as Partial<Record<"news" | "restock", number>>,
+  };
+}

@@ -136,6 +136,7 @@ export function SearchBox({ autoFocus, onNavigate }: { autoFocus?: boolean; onNa
           enterKeyHint="search"
           autoFocus={autoFocus}
           placeholder="Busque por produto, princípio ativo ou acessório"
+          aria-keyshortcuts="/"
           className="lj-search-input"
           value={value}
           role="combobox"

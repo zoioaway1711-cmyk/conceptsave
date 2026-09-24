@@ -61,6 +61,14 @@
   --lj-danger-soft: #fdecef;
   --lj-star: #d98e04;
   --lj-overlay: rgba(11, 27, 51, 0.45);
+  --lj-primary-soft-hover: #d9e7fa;
+  --lj-placeholder: #7d8aa0;
+  --lj-line-hover: #a9b8cc;
+  --lj-info-text: #0a4488;
+  --lj-shimmer: rgba(255, 255, 255, 0.7);
+  --lj-glass: rgba(255, 255, 255, 0.92);
+  --lj-media-center: #ffffff;
+  --lj-topbar-bg: #0b1b33;
 
   /* shape */
   --lj-r-sm: 8px;
@@ -102,6 +110,84 @@
 @media (min-width: 640px) {
   .lj-scope {
     --lj-gutter: 24px;
+  }
+}
+
+
+/* ---------- dark theme ----------
+   Follows the OS by default; an explicit choice in the theme switcher sets
+   <html data-lj-theme="light|dark">. Scoped to .lj-scope, so the portal
+   and admin keep their own themes. */
+:root[data-lj-theme="dark"] .lj-scope {
+  --lj-bg: #0b1220;
+  --lj-surface: #111a2b;
+  --lj-soft: #172238;
+  --lj-ink: #eef3fb;
+  --lj-text: #c6d1e3;
+  --lj-muted: #97a6bd;
+  --lj-line: #22304a;
+  --lj-line-strong: #34465f;
+  --lj-line-hover: #4a5f7e;
+  --lj-primary: #6aa6ff;
+  --lj-primary-hover: #8bb9ff;
+  --lj-primary-soft: #16294a;
+  --lj-primary-soft-hover: #1d3560;
+  --lj-on-primary: #06101f;
+  --lj-accent: #38c6e8;
+  --lj-deal-soft: #3a1c0c;
+  --lj-success: #4fd1a5;
+  --lj-success-soft: #0f2e27;
+  --lj-warning: #f3b64d;
+  --lj-warning-soft: #33260c;
+  --lj-danger: #ff8593;
+  --lj-danger-soft: #3a1720;
+  --lj-info-text: #b5d0ff;
+  --lj-placeholder: #7f8ea6;
+  --lj-overlay: rgba(0, 0, 0, 0.6);
+  --lj-shimmer: rgba(255, 255, 255, 0.06);
+  --lj-glass: rgba(11, 18, 32, 0.9);
+  --lj-media-center: #22304a;
+  --lj-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --lj-shadow-md: 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+  --lj-shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+  --lj-ring: 0 0 0 3px rgba(106, 166, 255, 0.35);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-lj-theme="light"]) .lj-scope {
+    --lj-bg: #0b1220;
+    --lj-surface: #111a2b;
+    --lj-soft: #172238;
+    --lj-ink: #eef3fb;
+    --lj-text: #c6d1e3;
+    --lj-muted: #97a6bd;
+    --lj-line: #22304a;
+    --lj-line-strong: #34465f;
+    --lj-line-hover: #4a5f7e;
+    --lj-primary: #6aa6ff;
+    --lj-primary-hover: #8bb9ff;
+    --lj-primary-soft: #16294a;
+    --lj-primary-soft-hover: #1d3560;
+    --lj-on-primary: #06101f;
+    --lj-accent: #38c6e8;
+    --lj-deal-soft: #3a1c0c;
+    --lj-success: #4fd1a5;
+    --lj-success-soft: #0f2e27;
+    --lj-warning: #f3b64d;
+    --lj-warning-soft: #33260c;
+    --lj-danger: #ff8593;
+    --lj-danger-soft: #3a1720;
+    --lj-info-text: #b5d0ff;
+    --lj-placeholder: #7f8ea6;
+    --lj-overlay: rgba(0, 0, 0, 0.6);
+    --lj-shimmer: rgba(255, 255, 255, 0.06);
+    --lj-glass: rgba(11, 18, 32, 0.9);
+    --lj-media-center: #22304a;
+    --lj-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --lj-shadow-md: 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+    --lj-shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.8);
+    --lj-ring: 0 0 0 3px rgba(106, 166, 255, 0.35);
+    color-scheme: dark;
   }
 }
 
@@ -323,7 +409,7 @@
   color: var(--lj-primary);
 }
 .lj-btn--soft:hover:not(:disabled) {
-  background: #d9e7fa;
+  background: var(--lj-primary-soft-hover);
 }
 .lj-btn--ghost {
   background: transparent;
@@ -414,11 +500,11 @@
     box-shadow 0.15s ease;
 }
 .lj-input::placeholder {
-  color: #7d8aa0;
+  color: var(--lj-placeholder);
 }
 .lj-input:hover,
 .lj-select:hover {
-  border-color: #a9b8cc;
+  border-color: var(--lj-line-hover);
 }
 .lj-scope .lj-input:focus-visible,
 .lj-scope .lj-select:focus-visible,
@@ -576,7 +662,7 @@
 }
 .lj-alert--info {
   background: var(--lj-primary-soft);
-  color: #0a4488;
+  color: var(--lj-info-text);
 }
 .lj-alert--warning {
   background: var(--lj-warning-soft);
@@ -604,7 +690,7 @@
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  background: linear-gradient(90deg, transparent, var(--lj-shimmer), transparent);
   animation: lj-shimmer 1.3s infinite;
 }
 @keyframes lj-shimmer {
@@ -619,13 +705,16 @@
   position: sticky;
   top: 0;
   z-index: var(--lj-z-header);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--lj-glass);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
   border-bottom: 1px solid var(--lj-line);
 }
+.lj-header[data-scrolled] {
+  box-shadow: 0 6px 20px -12px rgba(11, 27, 51, 0.25);
+}
 .lj-topbar {
-  background: var(--lj-ink);
+  background: var(--lj-topbar-bg);
   color: #dbe5f3;
   font-size: 12px;
 }
@@ -734,10 +823,10 @@
     box-shadow 0.15s ease;
 }
 .lj-search-input::placeholder {
-  color: #6b7a91;
+  color: var(--lj-placeholder);
 }
 .lj-search-input:hover {
-  border-color: #a9b8cc;
+  border-color: var(--lj-line-hover);
 }
 .lj-scope .lj-search-input:focus-visible,
 .lj-search-input:focus {
@@ -827,7 +916,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 40%, #ffffff 0%, var(--lj-soft) 75%);
+  background: radial-gradient(circle at 50% 40%, var(--lj-media-center) 0%, var(--lj-soft) 75%);
 }
 .lj-media img {
   width: 100%;
@@ -897,7 +986,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--lj-glass);
   color: var(--lj-muted);
   border: 1px solid var(--lj-line);
   transition:
@@ -1155,7 +1244,7 @@
   right: 0;
   bottom: 0;
   z-index: var(--lj-z-buybar);
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--lj-glass);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-top: 1px solid var(--lj-line);
@@ -1279,6 +1368,36 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- print (order receipt) ---------- */
+
+@media print {
+  .lj-topbar,
+  .lj-header,
+  .lj-footer,
+  .lj-toaster,
+  .lj-toast,
+  .lj-consent,
+  .lj-buybar,
+  .lj-skip-link,
+  .lj-breadcrumbs,
+  .lj-no-print,
+  .lj-scope a.lj-btn,
+  .lj-scope button.lj-btn {
+    display: none !important;
+  }
+  .lj-page {
+    background: #fff;
+  }
+  .lj-card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  .lj-scope * {
+    animation: none !important;
+    transition: none !important;
   }
 }
 } /* @layer components */

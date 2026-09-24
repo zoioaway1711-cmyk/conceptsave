@@ -7,7 +7,7 @@ import { ecommerce, toItem, track } from "../_lib/analytics";
 import { STORE, discountPct, formatBRL, productHref, productsBySlugs } from "../_lib/catalog";
 import { notify } from "../_lib/feedback";
 import type { OrderTotals } from "../_lib/pricing";
-import { acknowledgeCartChanges, removeFromCart, setCartQty, useCart, type CartChange } from "../_lib/store";
+import { acknowledgeCartChanges, removeFromCart, setCartQty, toggleFavorite, useCart, useFavorites, type CartChange } from "../_lib/store";
 import { ProductRail, RecentlyViewedProducts } from "./client-sections";
 import { CepLookup, FulfillmentOption } from "./delivery";
 import { CategoryCards } from "./sections";
@@ -134,6 +134,7 @@ export function CartView() {
   const { lines, count, hasColdChain, totals, changes } = useCart();
   const [undo, setUndo] = useState<{ name: string; restore: () => void } | null>(null);
   const tracked = useRef(false);
+  const favorites = useFavorites();
 
   useEffect(() => {
     if (!hydrated || tracked.current) return;
@@ -223,9 +224,27 @@ export function CartView() {
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <QuantityStepper size="sm" value={qty} label={product.name} onChange={(n) => setCartQty(product.slug, n)} onRemove={remove} />
-                        <button type="button" className="lj-btn lj-btn--danger-ghost lj-btn--sm" onClick={remove}>
-                          Remover
-                        </button>
+                        <span className="flex flex-wrap justify-end gap-1">
+                          <button
+                            type="button"
+                            className="lj-btn lj-btn--ghost lj-btn--sm"
+                            onClick={() => {
+                              if (!favorites.includes(product.slug)) toggleFavorite(product.slug);
+                              const restore = removeFromCart(product.slug);
+                              notify({
+                                tone: "success",
+                                title: "Salvo para depois",
+                                description: `${product.name} está nos seus favoritos.`,
+                                action: { label: "Desfazer", onClick: restore },
+                              });
+                            }}
+                          >
+                            Salvar para depois
+                          </button>
+                          <button type="button" className="lj-btn lj-btn--danger-ghost lj-btn--sm" onClick={remove}>
+                            Remover
+                          </button>
+                        </span>
                       </div>
                     </div>
                   </li>

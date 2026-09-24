@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, CheckCircle2, Circle, Copy, Home, MessageCircle, Package, Truck, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Circle, Copy, Home, MessageCircle, Package, Printer, Truck, XCircle } from "lucide-react";
 import { STORE, formatBRL, getProduct } from "../_lib/catalog";
 import { notify } from "../_lib/feedback";
 import { ORDER_FLOW, ORDER_STATUS_HINT, ORDER_STATUS_LABEL, type OrderStatus } from "../_lib/order-status";
@@ -164,11 +164,14 @@ export function OrderView({ id }: { id: string }) {
           {!isNew && <h1 className="lj-h2">Pedido {order.number}</h1>}
           <p className="lj-small lj-muted">Feito em {formatDate(order.createdAt)}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <OrderStatusBadge status={order.status} />
+          <button type="button" className="lj-btn lj-btn--ghost lj-btn--sm lj-no-print" onClick={() => window.print()}>
+            <Printer aria-hidden="true" /> Imprimir
+          </button>
           <button
             type="button"
-            className="lj-btn lj-btn--ghost lj-btn--sm"
+            className="lj-btn lj-btn--ghost lj-btn--sm lj-no-print"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(window.location.href.replace("&novo=1", ""));

@@ -4,7 +4,7 @@ import { PRODUCTS, PURCHASABLE_PRODUCTS, STORE, getProduct } from "./_lib/catalo
 import { NewsletterForm, RecentlyViewedProducts } from "./_components/client-sections";
 import { ProductCard } from "./_components/product-card";
 import { CategoryCards, Differentiators, FaqList, Reviews, TrustStrip } from "./_components/sections";
-import { ProductImage, SectionHeading } from "./_components/ui";
+import { JsonLd, ProductImage, SectionHeading } from "./_components/ui";
 
 const heroImage = { base: "/loja/frasco-assinatura", alt: "Frasco Save Concept de marca própria", width: 960, height: 1440 };
 const brandImage = getProduct("tirzepatida-60mg")!.image;
@@ -12,6 +12,27 @@ const brandImage = getProduct("tirzepatida-60mg")!.image;
 export default function LojaHomePage() {
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              name: STORE.name,
+              legalName: STORE.legalName,
+              taxID: STORE.cnpj,
+              logo: "/save-concept-mark-v2.png",
+              address: { "@type": "PostalAddress", addressLocality: "Cotia", addressRegion: "SP", addressCountry: "BR" },
+            },
+            {
+              "@type": "WebSite",
+              name: "Loja Save Concept",
+              url: "/loja",
+              potentialAction: { "@type": "SearchAction", target: "/loja/busca?q={search_term_string}", "query-input": "required name=search_term_string" },
+            },
+          ],
+        }}
+      />
       {/* Hero — one message, one primary action, a real product photo. */}
       <section className="lj-hero" aria-labelledby="hero-title">
         <div className="lj-container grid items-center gap-8 py-8 md:grid-cols-[1.1fr_0.9fr] md:py-14 lg:gap-12">

@@ -378,3 +378,20 @@ export const lojaEvents = sqliteTable("loja_events", {
   nameCreatedIdx: index("idx_loja_events_name_created").on(table.name, table.createdAt),
   createdIdx: index("idx_loja_events_created").on(table.createdAt),
 }));
+
+// E-mail opt-ins from the storefront: launch/restock news (`kind = 'news'`,
+// sku '') or "avise-me quando chegar" for one SKU (`kind = 'restock'`).
+// Stored only with explicit consent (`consentText` is the exact wording the
+// visitor agreed to); removable from the admin on request (LGPD). No
+// e-mail is sent automatically — the team exports the list.
+export const lojaSubscribers = sqliteTable("loja_subscribers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull(),
+  kind: text("kind").notNull(),
+  sku: text("sku").notNull().default(""),
+  consentText: text("consent_text").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => ({
+  uniq: uniqueIndex("idx_loja_subscribers_unique").on(table.email, table.kind, table.sku),
+  kindCheck: check("loja_subscribers_kind_check", sql`${table.kind} IN ('news','restock')`),
+}));

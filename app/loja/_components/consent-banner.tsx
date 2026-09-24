@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import Link from "next/link";
 import { BarChart3 } from "lucide-react";
 import { setConsent, useConsent } from "../_lib/analytics";
 
@@ -45,7 +46,11 @@ export function ConsentBanner() {
           <p className="text-sm font-bold text-[color:var(--lj-ink)]">Podemos medir como a loja é usada?</p>
           <p className="lj-tiny lj-muted mt-1">
             Só dados anônimos de navegação (produtos vistos, buscas, etapas da compra), guardados nos nossos próprios servidores. Nunca
-            nome, e-mail, CPF, telefone ou endereço. Você pode mudar isso quando quiser no rodapé.
+            nome, e-mail, CPF, telefone ou endereço. Você pode mudar isso quando quiser no rodapé.{" "}
+            <Link href="/loja/privacidade" className="lj-link">
+              Saiba mais
+            </Link>
+            .
             {consent && <> Escolha atual: {consent === "granted" ? "aceito" : "recusado"}.</>}
           </p>
         </div>

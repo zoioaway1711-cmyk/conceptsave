@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -160,8 +160,8 @@ function MegaMenu({ pathname }: { pathname: string }) {
         ))}
         <NavigationMenu.Item className="ml-auto">
           <NavigationMenu.Link asChild>
-            <Link href="/loja#duvidas" className="lj-catnav-link">
-              Dúvidas frequentes
+            <Link href="/loja/ajuda" className="lj-catnav-link">
+              Central de ajuda
             </Link>
           </NavigationMenu.Link>
         </NavigationMenu.Item>
@@ -303,8 +303,8 @@ function MobileMenu({ open, onOpenChange, pathname }: { open: boolean; onOpenCha
                 </Link>
               </li>
               <li>
-                <Link href="/loja#duvidas" className={menuRow} onClick={close}>
-                  Dúvidas frequentes
+                <Link href="/loja/ajuda" className={menuRow} onClick={close}>
+                  Central de ajuda
                 </Link>
               </li>
             </ul>
@@ -323,6 +323,29 @@ export function StoreHeader() {
   const { count } = useCart();
   const favorites = useFavorites();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    // "/" jumps to the search box (like most stores/docs sites), unless typing.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      const input = [...document.querySelectorAll<HTMLInputElement>(".lj-search-input")].find((el) => el.offsetParent !== null);
+      if (input) {
+        e.preventDefault();
+        input.focus();
+      }
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   // Checkout gets a distraction-free header: no search, no category nav.
   if (pathname === "/loja/checkout") {
@@ -344,8 +367,11 @@ export function StoreHeader() {
     );
   }
 
+  // The top info bar sits OUTSIDE the sticky header, so it simply scrolls
+  // away and the sticky part stays compact — no height change while
+  // scrolling (which would shift content).
   return (
-    <header className="lj-header">
+    <>
       <div className="lj-topbar hidden sm:block">
         <div className="lj-container flex h-9 items-center justify-between gap-4">
           <p className="inline-flex items-center gap-2">
@@ -356,7 +382,7 @@ export function StoreHeader() {
           </Link>
         </div>
       </div>
-
+    <header className="lj-header" data-scrolled={scrolled ? "" : undefined}>
       <div className="lj-container flex items-center gap-2 py-2.5 md:gap-4 md:py-3">
         <button type="button" className="lj-header-icon -ml-2 lg:hidden" aria-label="Abrir menu" onClick={() => setMenuOpen(true)}>
           <Menu aria-hidden="true" />
@@ -408,5 +434,6 @@ export function StoreHeader() {
       <MegaMenu pathname={pathname} />
       <MobileMenu open={menuOpen} onOpenChange={setMenuOpen} pathname={pathname} />
     </header>
+    </>
   );
 }

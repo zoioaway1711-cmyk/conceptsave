@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { Info, Mail } from "lucide-react";
+import Link from "next/link";
+import { BellRing, CheckCircle2, Mail } from "lucide-react";
+import { OPT_IN_TEXT, type OptInKind } from "../_lib/consent-texts";
 import { ecommerce, toItem, track } from "../_lib/analytics";
 import { getProduct, productsBySlugs, type Product } from "../_lib/catalog";
 import { clearRecentlyViewed, markViewed, useRecentlyViewed } from "../_lib/store";
@@ -97,13 +99,108 @@ export function TrackView({ slug }: { slug: string }) {
 }
 
 /*
- * The e-mail list has no backend yet (no API route or table stores it).
- * Rather than flashing a fake "Cadastrado!", the form says plainly that
- * nothing was saved — see the pending items reported with this change.
+ * E-mail opt-in (news or restock) backed by POST /api/loja/subscribe.
+ * Consent is an explicit, unchecked-by-default checkbox with the exact
+ * wording the server stores. Nothing is sent automatically: the team
+ * exports the list from the admin.
  */
-export function NewsletterForm() {
+export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: string; productName?: string }) {
   const id = useId();
-  const [submitted, setSubmitted] = useState(false);
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [state, setState] = useState<"idle" | "sending" | "done" | "invalid" | "consent" | "limited" | "error">("idle");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return setState("invalid");
+    if (!consent) return setState("consent");
+    setState("sending");
+    try {
+      const res = await fetch("/api/loja/subscribe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), kind, ...(sku ? { sku } : {}), consent: true }),
+      });
+      setState(res.status === 204 ? "done" : res.status === 429 ? "limited" : res.status === 400 ? "invalid" : "error");
+    } catch {
+      setState("error");
+    }
+  }
+
+  if (state === "done") {
+    return (
+      <p className="lj-alert lj-alert--success" role="status">
+        <CheckCircle2 aria-hidden="true" />
+        {kind === "restock"
+          ? `Combinado! Avisaremos em ${email.trim()} quando ${productName ?? "o produto"} voltar ao estoque.`
+          : `Pronto! ${email.trim()} está na lista de avisos de lançamentos e reposição.`}
+      </p>
+    );
+  }
+
+  const error =
+    state === "invalid"
+      ? "Confira o e-mail — use o formato nome@provedor.com."
+      : state === "consent"
+        ? "Marque a caixa de autorização para continuar."
+        : state === "limited"
+          ? "Muitas tentativas seguidas. Tente de novo em alguns minutos."
+          : state === "error"
+            ? "Não foi possível salvar agora. Tente de novo em instantes."
+            : "";
+
+  return (
+    <form className="flex w-full flex-col gap-2" onSubmit={submit} noValidate>
+      <div className="flex w-full gap-2">
+        <label htmlFor={`${id}-email`} className="lj-sr-only">
+          Seu e-mail
+        </label>
+        <input
+          id={`${id}-email`}
+          type="email"
+          autoComplete="email"
+          placeholder="Seu e-mail"
+          className="lj-input"
+          value={email}
+          aria-invalid={state === "invalid" ? true : undefined}
+          aria-describedby={error ? `${id}-err` : undefined}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (state !== "sending") setState("idle");
+          }}
+        />
+        <button type="submit" className="lj-btn lj-btn--primary shrink-0" disabled={state === "sending"} aria-busy={state === "sending"}>
+          {state === "sending" ? <span className="lj-spinner" aria-hidden="true" /> : <BellRing aria-hidden="true" />}
+          Avisar-me
+        </button>
+      </div>
+      <label className="lj-tiny flex items-start gap-2 text-[color:var(--lj-text)]">
+        <input
+          type="checkbox"
+          className="mt-0.5 size-4 shrink-0 accent-[color:var(--lj-primary)]"
+          checked={consent}
+          onChange={(e) => {
+            setConsent(e.target.checked);
+            if (state === "consent") setState("idle");
+          }}
+        />
+        <span>
+          {OPT_IN_TEXT[kind]}{" "}
+          <Link href="/loja/privacidade" className="lj-link">
+            Privacidade
+          </Link>
+        </span>
+      </label>
+      {error && (
+        <p id={`${id}-err`} className="lj-field-error" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+export function NewsletterForm() {
   return (
     <div className="lj-card lj-card--pad flex flex-col items-start gap-4 bg-[color:var(--lj-primary-soft)] md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-3">
@@ -115,29 +212,9 @@ export function NewsletterForm() {
           <p className="lj-small lj-muted mt-1">Receba um aviso quando um lote novo for liberado.</p>
         </div>
       </div>
-      <form
-        className="flex w-full flex-col gap-2 md:w-auto md:min-w-[380px]"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setSubmitted(true);
-        }}
-      >
-        <div className="flex w-full gap-2">
-          <label htmlFor={id} className="lj-sr-only">
-            Seu e-mail
-          </label>
-          <input id={id} type="email" required autoComplete="email" placeholder="Seu e-mail" className="lj-input" />
-          <button type="submit" className="lj-btn lj-btn--primary shrink-0">
-            Avisar-me
-          </button>
-        </div>
-        {submitted && (
-          <p className="lj-alert lj-alert--info" role="status">
-            <Info aria-hidden="true" />
-            O cadastro por e-mail ainda está sendo ativado e seu endereço não foi salvo. Tente novamente em breve.
-          </p>
-        )}
-      </form>
+      <div className="w-full md:max-w-[440px]">
+        <OptInForm kind="news" />
+      </div>
     </div>
   );
 }

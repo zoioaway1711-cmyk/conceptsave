@@ -4,6 +4,7 @@ import { AddedToCart } from "./_components/added-to-cart";
 import { ConsentBanner } from "./_components/consent-banner";
 import { StoreFooter } from "./_components/footer";
 import { StoreHeader } from "./_components/header";
+import { ThemeSync } from "./_components/theme-switcher";
 import { Toaster } from "./_components/toaster";
 import "./loja.css";
 
@@ -14,6 +15,12 @@ export const metadata: Metadata = {
   },
   description:
     "Compre produtos Save Concept de fabricação própria, com envio refrigerado, nota fiscal em todo pedido e autenticidade verificável por serial ou QR Code.",
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Loja Save Concept",
+    images: [{ url: "/save-concept-share.png", alt: "Save Concept" }],
+  },
 };
 
 export default function LojaLayout({ children }: { children: ReactNode }) {
@@ -30,6 +37,7 @@ export default function LojaLayout({ children }: { children: ReactNode }) {
       <AddedToCart />
       <Toaster />
       <ConsentBanner />
+      <ThemeSync />
     </div>
   );
 }

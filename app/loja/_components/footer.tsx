@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Barcode, CreditCard, QrCode, ShieldCheck } from "lucide-react";
 import { CATEGORIES, PURCHASABLE_OFFERS, STORE, categoryHref } from "../_lib/catalog";
 import { PrivacyPreferencesButton } from "./consent-banner";
+import { ThemeSwitcher } from "./theme-switcher";
 
 const PAYMENT_ICONS = { pix: QrCode, cartao: CreditCard, boleto: Barcode } as const;
 
@@ -43,8 +44,14 @@ export function StoreFooter() {
 
         <nav aria-label="Ajuda" className="flex flex-col gap-2">
           <p className="lj-tiny font-bold uppercase tracking-[0.08em] text-[color:var(--lj-ink)]">Ajuda</p>
-          <Link href="/loja#duvidas" className="lj-small lj-muted py-1">
-            Dúvidas frequentes
+          <Link href="/loja/ajuda" className="lj-small lj-muted py-1">
+            Central de ajuda
+          </Link>
+          <Link href="/loja/ajuda#trocas" className="lj-small lj-muted py-1">
+            Trocas e devoluções
+          </Link>
+          <Link href="/loja/privacidade" className="lj-small lj-muted py-1">
+            Privacidade
           </Link>
           <Link href="/loja/carrinho" className="lj-small lj-muted py-1">
             Meu carrinho
@@ -85,10 +92,13 @@ export function StoreFooter() {
         </div>
       </div>
       <div className="border-t border-[color:var(--lj-line)]">
-        <p className="lj-container lj-tiny lj-muted py-5">
+        <div className="lj-container flex flex-col-reverse items-start justify-between gap-3 py-5 sm:flex-row sm:items-center">
+        <p className="lj-tiny lj-muted">
           © {new Date().getFullYear()} {STORE.legalName} — CNPJ {STORE.cnpj} · {STORE.city}, Brasil. Todos os direitos
           reservados.
         </p>
+        <ThemeSwitcher />
+        </div>
       </div>
     </footer>
   );

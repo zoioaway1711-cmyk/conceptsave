@@ -99,6 +99,13 @@
       "when": 1790267308152,
       "tag": "0013_loja_orders_stock_events",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1790270623273,
+      "tag": "0014_loja_subscribers",
+      "breakpoints": true
     }
   ]
 }

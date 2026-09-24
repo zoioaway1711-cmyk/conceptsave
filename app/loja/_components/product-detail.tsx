@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
-import { Check, CreditCard, Info, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, X, ZoomIn } from "lucide-react";
+import { Check, CreditCard, Info, Share2, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, X, ZoomIn } from "lucide-react";
 import {
   STORE,
   formatBRL,
@@ -12,8 +12,10 @@ import {
   type Product,
 } from "../_lib/catalog";
 import { useAvailability } from "../_lib/stock";
+import { notify } from "../_lib/feedback";
 import { addToCart } from "../_lib/store";
 import { CepLookup, DeliveryInfo } from "./delivery";
+import { OptInForm } from "./client-sections";
 import { FavoriteButton, StockLabel } from "./product-card";
 import { PriceBlock, ProductImage, QuantityStepper, StarRating } from "./ui";
 
@@ -99,6 +101,36 @@ export function ProductGallery({ product }: { product: Product }) {
   );
 }
 
+/** Native share sheet on phones; copy-link fallback elsewhere. */
+function ShareButton({ product }: { product: Product }) {
+  return (
+    <button
+      type="button"
+      className="lj-btn lj-btn--ghost lj-btn--sm"
+      onClick={async () => {
+        const url = window.location.href.split("#")[0];
+        const data = { title: `${product.name} | Save Concept`, text: product.summary, url };
+        if (typeof navigator.share === "function") {
+          try {
+            await navigator.share(data);
+          } catch {
+            // user closed the share sheet
+          }
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(url);
+          notify({ tone: "success", title: "Link do produto copiado" });
+        } catch {
+          notify({ tone: "error", title: "Não foi possível copiar o link" });
+        }
+      }}
+    >
+      <Share2 aria-hidden="true" /> Compartilhar
+    </button>
+  );
+}
+
 export function BuyBox({ product }: { product: Product }) {
   const router = useRouter();
   const [qty, setQty] = useState(1);
@@ -125,6 +157,9 @@ export function BuyBox({ product }: { product: Product }) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="lj-small font-semibold text-[color:var(--lj-muted)]">{product.brand}</span>
           {product.badge && <span className="lj-badge lj-badge--info">{product.badge}</span>}
+          <span className="ml-auto">
+            <ShareButton product={product} />
+          </span>
         </div>
         <h1 className="lj-h1 text-[26px] sm:text-[32px]">{product.name}</h1>
         <p className="lj-small text-[color:var(--lj-text)]">{product.presentation}</p>
@@ -155,10 +190,13 @@ export function BuyBox({ product }: { product: Product }) {
             </span>
           </p>
         ) : (
-          <p className="lj-alert lj-alert--warning">
-            <Info aria-hidden="true" />
-            <span>Esgotado no momento.</span>
-          </p>
+          <div className="flex flex-col gap-3">
+            <p className="lj-alert lj-alert--warning">
+              <Info aria-hidden="true" />
+              <span>Esgotado no momento. Deixe seu e-mail para saber quando voltar.</span>
+            </p>
+            <OptInForm kind="restock" sku={product.sku} productName={product.name} />
+          </div>
         )}
         <ul className="lj-tiny grid grid-cols-1 gap-2 text-[color:var(--lj-text)] min-[420px]:grid-cols-3">
           <li className="inline-flex items-center gap-1.5">
