@@ -10,7 +10,8 @@ import { DatabaseSync } from "node:sqlite";
  * `batch()` runs its statements in a tight synchronous loop with no `await`
  * between them, mirroring D1's guarantee that a batch commits as one
  * indivisible unit relative to other requests — which is exactly the
- * property the race-condition tests rely on.
+ * property the race-condition tests rely on. Like real D1 (where a batch
+ * is a SQL transaction), a failing statement rolls the whole batch back.
  */
 export function createFakeD1() {
   const raw = new DatabaseSync(":memory:");
@@ -46,8 +47,15 @@ export function createFakeD1() {
       return makeStatement(sql);
     },
     batch(statements: ReturnType<typeof makeStatement>[]) {
-      const results = statements.map((statement) => statement.runSync());
-      return Promise.resolve(results);
+      raw.exec("BEGIN");
+      try {
+        const results = statements.map((statement) => statement.runSync());
+        raw.exec("COMMIT");
+        return Promise.resolve(results);
+      } catch (error) {
+        raw.exec("ROLLBACK");
+        return Promise.reject(error);
+      }
     },
   };
 }

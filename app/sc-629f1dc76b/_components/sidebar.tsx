@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ComponentType } from "react";
-import { Activity, FileClock, LayoutDashboard, LogOut, Package, Ticket, Upload, Users } from "lucide-react";
+import { Activity, FileClock, LayoutDashboard, LogOut, Package, ShoppingBag, Ticket, Upload, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Permission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/sc-629f1dc76b/licenses", label: "Licenses", permission: "admin.licenses.manage", icon: Ticket },
   { href: "/sc-629f1dc76b/licenses/import", label: "Import products", permission: "admin.licenses.manage", icon: Upload },
   { href: "/sc-629f1dc76b/live", label: "Live Intelligence", permission: "admin.live.view", icon: Activity },
+  { href: "/sc-629f1dc76b/loja", label: "Loja", permission: "admin.store.orders", icon: ShoppingBag },
   { href: "/sc-629f1dc76b/audit", label: "Audit Log", permission: "admin.audit.view", icon: FileClock },
   { href: "/sc-629f1dc76b/admins", label: "Admins", permission: "admin.admins.manage", icon: Users },
 ];
@@ -25,7 +26,10 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
-  const items = NAV_ITEMS.filter((item) => permissions.includes(item.permission));
+  // "Loja" is also reachable with analytics-only access.
+  const items = NAV_ITEMS.filter(
+    (item) => permissions.includes(item.permission) || (item.href.endsWith("/loja") && permissions.includes("admin.store.analytics")),
+  );
 
   async function signOut() {
     setSigningOut(true);

@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Barcode, CreditCard, QrCode, ShieldCheck } from "lucide-react";
-import { CATEGORIES, STORE, categoryHref } from "../_lib/catalog";
+import { CATEGORIES, PURCHASABLE_OFFERS, STORE, categoryHref } from "../_lib/catalog";
+import { PrivacyPreferencesButton } from "./consent-banner";
 
 const PAYMENT_ICONS = { pix: QrCode, cartao: CreditCard, boleto: Barcode } as const;
 
@@ -30,9 +31,11 @@ export function StoreFooter() {
               {c.name}
             </Link>
           ))}
-          <Link href="/loja/ofertas" className="lj-small lj-muted py-1">
-            Ofertas
-          </Link>
+          {PURCHASABLE_OFFERS.length > 0 && (
+            <Link href="/loja/ofertas" className="lj-small lj-muted py-1">
+              Ofertas
+            </Link>
+          )}
           <Link href="/loja/produtos" className="lj-small lj-muted py-1">
             Todos os produtos
           </Link>
@@ -49,6 +52,10 @@ export function StoreFooter() {
           <Link href="/loja/favoritos" className="lj-small lj-muted py-1">
             Favoritos
           </Link>
+          <Link href="/loja/conta" className="lj-small lj-muted py-1">
+            Minha conta e pedidos
+          </Link>
+          <PrivacyPreferencesButton />
           <p className="lj-small lj-muted py-1">Atendimento: {STORE.supportHours}</p>
           {STORE.whatsappUrl && (
             <a href={STORE.whatsappUrl} className="lj-small lj-muted py-1" target="_blank" rel="noopener noreferrer">

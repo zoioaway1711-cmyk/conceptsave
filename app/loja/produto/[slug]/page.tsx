@@ -12,7 +12,7 @@ import {
   productHref,
   productsBySlugs,
 } from "../../_lib/catalog";
-import { ProductRail, RecentlyViewed, TrackView } from "../../_components/client-sections";
+import { ProductRail, RecentlyViewedProducts, TrackView } from "../../_components/client-sections";
 import { BuyBox, BuyTogether, ProductGallery } from "../../_components/product-detail";
 import { FaqList } from "../../_components/sections";
 import { Breadcrumbs, JsonLd } from "../../_components/ui";
@@ -66,14 +66,15 @@ export default async function ProdutoPage({ params }: Props) {
               sku: product.sku,
               image: imageSrc(product.image, 960),
               brand: { "@type": "Brand", name: product.brand },
-              offers: {
+              // No Offer for products that can't be bought online.
+              ...(product.purchasable ? { offers: {
                 "@type": "Offer",
                 price: product.price.toFixed(2),
                 priceCurrency: "BRL",
                 availability: product.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                 url: productHref(product.slug),
                 seller: { "@type": "Organization", name: STORE.legalName },
-              },
+              } } : {}),
             },
             {
               "@type": "BreadcrumbList",
@@ -145,7 +146,7 @@ export default async function ProdutoPage({ params }: Props) {
       </div>
 
       <ProductRail id="relacionados-title" eyebrow="Relacionados" title="Você também pode precisar" products={related} />
-      <RecentlyViewed exclude={product.slug} />
+      <RecentlyViewedProducts exclude={[product.slug]} />
     </>
   );
 }

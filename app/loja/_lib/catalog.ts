@@ -47,6 +47,13 @@ export type Product = {
   specs: string[];
   freeShipping: boolean;
   available: boolean;
+  /**
+   * Whether it can be bought online. Vials and kits are shown but not sold
+   * online until their regulatory status allows sale to consumers (owner
+   * decision, see docs/loja-revisao-regulatoria.md). Server-enforced by
+   * POST /api/loja/orders, not just hidden in the UI.
+   */
+  purchasable: boolean;
   coldChain: boolean;
   /** Shows the read-the-label notice on the PDP (vials/kits). Deliberately
    *  doesn't classify the product — that's a regulatory call, not the UI's. */
@@ -73,10 +80,12 @@ export const STORE = {
     detail: "Prazo médio, conforme o CEP. Código de rastreio enviado assim que o pedido sai do estoque.",
   },
   payment: [
-    { id: "pix", label: "Pix", detail: "Confirmação imediata." },
+    { id: "pix", label: "Pix", detail: "À vista." },
     { id: "cartao", label: "Cartão de crédito", detail: "Em até 3x sem juros." },
     { id: "boleto", label: "Boleto", detail: "Envio após a compensação (até 2 dias úteis)." },
   ],
+  /** No payment gateway yet: the team collects payment after the order. */
+  paymentNote: "Não há cobrança automática no site: depois do pedido, nossa equipe entra em contato para combinar o pagamento.",
   returns: "Até 7 dias corridos após o recebimento, com lacre intacto. Reembolso na mesma forma de pagamento em até 10 dias úteis.",
 } as const;
 
@@ -108,6 +117,7 @@ export const PRODUCTS: Product[] = [
     ],
     freeShipping: true,
     available: true,
+    purchasable: false,
     coldChain: true,
     healthNotice: true,
     image: IMG_TIRZEPATIDA,
@@ -137,6 +147,7 @@ export const PRODUCTS: Product[] = [
     ],
     freeShipping: true,
     available: true,
+    purchasable: false,
     coldChain: true,
     healthNotice: true,
     image: img("/loja/retatrutida-60mg", "Frasco Save Concept Retatrutida 60mg", 960, 1283),
@@ -168,6 +179,7 @@ export const PRODUCTS: Product[] = [
     ],
     freeShipping: true,
     available: true,
+    purchasable: false,
     coldChain: true,
     healthNotice: true,
     image: { ...IMG_TIRZEPATIDA, alt: "Frasco Save Concept Tirzepatida 60mg (kit com 2 unidades)" },
@@ -195,8 +207,9 @@ export const PRODUCTS: Product[] = [
       "6 lenços com álcool 70%",
       "Cartela de controle de aplicação",
     ],
-    freeShipping: false,
+    freeShipping: true,
     available: true,
+    purchasable: true,
     coldChain: false,
     healthNotice: false,
     image: img(
@@ -229,8 +242,9 @@ export const PRODUCTS: Product[] = [
       "Validade após aberto: 28 dias",
       "Compatível com toda a linha injetável",
     ],
-    freeShipping: false,
+    freeShipping: true,
     available: true,
+    purchasable: true,
     coldChain: false,
     healthNotice: false,
     image: img("/loja/diluente", "Frasco de diluente Save Concept com logo da marca", 960, 1440),
@@ -347,6 +361,10 @@ export const FAQ = [
 export const TOTAL_REVIEWS = PRODUCTS.reduce((sum, p) => sum + p.reviewCount, 0);
 export const AVERAGE_RATING =
   Math.round((PRODUCTS.reduce((sum, p) => sum + p.rating * p.reviewCount, 0) / TOTAL_REVIEWS) * 10) / 10;
+
+/** Discounts that can actually be bought online — drives every "Ofertas" entry point. */
+export const PURCHASABLE_OFFERS = PRODUCTS.filter((p) => p.purchasable && p.oldPrice !== undefined && p.oldPrice > p.price);
+export const PURCHASABLE_PRODUCTS = PRODUCTS.filter((p) => p.purchasable);
 
 export function getProduct(slug: string) {
   return PRODUCTS.find((p) => p.slug === slug);

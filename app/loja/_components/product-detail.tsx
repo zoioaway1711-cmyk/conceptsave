@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
-import { Check, CreditCard, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, X, ZoomIn } from "lucide-react";
+import { Check, CreditCard, Info, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, X, ZoomIn } from "lucide-react";
 import {
   STORE,
   formatBRL,
@@ -11,9 +11,10 @@ import {
   productsBySlugs,
   type Product,
 } from "../_lib/catalog";
+import { useAvailability } from "../_lib/stock";
 import { addToCart } from "../_lib/store";
-import { CepForm, DeliveryInfo } from "./delivery";
-import { FavoriteButton } from "./product-card";
+import { CepLookup, DeliveryInfo } from "./delivery";
+import { FavoriteButton, StockLabel } from "./product-card";
 import { PriceBlock, ProductImage, QuantityStepper, StarRating } from "./ui";
 
 const LENS = 140;
@@ -103,6 +104,7 @@ export function BuyBox({ product }: { product: Product }) {
   const [qty, setQty] = useState(1);
   const ctaRef = useRef<HTMLDivElement>(null);
   const [ctaVisible, setCtaVisible] = useState(true);
+  const availability = useAvailability(product);
 
   useEffect(() => {
     const el = ctaRef.current;
@@ -110,7 +112,7 @@ export function BuyBox({ product }: { product: Product }) {
     const observer = new IntersectionObserver(([entry]) => setCtaVisible(entry.isIntersecting), { rootMargin: "-64px 0px 0px 0px" });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [availability.buyable]);
 
   function buyNow() {
     addToCart(product.slug, qty, { notify: false });
@@ -131,25 +133,33 @@ export function BuyBox({ product }: { product: Product }) {
 
       <div className="lj-card lj-card--pad flex flex-col gap-4">
         <PriceBlock product={product} size="lg" />
-        {product.available ? (
-          <span className="lj-stock">Em estoque · pronto para envio</span>
+        <StockLabel product={product} long />
+        {availability.buyable ? (
+          <>
+            <div ref={ctaRef} className="flex flex-col gap-3 sm:flex-row">
+              <QuantityStepper value={qty} onChange={setQty} label={product.name} />
+              <button type="button" className="lj-btn lj-btn--primary lj-btn--lg flex-1" onClick={() => addToCart(product.slug, qty)}>
+                <ShoppingCart aria-hidden="true" /> Adicionar ao carrinho
+              </button>
+            </div>
+            <button type="button" className="lj-btn lj-btn--secondary lj-btn--block" onClick={buyNow}>
+              Comprar agora
+            </button>
+          </>
+        ) : availability.offline ? (
+          <p className="lj-alert lj-alert--info">
+            <Info aria-hidden="true" />
+            <span>
+              Este produto não está disponível para compra online no momento. As informações ficam aqui para consulta; a
+              autenticidade de unidades já adquiridas pode ser verificada no portal.
+            </span>
+          </p>
         ) : (
-          <span className="lj-stock lj-stock--out">Indisponível no momento</span>
+          <p className="lj-alert lj-alert--warning">
+            <Info aria-hidden="true" />
+            <span>Esgotado no momento.</span>
+          </p>
         )}
-        <div ref={ctaRef} className="flex flex-col gap-3 sm:flex-row">
-          <QuantityStepper value={qty} onChange={setQty} label={product.name} />
-          <button
-            type="button"
-            className="lj-btn lj-btn--primary lj-btn--lg flex-1"
-            disabled={!product.available}
-            onClick={() => addToCart(product.slug, qty)}
-          >
-            <ShoppingCart aria-hidden="true" /> Adicionar ao carrinho
-          </button>
-        </div>
-        <button type="button" className="lj-btn lj-btn--secondary lj-btn--block" disabled={!product.available} onClick={buyNow}>
-          Comprar agora
-        </button>
         <ul className="lj-tiny grid grid-cols-1 gap-2 text-[color:var(--lj-text)] min-[420px]:grid-cols-3">
           <li className="inline-flex items-center gap-1.5">
             <ShieldCheck className="size-4 shrink-0 text-[color:var(--lj-primary)]" aria-hidden="true" /> Autenticidade verificável
@@ -165,7 +175,7 @@ export function BuyBox({ product }: { product: Product }) {
 
       <div className="lj-card lj-card--pad flex flex-col gap-4">
         <h2 className="lj-h3">Entrega</h2>
-        <CepForm />
+        <CepLookup />
         <hr className="lj-divider" />
         <DeliveryInfo product={product} />
       </div>
@@ -174,6 +184,7 @@ export function BuyBox({ product }: { product: Product }) {
         <h2 className="lj-h3 inline-flex items-center gap-2">
           <CreditCard className="size-5 text-[color:var(--lj-primary)]" aria-hidden="true" /> Pagamento
         </h2>
+        <p className="lj-tiny lj-muted -mt-1">{STORE.paymentNote}</p>
         <ul className="flex flex-col gap-2">
           {STORE.payment.map((p) => (
             <li key={p.id} className="lj-small flex justify-between gap-3">
@@ -185,7 +196,7 @@ export function BuyBox({ product }: { product: Product }) {
       </div>
 
       {/* Mobile sticky buy bar — shown whenever the main CTA is off screen. */}
-      {!ctaVisible && product.available && (
+      {!ctaVisible && availability.buyable && (
         <div className="lj-buybar lj-scope">
           <div className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -209,10 +220,11 @@ export function BuyBox({ product }: { product: Product }) {
  * visible, and nothing is added until the shopper clicks the button.
  */
 export function BuyTogether({ product }: { product: Product }) {
-  const extras = useMemo(() => productsBySlugs(product.boughtTogether).filter((p) => p.available), [product]);
+  const extras = useMemo(() => productsBySlugs(product.boughtTogether).filter((p) => p.available && p.purchasable), [product]);
   const [selected, setSelected] = useState<string[]>(() => extras.map((p) => p.slug));
   const [added, setAdded] = useState(false);
-  if (extras.length === 0) return null;
+  const main = useAvailability(product);
+  if (extras.length === 0 || !main.buyable) return null;
 
   const items = [product, ...extras.filter((p) => selected.includes(p.slug))];
   const total = items.reduce((sum, p) => sum + p.price, 0);
@@ -229,7 +241,7 @@ export function BuyTogether({ product }: { product: Product }) {
             <Check className="size-4" aria-hidden="true" />
           </span>
           <span className="lj-media size-14 shrink-0 rounded-[var(--lj-r-sm)] p-1">
-            <ProductImage image={product.image} sizes="56px" />
+            <ProductImage image={product.image} sizes="56px" decorative />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-[color:var(--lj-ink)]">Este produto: {product.name}</span>
@@ -249,7 +261,7 @@ export function BuyTogether({ product }: { product: Product }) {
                 }
               />
               <span className="lj-media size-14 shrink-0 rounded-[var(--lj-r-sm)] p-1">
-                <ProductImage image={p.image} sizes="56px" />
+                <ProductImage image={p.image} sizes="56px" decorative />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-[color:var(--lj-ink)]">{p.name}</span>

@@ -10,7 +10,9 @@ export default function CheckoutPage() {
   return (
     <div className="lj-container py-6 sm:py-8">
       <h1 className="lj-h2 mb-5 sm:text-[30px]">Finalizar compra</h1>
-      <CheckoutView />
+      <div className="min-h-[80vh]">
+        <CheckoutView />
+      </div>
     </div>
   );
 }

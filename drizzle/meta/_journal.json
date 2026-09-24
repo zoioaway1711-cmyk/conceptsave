@@ -92,6 +92,13 @@
       "when": 1789957742608,
       "tag": "0012_overconfident_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1790267308152,
+      "tag": "0013_loja_orders_stock_events",
+      "breakpoints": true
     }
   ]
 }

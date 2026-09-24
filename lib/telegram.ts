@@ -25,6 +25,9 @@ export async function sendTelegramAlert(message: string): Promise<void> {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text: message }),
+      // Callers await this inside request handlers: a hung Telegram API must
+      // never hold the response (e.g. a customer's order confirmation).
+      signal: AbortSignal.timeout(3000),
     });
   } catch {
     // Never let a Telegram outage affect the admin action that triggered this.

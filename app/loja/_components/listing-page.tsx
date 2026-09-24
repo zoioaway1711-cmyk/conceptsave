@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Breadcrumbs, type Crumb } from "./ui";
-import { ListingSkeleton, ProductListing, type ListingMode } from "./product-listing";
+import { ListingSkeleton, ProductListing, SearchTitle, type ListingMode } from "./product-listing";
 
 /*
  * Shared PLP shell. The listing reads filters from the URL (useSearchParams),
@@ -22,7 +22,15 @@ export function ListingPage({
     <div className="lj-container py-6 sm:py-8">
       <Breadcrumbs items={crumbs} />
       <header className="mb-6 mt-4 max-w-3xl sm:mb-8">
-        <h1 className="lj-h2 sm:text-[32px]">{title}</h1>
+        <h1 className="lj-h2 sm:text-[32px]">
+          {mode.kind === "search" ? (
+            <Suspense fallback={title}>
+              <SearchTitle />
+            </Suspense>
+          ) : (
+            title
+          )}
+        </h1>
         {description && <p className="lj-small lj-muted mt-2">{description}</p>}
       </header>
       <Suspense fallback={<ListingSkeleton />}>

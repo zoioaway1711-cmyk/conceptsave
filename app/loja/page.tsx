@@ -1,23 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, BadgePercent, FileCheck, ShieldCheck, Snowflake } from "lucide-react";
-import {
-  PRODUCTS,
-  STORE,
-  discountPct,
-  formatBRL,
-  getProduct,
-  productHref,
-} from "./_lib/catalog";
-import { NewsletterForm, RecentlyViewed } from "./_components/client-sections";
+import { ArrowRight, FileCheck, ShieldCheck, Snowflake, Truck } from "lucide-react";
+import { PRODUCTS, PURCHASABLE_PRODUCTS, STORE, getProduct } from "./_lib/catalog";
+import { NewsletterForm, RecentlyViewedProducts } from "./_components/client-sections";
 import { ProductCard } from "./_components/product-card";
 import { CategoryCards, Differentiators, FaqList, Reviews, TrustStrip } from "./_components/sections";
 import { ProductImage, SectionHeading } from "./_components/ui";
 
-const hero = getProduct("tirzepatida-60mg")!;
-const single = hero;
-const duo = getProduct("tirzepatida-60mg-kit-duo")!;
-const duoUnitPrice = duo.price / (duo.units?.count ?? 1);
-const brandImage = { base: "/loja/frasco-assinatura", alt: "Frasco Save Concept de marca própria", width: 960, height: 1440 };
+const heroImage = { base: "/loja/frasco-assinatura", alt: "Frasco Save Concept de marca própria", width: 960, height: 1440 };
+const brandImage = getProduct("tirzepatida-60mg")!.image;
 
 export default function LojaHomePage() {
   return (
@@ -40,8 +30,8 @@ export default function LojaHomePage() {
               <Link href="/loja/produtos" className="lj-btn lj-btn--primary lj-btn--lg">
                 Ver produtos <ArrowRight aria-hidden="true" />
               </Link>
-              <Link href="/loja/ofertas" className="lj-btn lj-btn--secondary lj-btn--lg">
-                <BadgePercent aria-hidden="true" /> Ofertas
+              <Link href="/" className="lj-btn lj-btn--secondary lj-btn--lg">
+                <ShieldCheck aria-hidden="true" /> Verificar autenticidade
               </Link>
             </div>
             <ul className="lj-small flex flex-wrap gap-x-5 gap-y-2 text-[color:var(--lj-text)]">
@@ -52,30 +42,23 @@ export default function LojaHomePage() {
                 <FileCheck className="size-4 text-[color:var(--lj-primary)]" aria-hidden="true" /> Nota fiscal em todo pedido
               </li>
               <li className="inline-flex items-center gap-1.5">
-                <ShieldCheck className="size-4 text-[color:var(--lj-primary)]" aria-hidden="true" /> {STORE.maxInstallments}x sem juros
+                <Truck className="size-4 text-[color:var(--lj-primary)]" aria-hidden="true" /> Frete grátis
               </li>
             </ul>
           </div>
 
-          <Link
-            href={productHref(hero.slug)}
-            className="lj-card group relative hidden overflow-hidden md:block"
-            aria-label={`${hero.name}: ${formatBRL(hero.price)}`}
-          >
+          <div className="lj-card relative hidden overflow-hidden md:block">
             <span className="lj-media block aspect-[5/4] p-8">
-              <ProductImage image={hero.image} sizes="(max-width: 1199px) 42vw, 500px" priority />
+              <ProductImage image={heroImage} sizes="(max-width: 1199px) 42vw, 500px" priority />
             </span>
-            <span className="absolute inset-x-4 bottom-4 flex items-center justify-between gap-3 rounded-[var(--lj-r-md)] border border-[color:var(--lj-line)] bg-[color:var(--lj-surface)] p-3 shadow-[var(--lj-shadow-md)]">
-              <span className="min-w-0">
-                <span className="lj-tiny lj-muted block">{hero.badge}</span>
-                <span className="block truncate font-bold text-[color:var(--lj-ink)]">{hero.name}</span>
-              </span>
-              <span className="text-right">
-                {discountPct(hero) > 0 && <span className="lj-badge lj-badge--deal">-{discountPct(hero)}%</span>}
-                <span className="lj-price block text-lg">{formatBRL(hero.price)}</span>
+            <span className="absolute inset-x-4 bottom-4 flex items-center gap-3 rounded-[var(--lj-r-md)] border border-[color:var(--lj-line)] bg-[color:var(--lj-surface)] p-3 shadow-[var(--lj-shadow-md)]">
+              <ShieldCheck className="size-6 shrink-0 text-[color:var(--lj-primary)]" aria-hidden="true" />
+              <span className="lj-small text-[color:var(--lj-ink)]">
+                <strong>Fabricação própria em {STORE.city}</strong>
+                <span className="lj-muted block">Lote numerado e serial de autenticidade em cada unidade.</span>
               </span>
             </span>
-          </Link>
+          </div>
         </div>
       </section>
 
@@ -106,41 +89,31 @@ export default function LojaHomePage() {
             }
           />
           <ul className="lj-grid-products lj-grid-products--4">
-            {PRODUCTS.map((p) => (
+            {PRODUCTS.map((p, index) => (
               <li key={p.slug}>
-                <ProductCard product={p} />
+                <ProductCard product={p} listName="Home: nossos produtos" index={index} />
               </li>
             ))}
           </ul>
         </div>
       </section>
 
-      {/* Ticket médio: the kit's real per-unit price vs the single vial. */}
-      <section className="lj-section" aria-labelledby="kit-title">
+      {/* What can actually be bought online today (vials/kits are shown for reference only). */}
+      <section className="lj-section" aria-labelledby="online-title">
         <div className="lj-container">
-          <div className="lj-card grid overflow-hidden md:grid-cols-[0.8fr_1.2fr]">
-            <div className="lj-media aspect-[4/3] p-6 md:aspect-auto">
-              <ProductImage image={duo.image} sizes="(max-width: 767px) 90vw, 40vw" className="max-h-[300px]" />
-            </div>
-            <div className="flex flex-col items-start gap-4 p-6 sm:p-8">
-              <p className="lj-eyebrow">Kit Duo</p>
-              <h2 id="kit-title" className="lj-h2">
-                Dois frascos do mesmo lote, por {formatBRL(duoUnitPrice)} cada
-              </h2>
-              <p className="lj-small lj-muted max-w-[52ch]">
-                No frasco individual, a Tirzepatida 60mg sai por {formatBRL(single.price)}. No Kit Duo, cada frasco sai por{" "}
-                {formatBRL(duoUnitPrice)}, com lotes parelhos e bolsa térmica reutilizável inclusa.
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <Link href={productHref(duo.slug)} className="lj-btn lj-btn--primary">
-                  Ver Kit Duo <ArrowRight aria-hidden="true" />
-                </Link>
-                <span className="lj-small lj-muted">
-                  {formatBRL(duo.price)} · {STORE.maxInstallments}x de {formatBRL(duo.price / STORE.maxInstallments)} sem juros
-                </span>
-              </div>
-            </div>
-          </div>
+          <SectionHeading
+            id="online-title"
+            eyebrow="Compra online"
+            title="Disponíveis para comprar agora"
+            description="Frascos e kits ficam disponíveis apenas para consulta no momento. Os acessórios abaixo podem ser comprados online, com frete grátis."
+          />
+          <ul className="lj-grid-products lj-grid-products--4">
+            {PURCHASABLE_PRODUCTS.map((p, index) => (
+              <li key={p.slug}>
+                <ProductCard product={p} listName="Home: compra online" index={index} />
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -155,7 +128,7 @@ export default function LojaHomePage() {
         </div>
       </section>
 
-      <RecentlyViewed />
+      <RecentlyViewedProducts />
 
       <section className="lj-section" aria-labelledby="marca-title">
         <div className="lj-container">

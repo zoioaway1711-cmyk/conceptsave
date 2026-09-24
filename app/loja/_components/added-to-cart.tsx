@@ -19,7 +19,7 @@ const AUTO_DISMISS_MS = 6000;
  */
 export function AddedToCart() {
   const notice = useAddedNotice();
-  const { subtotal, count } = useCart();
+  const { totals, count } = useCart();
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
   const timer = useRef<number | undefined>(undefined);
@@ -74,7 +74,7 @@ export function AddedToCart() {
           </div>
           <div className="flex items-center gap-3 px-4 py-3">
             <span className="lj-media size-16 shrink-0 rounded-[var(--lj-r-md)] p-1.5">
-              <ProductImage image={product.image} sizes="64px" />
+              <ProductImage image={product.image} sizes="64px" decorative />
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-[color:var(--lj-ink)]">{product.name}</p>
@@ -88,7 +88,7 @@ export function AddedToCart() {
             <span className="lj-muted">
               Subtotal ({count} {count === 1 ? "item" : "itens"})
             </span>
-            <strong className="text-[color:var(--lj-ink)]">{formatBRL(subtotal)}</strong>
+            <strong className="text-[color:var(--lj-ink)]">{formatBRL(totals.total)}</strong>
           </div>
           <div className="grid grid-cols-2 gap-2 p-4 pt-3">
             <Link href="/loja/carrinho" className="lj-btn lj-btn--secondary">

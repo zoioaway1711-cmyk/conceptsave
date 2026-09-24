@@ -3,9 +3,18 @@
 import Link from "next/link";
 import { Heart, Snowflake, Truck } from "lucide-react";
 import { productHref, type Product } from "../_lib/catalog";
+import { ecommerce, toItem, track } from "../_lib/analytics";
+import { notify } from "../_lib/feedback";
+import { useAvailability } from "../_lib/stock";
 import { addToCart, toggleFavorite, useFavorites } from "../_lib/store";
 import { PriceBlock, ProductImage, StarRating } from "./ui";
 
+/*
+ * States: normal / hover (red tint) / selected (filled + short pop) /
+ * focus ring. There is deliberately no "loading" state: favorites persist
+ * synchronously in this browser (no backend), so showing a spinner would
+ * simulate a network save that doesn't exist.
+ */
 export function FavoriteButton({ product, className = "" }: { product: Product; className?: string }) {
   const favorites = useFavorites();
   const active = favorites.includes(product.slug);
@@ -15,7 +24,19 @@ export function FavoriteButton({ product, className = "" }: { product: Product; 
       className={`lj-fav ${className}`}
       aria-pressed={active}
       aria-label={active ? `Remover ${product.name} dos favoritos` : `Salvar ${product.name} nos favoritos`}
-      onClick={() => toggleFavorite(product.slug)}
+      onClick={() => {
+        const saved = toggleFavorite(product.slug);
+        notify(
+          saved
+            ? { tone: "success", title: "Salvo nos favoritos", description: product.name, action: { label: "Ver lista", href: "/loja/favoritos" } }
+            : {
+                tone: "info",
+                title: "Removido dos favoritos",
+                description: product.name,
+                action: { label: "Desfazer", onClick: () => toggleFavorite(product.slug) },
+              },
+        );
+      }}
     >
       <Heart aria-hidden="true" />
     </button>
@@ -26,12 +47,21 @@ export function ProductCard({
   product,
   priority,
   headingLevel = "h3",
+  listName,
+  index,
+  footer,
 }: {
   product: Product;
   priority?: boolean;
   headingLevel?: "h2" | "h3";
+  /** Analytics list this card is shown in (select_item / add_to_cart). */
+  listName?: string;
+  index?: number;
+  /** Extra actions under the card (e.g. favorites list controls). */
+  footer?: React.ReactNode;
 }) {
   const Heading = headingLevel;
+  const availability = useAvailability(product);
   return (
     <article className="lj-pcard">
       <div className="lj-media">
@@ -51,7 +81,13 @@ export function ProductCard({
       <div className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
         <p className="lj-tiny lj-muted font-semibold">{product.brand}</p>
         <Heading className="text-[15px] font-bold leading-snug sm:text-base">
-          <Link href={productHref(product.slug)} className="lj-pcard-link">
+          <Link
+            href={productHref(product.slug)}
+            className="lj-pcard-link"
+            onClick={() =>
+              listName && track({ name: "select_item", params: ecommerce([toItem(product, { index, item_list_name: listName })], listName) })
+            }
+          >
             {product.name}
           </Link>
         </Heading>
@@ -61,11 +97,7 @@ export function ProductCard({
         <div className="mt-auto flex flex-col gap-2 pt-2">
           <PriceBlock product={product} />
           <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {product.available ? (
-              <span className="lj-stock">Em estoque</span>
-            ) : (
-              <span className="lj-stock lj-stock--out">Indisponível</span>
-            )}
+            <StockLabel product={product} />
             {product.freeShipping && (
               <span className="lj-tiny inline-flex items-center gap-1 font-semibold text-[color:var(--lj-primary)]">
                 <Truck className="size-3.5" aria-hidden="true" /> Frete grátis
@@ -77,19 +109,38 @@ export function ProductCard({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            className="lj-btn lj-btn--primary lj-btn--block lj-pcard-raise mt-1"
-            disabled={!product.available}
-            onClick={() => addToCart(product.slug)}
-            aria-label={`Adicionar ${product.name} ao carrinho`}
-          >
-            {product.available ? "Adicionar" : "Indisponível"}
-          </button>
+          {availability.buyable ? (
+            <button
+              type="button"
+              className="lj-btn lj-btn--primary lj-btn--block lj-pcard-raise mt-1"
+              onClick={() => addToCart(product.slug, 1, { listName })}
+              aria-label={`Adicionar ${product.name} ao carrinho`}
+            >
+              Adicionar
+            </button>
+          ) : availability.offline ? (
+            <Link href={productHref(product.slug)} className="lj-btn lj-btn--secondary lj-btn--block lj-pcard-raise mt-1" tabIndex={-1} aria-hidden="true">
+              Ver detalhes
+            </Link>
+          ) : (
+            <button type="button" className="lj-btn lj-btn--primary lj-btn--block lj-pcard-raise mt-1" disabled>
+              Esgotado
+            </button>
+          )}
+          {footer}
         </div>
       </div>
     </article>
   );
+}
+
+/** Real availability only: stock from the server, never a made-up count. */
+export function StockLabel({ product, long }: { product: Product; long?: boolean }) {
+  const a = useAvailability(product);
+  if (a.offline) return <span className="lj-stock lj-stock--out">{long ? "Não vendido online no momento" : "Venda online indisponível"}</span>;
+  if (!a.inStock) return <span className="lj-stock lj-stock--out">Esgotado</span>;
+  if (a.low) return <span className="lj-stock lj-stock--low">Últimas unidades</span>;
+  return <span className="lj-stock">{long ? "Em estoque · pronto para envio" : "Em estoque"}</span>;
 }
 
 export function ProductCardSkeleton() {

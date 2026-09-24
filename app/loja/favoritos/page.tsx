@@ -12,7 +12,9 @@ export default function FavoritosPage() {
     <div className="lj-container py-6 sm:py-8">
       <Breadcrumbs items={[{ label: "Loja", href: "/loja" }, { label: "Favoritos" }]} />
       <h1 className="lj-h2 mb-6 mt-4 sm:text-[32px]">Seus favoritos</h1>
-      <FavoritesView />
+      <div className="min-h-[80vh]">
+        <FavoritesView />
+      </div>
     </div>
   );
 }

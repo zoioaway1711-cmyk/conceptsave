@@ -236,7 +236,7 @@ export function SearchBox({ autoFocus, onNavigate }: { autoFocus?: boolean; onNa
                 {products.map((p) => (
                   <div key={p.slug} {...optionProps(next())}>
                     <span className="lj-media size-11 shrink-0 rounded-[var(--lj-r-sm)] p-1">
-                      <ProductImage image={p.image} sizes="44px" />
+                      <ProductImage image={p.image} sizes="44px" decorative />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold">{p.name}</span>

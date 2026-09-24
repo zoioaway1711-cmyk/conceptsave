@@ -312,3 +312,69 @@ export const blockedIps = sqliteTable("blocked_ips", {
   blockedAt: text("blocked_at").notNull(),
   expiresAt: text("expires_at"),
 });
+
+// ---------------------------------------------------------------------------
+// Storefront (/loja)
+// ---------------------------------------------------------------------------
+
+// A storefront order. There is no payment gateway yet: an order is created
+// as `received` and the team collects payment offline, moving it forward
+// from the admin (sc-629f1dc76b/loja). `historyJson` is the append-only
+// status timeline shown to the customer — only transitions an admin (or
+// the order creation itself) actually made. The CPF is stored AES-GCM
+// encrypted with its own HKDF-derived key (lib/loja-orders.ts encryptCpf —
+// NOT the license-serial key) and never returned in full to the storefront.
+// Stock is reserved only on payment_approved; each item in `itemsJson`
+// records `reserved` so a cancellation returns exactly what was taken.
+export const lojaOrders = sqliteTable("loja_orders", {
+  id: text("id").primaryKey(),
+  number: text("number").notNull(),
+  status: text("status").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  customerCpfEncrypted: text("customer_cpf_encrypted").notNull(),
+  cpfLast2: text("cpf_last2").notNull(),
+  addressJson: text("address_json").notNull(),
+  itemsJson: text("items_json").notNull(),
+  totalsJson: text("totals_json").notNull(),
+  total: real("total").notNull(),
+  paymentMethod: text("payment_method").notNull(),
+  installments: integer("installments").notNull().default(1),
+  trackingCode: text("tracking_code"),
+  historyJson: text("history_json").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => ({
+  numberUnique: uniqueIndex("idx_loja_orders_number").on(table.number),
+  createdIdx: index("idx_loja_orders_created").on(table.createdAt),
+  statusCheck: check("loja_orders_status_check", sql`${table.status} IN ('received','payment_approved','preparing','shipped','delivered','cancelled')`),
+  paymentCheck: check("loja_orders_payment_check", sql`${table.paymentMethod} IN ('pix','cartao','boleto')`),
+}));
+
+// Controlled stock per catalog SKU. A SKU with no row is "not controlled"
+// (availability comes from the catalog alone); once a row exists, 0 means
+// sold out and orders decrement it atomically.
+export const lojaStock = sqliteTable("loja_stock", {
+  sku: text("sku").primaryKey(),
+  quantity: integer("quantity").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  updatedBy: text("updated_by").notNull(),
+}, (table) => ({
+  quantityCheck: check("loja_stock_quantity_check", sql`${table.quantity} >= 0`),
+}));
+
+// First-party, consent-gated storefront analytics. Payloads are
+// allowlisted server-side (no personal data); `sessionId` is a random
+// per-tab id, not tied to any profile, cookie or IP.
+export const lojaEvents = sqliteTable("loja_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  paramsJson: text("params_json").notNull(),
+  path: text("path").notNull(),
+  sessionId: text("session_id").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => ({
+  nameCreatedIdx: index("idx_loja_events_name_created").on(table.name, table.createdAt),
+  createdIdx: index("idx_loja_events_created").on(table.createdAt),
+}));

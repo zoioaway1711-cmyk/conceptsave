@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AddedToCart } from "./_components/added-to-cart";
+import { ConsentBanner } from "./_components/consent-banner";
 import { StoreFooter } from "./_components/footer";
 import { StoreHeader } from "./_components/header";
+import { Toaster } from "./_components/toaster";
 import "./loja.css";
 
 export const metadata: Metadata = {
@@ -26,6 +28,8 @@ export default function LojaLayout({ children }: { children: ReactNode }) {
       </main>
       <StoreFooter />
       <AddedToCart />
+      <Toaster />
+      <ConsentBanner />
     </div>
   );
 }

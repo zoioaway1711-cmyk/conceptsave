@@ -14,7 +14,11 @@ export default function CarrinhoPage() {
         <Breadcrumbs items={[{ label: "Loja", href: "/loja" }, { label: "Carrinho" }]} />
         <h1 className="lj-h2 mt-4 sm:text-[32px]">Seu carrinho</h1>
       </div>
-      <CartView />
+      {/* Reserve the fold while cart data (localStorage) hydrates, so the
+          footer never jumps in view (CLS). */}
+      <div className="min-h-[80vh]">
+        <CartView />
+      </div>
     </div>
   );
 }

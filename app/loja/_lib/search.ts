@@ -25,7 +25,7 @@ const INDEX = PRODUCTS.map((p) => ({ product: p, text: haystack(p), name: normal
 
 const VOCABULARY = Array.from(new Set(INDEX.flatMap((e) => e.text.split(" ")).filter((w) => w.length >= 4)));
 
-function levenshtein(a: string, b: string) {
+export function levenshtein(a: string, b: string) {
   const row = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
     let prev = row[0];
@@ -97,3 +97,25 @@ export function searchCatalog(rawQuery: string): SearchResult {
 
 /** Real catalog terms offered as starting points — not a popularity ranking. */
 export const SEARCH_SUGGESTIONS = ["Tirzepatida", "Retatrutida", "Kit Duo", "Seringas", "Diluente"];
+
+/**
+ * Related searches for a result set: catalog suggestion terms that lead to
+ * products in the same categories as — or explicitly related to — what was
+ * found. Derived from catalog data only; never a popularity claim.
+ */
+export function relatedSearches(result: SearchResult, limit = 4) {
+  const found = new Set(result.products.map((p) => p.slug));
+  const categories = new Set(result.products.map((p) => p.category));
+  const related = new Set(result.products.flatMap((p) => [...p.related, ...p.boughtTogether]));
+  return SEARCH_SUGGESTIONS.filter((term) => {
+    if (normalize(term) === result.query || normalize(term) === result.correctedQuery) return false;
+    const hits = searchCatalog(term).products;
+    return hits.some((p) => !found.has(p.slug) && (categories.has(p.category) || related.has(p.slug)));
+  }).slice(0, limit);
+}
+
+/** Categories represented in a result set (plus categories matched by name). */
+export function relatedCategories(result: SearchResult) {
+  const slugs = new Set([...result.categories.map((c) => c.slug), ...result.products.map((p) => p.category)]);
+  return CATEGORIES.filter((c) => slugs.has(c.slug));
+}

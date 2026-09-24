@@ -10,6 +10,8 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; description:
   "admin.users.inspect": { label: "User inspector", description: "Open the full detail view for a single customer profile." },
   "admin.security.ip.view": { label: "Unmasked IPs", description: "See full (unmasked) IP addresses in live events." },
   "admin.admins.manage": { label: "Admins", description: "Create admin accounts and manage everyone's permissions — including this page." },
+  "admin.store.orders": { label: "Loja: pedidos e estoque", description: "Ver e atualizar pedidos da loja (inclui revelar o CPF para a nota fiscal) e editar o estoque." },
+  "admin.store.analytics": { label: "Loja: métricas", description: "Ver as métricas anônimas de navegação e funil da loja." },
 };
 
 export const ALL_PERMISSIONS = PERMISSIONS as readonly Permission[];

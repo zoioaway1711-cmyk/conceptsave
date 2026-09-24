@@ -1,14 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { SearchX, SlidersHorizontal, X } from "lucide-react";
+import { Search, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { CATEGORIES, PRODUCTS, discountPct, type CategorySlug, type Product } from "../_lib/catalog";
-import { SEARCH_SUGGESTIONS, searchCatalog } from "../_lib/search";
+import { track } from "../_lib/analytics";
+import { CATEGORIES, PRODUCTS, categoryHref, discountPct, type CategorySlug, type Product } from "../_lib/catalog";
+import { SEARCH_SUGGESTIONS, relatedCategories, relatedSearches, searchCatalog } from "../_lib/search";
+import { ProductRail, RecentlyViewedProducts, useTrackList } from "./client-sections";
 import { ProductCard, ProductCardSkeleton } from "./product-card";
 import { searchHref } from "./search-box";
+import { CategoryCards } from "./sections";
+
+const LIST_NAMES: Record<ListingMode["kind"], string> = {
+  all: "Todos os produtos",
+  offers: "Ofertas",
+  category: "Categoria",
+  search: "Busca",
+};
+
+/** Search page H1 — reads the term from the URL, so it lives client-side. */
+export function SearchTitle() {
+  const query = (useSearchParams().get("q") ?? "").trim();
+  return <>{query ? <>Resultados para “{query}”</> : "Buscar produtos"}</>;
+}
 
 const PAGE_SIZE = 12;
 
@@ -187,7 +203,7 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
       case "category":
         return PRODUCTS.filter((p) => p.category === mode.category);
       case "offers":
-        return PRODUCTS.filter((p) => discountPct(p) > 0);
+        return PRODUCTS.filter((p) => p.purchasable && discountPct(p) > 0);
       case "search":
         return search?.products ?? [];
       default:
@@ -209,6 +225,14 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
     sort,
   );
 
+  const listName = mode.kind === "category" ? `Categoria: ${CATEGORIES.find((c) => c.slug === mode.category)?.name}` : LIST_NAMES[mode.kind];
+  useTrackList(listName, filtered);
+
+  const resultCount = search?.products.length ?? 0;
+  useEffect(() => {
+    if (mode.kind === "search" && query) track({ name: "search", params: { search_term: query, results: resultCount } });
+  }, [mode.kind, query, resultCount]);
+
   function update(mutate: (next: URLSearchParams) => void) {
     const next = new URLSearchParams(params.toString());
     mutate(next);
@@ -218,6 +242,9 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
   }
 
   function toggle(key: Facet, value?: string) {
+    const active =
+      key === "oferta" ? !state.offer : key === "frete" ? !state.free : !(key === "cat" ? state.cats : state.prices).includes(value!);
+    track({ name: "filter_used", params: { list: listName, filter: key, value: value ?? "1", active } });
     update((next) => {
       if (key === "oferta" || key === "frete") {
         if (next.get(key) === "1") next.delete(key);
@@ -251,6 +278,22 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
   if (mode.kind === "search" && base.length === 0) {
     return <SearchEmpty query={query} />;
   }
+  if (base.length === 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="lj-card lj-card--pad flex flex-col items-center gap-3 py-12 text-center" role="status">
+          <SearchX className="size-8 text-[color:var(--lj-muted)]" aria-hidden="true" />
+          <p className="lj-h3">{mode.kind === "offers" ? "Nenhuma oferta disponível no momento" : "Nenhum produto nesta seção no momento"}</p>
+          <p className="lj-small lj-muted max-w-md">Veja o catálogo completo ou navegue pelas categorias.</p>
+          <Link href="/loja/produtos" className="lj-btn lj-btn--primary">
+            Ver todos os produtos
+          </Link>
+        </div>
+        <CategoryCards />
+      </div>
+    );
+  }
+  const searchExtras = search && base.length > 0 ? { categories: relatedCategories(search), terms: relatedSearches(search) } : null;
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10">
@@ -277,6 +320,31 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
           </p>
         )}
 
+        {searchExtras && (searchExtras.categories.length > 0 || searchExtras.terms.length > 0) && (
+          <div className="mb-5 flex flex-col gap-3">
+            {searchExtras.categories.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="lj-tiny lj-muted font-semibold">Categorias:</span>
+                {searchExtras.categories.map((c) => (
+                  <Link key={c.slug} href={categoryHref(c.slug)} className="lj-chip">
+                    {c.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+            {searchExtras.terms.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="lj-tiny lj-muted font-semibold">Buscas relacionadas:</span>
+                {searchExtras.terms.map((term) => (
+                  <Link key={term} href={searchHref(term)} className="lj-chip">
+                    <Search aria-hidden="true" /> {term}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="lj-small lj-muted" aria-live="polite">
             <strong className="text-[color:var(--lj-ink)]">{filtered.length}</strong>{" "}
@@ -300,12 +368,13 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
               id="lj-sort"
               className="lj-select min-h-9 w-auto py-0 pr-8 text-sm"
               value={sort}
-              onChange={(e) =>
+              onChange={(e) => {
+                track({ name: "sort_changed", params: { list: listName, sort: e.target.value } });
                 update((next) => {
                   if (e.target.value === "relevancia") next.delete("ordem");
                   else next.set("ordem", e.target.value);
-                })
-              }
+                });
+              }}
             >
               {SORTS.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -347,7 +416,7 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
             <ul className="lj-grid-products">
               {filtered.slice(0, visible).map((p, i) => (
                 <li key={p.slug}>
-                  <ProductCard product={p} priority={i < 2} headingLevel="h2" />
+                  <ProductCard product={p} priority={i < 2} headingLevel="h2" listName={listName} index={i} />
                 </li>
               ))}
             </ul>
@@ -391,24 +460,38 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
 
 function SearchEmpty({ query }: { query: string }) {
   return (
-    <div className="lj-card lj-card--pad flex flex-col items-center gap-3 py-12 text-center" role="status">
-      <SearchX className="size-9 text-[color:var(--lj-muted)]" aria-hidden="true" />
-      <p className="lj-h3">{query ? `Nenhum resultado para “${query}”` : "Digite um termo para buscar"}</p>
-      <p className="lj-small lj-muted max-w-md">
-        Confira a grafia ou busque pelo nome do produto, princípio ativo ou acessório.
-      </p>
-      <ul className="mt-1 flex flex-wrap justify-center gap-2">
-        {SEARCH_SUGGESTIONS.map((term) => (
-          <li key={term}>
-            <Link href={searchHref(term)} className="lj-chip">
-              {term}
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <Link href="/loja/produtos" className="lj-btn lj-btn--primary mt-3">
-        Ver todos os produtos
-      </Link>
+    <div className="flex flex-col gap-8">
+      <div className="lj-card lj-card--pad flex flex-col gap-4 sm:flex-row sm:items-start" role="status">
+        <span className="lj-icon-circle size-12">
+          <SearchX aria-hidden="true" />
+        </span>
+        <div className="flex flex-col gap-3">
+          <h2 className="lj-h3">{query ? `Nenhum produto encontrado para “${query}”` : "Digite um termo para buscar"}</h2>
+          <ul className="lj-small lj-muted list-disc pl-5">
+            <li>Confira a grafia — por exemplo, “tirzepatida” ou “diluente”.</li>
+            <li>Use um termo mais geral, como o nome do princípio ativo ou do acessório.</li>
+            <li>Nosso catálogo é de marca própria: não trabalhamos com produtos de outras marcas.</li>
+          </ul>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="lj-tiny lj-muted font-semibold">Tente buscar:</span>
+            {SEARCH_SUGGESTIONS.map((term) => (
+              <Link key={term} href={searchHref(term)} className="lj-chip">
+                <Search aria-hidden="true" /> {term}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+      <section aria-labelledby="busca-categorias">
+        <h2 id="busca-categorias" className="lj-h3 mb-4">
+          Navegue pelas categorias
+        </h2>
+        <CategoryCards />
+      </section>
+      <div className="-mx-[var(--lj-gutter)]">
+        <ProductRail id="busca-catalogo" title="Conheça o catálogo" products={PRODUCTS.slice(0, 4)} />
+        <RecentlyViewedProducts />
+      </div>
     </div>
   );
 }

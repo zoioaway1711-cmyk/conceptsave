@@ -26,11 +26,15 @@ export function ProductImage({
   sizes,
   priority,
   className,
+  decorative,
 }: {
   image: ProductImageData;
   sizes: string;
   priority?: boolean;
   className?: string;
+  /** Thumbnail next to the product's own name: hide it from assistive tech
+   *  so links/options are announced by name, not by photo description. */
+  decorative?: boolean;
 }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- see comment above
@@ -38,7 +42,7 @@ export function ProductImage({
       src={imageSrc(image, 960)}
       srcSet={imageSrcSet(image)}
       sizes={sizes}
-      alt={image.alt}
+      alt={decorative ? "" : image.alt}
       width={image.width}
       height={image.height}
       loading={priority ? "eager" : "lazy"}

@@ -14,6 +14,8 @@ export const PERMISSIONS = [
   "admin.users.inspect",
   "admin.security.ip.view",
   "admin.admins.manage",
+  "admin.store.orders",
+  "admin.store.analytics",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

@@ -20,6 +20,21 @@
    same element still win, while Tailwind's preflight can't reset us. */
 @layer theme, base, components, utilities;
 
+/* Metric-matched fallbacks: while Manrope / DM Sans (Google Fonts,
+   display=swap) are still loading, text renders in Arial scaled to the
+   same average glyph width (ratios measured against the real fonts), so
+   the swap doesn't re-wrap headings and push the page down (CLS). */
+@font-face {
+  font-family: "Manrope Fallback";
+  src: local("Arial"), local("Helvetica"), local("Liberation Sans");
+  size-adjust: 102.6%;
+}
+@font-face {
+  font-family: "DM Sans Fallback";
+  src: local("Arial"), local("Helvetica"), local("Liberation Sans");
+  size-adjust: 104%;
+}
+
 @layer components {
 .lj-scope {
   /* color */
@@ -61,8 +76,8 @@
   --lj-ring: 0 0 0 3px rgba(11, 95, 196, 0.28);
 
   /* type */
-  --lj-font-display: "Manrope", "DM Sans", system-ui, sans-serif;
-  --lj-font-body: "DM Sans", system-ui, sans-serif;
+  --lj-font-display: "Manrope", "Manrope Fallback", system-ui, sans-serif;
+  --lj-font-body: "DM Sans", "DM Sans Fallback", system-ui, sans-serif;
 
   /* layout */
   --lj-container: 1200px;
@@ -71,6 +86,14 @@
   --lj-header-h: 64px;
 
   --lj-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* stacking — every floating layer takes its z from here */
+  --lj-z-buybar: 30;
+  --lj-z-header: 40;
+  --lj-z-dropdown: 45; /* search panel, mega menu */
+  --lj-z-popover: 48;
+  --lj-z-overlay: 50; /* sheets, dialogs (Radix portals) */
+  --lj-z-toast: 70;
 
   color: var(--lj-text);
   font-family: var(--lj-font-body);
@@ -595,7 +618,7 @@
 .lj-header {
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: var(--lj-z-header);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
@@ -645,7 +668,8 @@
   text-align: center;
   box-shadow: 0 0 0 2px var(--lj-surface);
 }
-.lj-catnav a {
+.lj-catnav-link,
+.lj-megatrigger {
   display: inline-flex;
   align-items: center;
   height: 44px;
@@ -658,10 +682,35 @@
     color 0.15s ease,
     border-color 0.15s ease;
 }
-.lj-catnav a:hover,
-.lj-catnav a[aria-current="page"] {
+.lj-megatrigger {
+  gap: 6px;
+  cursor: pointer;
+}
+.lj-catnav-link:hover,
+.lj-catnav-link[aria-current="page"],
+.lj-megatrigger:hover,
+.lj-megatrigger[data-state="open"] {
   color: var(--lj-primary);
   border-bottom-color: var(--lj-primary);
+}
+
+.lj-megamenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: var(--lj-z-dropdown);
+  background: var(--lj-surface);
+  border-top: 1px solid var(--lj-line);
+  border-bottom: 1px solid var(--lj-line);
+  box-shadow: var(--lj-shadow-lg);
+  animation: lj-fade-down 0.16s var(--lj-ease);
+}
+@keyframes lj-fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 
 /* ---------- search ---------- */
@@ -705,7 +754,7 @@
   left: 0;
   right: 0;
   top: calc(100% + 6px);
-  z-index: 45;
+  z-index: var(--lj-z-dropdown);
   max-height: min(70vh, 520px);
   overflow-y: auto;
   background: var(--lj-surface);
@@ -863,6 +912,16 @@
 }
 .lj-fav[aria-pressed="true"] svg {
   fill: currentColor;
+  animation: lj-pop 0.28s var(--lj-ease);
+}
+.lj-fav:hover {
+  border-color: var(--lj-danger-soft);
+  background: var(--lj-surface);
+}
+@keyframes lj-pop {
+  50% {
+    transform: scale(1.25);
+  }
 }
 .lj-fav svg {
   width: 18px;
@@ -898,6 +957,9 @@
 }
 .lj-stock--out {
   color: var(--lj-muted);
+}
+.lj-stock--low {
+  color: var(--lj-warning);
 }
 
 .lj-stars {
@@ -997,7 +1059,7 @@
 
 .lj-toast {
   position: fixed;
-  z-index: 70;
+  z-index: var(--lj-z-toast);
   right: 16px;
   left: 16px;
   bottom: 16px;
@@ -1017,13 +1079,82 @@
   }
 }
 
+.lj-toaster {
+  position: fixed;
+  z-index: var(--lj-z-toast);
+  top: calc(var(--lj-header-h) + 60px);
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+@media (min-width: 768px) {
+  .lj-toaster {
+    top: auto;
+    bottom: 20px;
+    left: 20px;
+    right: auto;
+    width: 380px;
+  }
+}
+.lj-toast-item {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  background: var(--lj-surface);
+  border: 1px solid var(--lj-line);
+  border-left-width: 4px;
+  border-radius: var(--lj-r-md);
+  box-shadow: var(--lj-shadow-lg);
+}
+.lj-toast-item--success {
+  border-left-color: var(--lj-success);
+  color: var(--lj-success);
+}
+.lj-toast-item--info {
+  border-left-color: var(--lj-primary);
+  color: var(--lj-primary);
+}
+.lj-toast-item--error {
+  border-left-color: var(--lj-danger);
+  color: var(--lj-danger);
+}
+
+.lj-consent {
+  position: fixed;
+  z-index: var(--lj-z-toast);
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+  margin-inline: auto;
+  padding: 16px;
+  background: var(--lj-surface);
+  border: 1px solid var(--lj-line);
+  border-radius: var(--lj-r-lg);
+  box-shadow: var(--lj-shadow-lg);
+}
+@media (min-width: 640px) {
+  .lj-consent {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
 /* PDP sticky buy bar (mobile only) */
 .lj-buybar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 35;
+  z-index: var(--lj-z-buybar);
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
