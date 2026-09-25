@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit } from "@/lib/audit-log";
-import { STOCK_SKUS, listStock, setStock } from "@/lib/loja-stock";
+import { listStock, setStock } from "@/lib/loja-stock";
 import { clientIp } from "@/lib/rate-limit";
 
 function db() {
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 }
 
 const putSchema = z.object({
-  sku: z.string().refine((s) => STOCK_SKUS.includes(s)),
+  sku: z.string().max(80),
   quantity: z.number().int().min(0).max(100000).nullable(),
 });
 
@@ -27,7 +27,8 @@ export async function PUT(request: Request) {
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
   const body = await readBody(request, putSchema);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
-  await setStock(db(), body.sku, body.quantity, admin.username);
+  // setStock loads the catalog itself and rejects unknown SKUs.
+  if (!(await setStock(db(), body.sku, body.quantity, admin.username))) return Response.json({ error: "unknown_sku" }, { status: 400 });
   await logAudit(db(), {
     actor: admin.username,
     action: "STORE_STOCK_SET",

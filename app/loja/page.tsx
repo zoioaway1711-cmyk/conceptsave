@@ -1,15 +1,18 @@
 import Link from "next/link";
 import { ArrowRight, FileCheck, ShieldCheck, Snowflake, Truck } from "lucide-react";
-import { PRODUCTS, PURCHASABLE_PRODUCTS, STORE, getProduct } from "./_lib/catalog";
-import { NewsletterForm, RecentlyViewedProducts } from "./_components/client-sections";
+import { loadCatalog } from "@/lib/loja-catalog";
+import { PRODUCTS, STORE, getProduct, purchasableProducts } from "./_lib/catalog";
+import { RecentlyViewedProducts } from "./_components/client-sections";
 import { ProductCard } from "./_components/product-card";
+import { HowItWorks } from "./_components/how-it-works";
 import { CategoryCards, Differentiators, FaqList, Reviews, TrustStrip } from "./_components/sections";
 import { JsonLd, ProductImage, SectionHeading } from "./_components/ui";
 
 const heroImage = { base: "/loja/frasco-assinatura", alt: "Frasco Save Concept de marca própria", width: 960, height: 1440 };
-const brandImage = getProduct("tirzepatida-60mg")!.image;
 
-export default function LojaHomePage() {
+export default async function LojaHomePage() {
+  await loadCatalog();
+  const brandImage = (getProduct("tirzepatida-60mg") ?? PRODUCTS[0])?.image ?? heroImage;
   return (
     <>
       <JsonLd
@@ -68,9 +71,9 @@ export default function LojaHomePage() {
             </ul>
           </div>
 
-          <div className="lj-card relative hidden overflow-hidden md:block">
-            <span className="lj-media block aspect-[5/4] p-8">
-              <ProductImage image={heroImage} sizes="(max-width: 1199px) 42vw, 500px" priority />
+          <div className="lj-card relative overflow-hidden">
+            <span className="lj-media block aspect-[16/11] p-6 md:aspect-[5/4] md:p-8">
+              <ProductImage image={heroImage} sizes="(max-width: 767px) 92vw, (max-width: 1199px) 42vw, 500px" priority />
             </span>
             <span className="absolute inset-x-4 bottom-4 flex items-center gap-3 rounded-[var(--lj-r-md)] border border-[color:var(--lj-line)] bg-[color:var(--lj-surface)] p-3 shadow-[var(--lj-shadow-md)]">
               <ShieldCheck className="size-6 shrink-0 text-[color:var(--lj-primary)]" aria-hidden="true" />
@@ -104,7 +107,7 @@ export default function LojaHomePage() {
             title="Nossos produtos"
             description="Catálogo enxuto de marca própria — cada item é formulado, produzido e embalado por nós."
             action={
-              <Link href="/loja/produtos" className="lj-link inline-flex items-center gap-1 text-sm">
+              <Link href="/loja/produtos" className="lj-link lj-hit inline-flex items-center gap-1 text-sm">
                 Ver todos com filtros <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
             }
@@ -129,7 +132,7 @@ export default function LojaHomePage() {
             description="Frascos e kits ficam disponíveis apenas para consulta no momento. Os acessórios abaixo podem ser comprados online, com frete grátis."
           />
           <ul className="lj-grid-products lj-grid-products--4">
-            {PURCHASABLE_PRODUCTS.map((p, index) => (
+            {purchasableProducts().map((p, index) => (
               <li key={p.slug}>
                 <ProductCard product={p} listName="Home: compra online" index={index} />
               </li>
@@ -138,7 +141,19 @@ export default function LojaHomePage() {
         </div>
       </section>
 
-      <section className="lj-section" aria-labelledby="diferenciais-title">
+      <section className="lj-section lj-reveal" aria-labelledby="como-title">
+        <div className="lj-container">
+          <SectionHeading
+            id="como-title"
+            eyebrow="Como funciona"
+            title="Do pedido à sua porta"
+            description="Sem cobrança automática no site: você faz o pedido e combinamos o pagamento com você."
+          />
+          <HowItWorks />
+        </div>
+      </section>
+
+      <section className="lj-section lj-reveal" aria-labelledby="diferenciais-title">
         <div className="lj-container">
           <SectionHeading
             id="diferenciais-title"
@@ -151,7 +166,7 @@ export default function LojaHomePage() {
 
       <RecentlyViewedProducts />
 
-      <section className="lj-section" aria-labelledby="marca-title">
+      <section className="lj-section lj-reveal" aria-labelledby="marca-title">
         <div className="lj-container">
           <div className="lj-card grid overflow-hidden lg:grid-cols-2">
             <div className="flex flex-col justify-center gap-4 p-6 sm:p-10">
@@ -178,18 +193,14 @@ export default function LojaHomePage() {
 
       <Reviews />
 
-      <section id="duvidas" className="lj-section scroll-mt-40" aria-labelledby="duvidas-title">
+      <section id="duvidas" className="lj-section lj-cv scroll-mt-40" aria-labelledby="duvidas-title">
         <div className="lj-container max-w-3xl">
           <SectionHeading id="duvidas-title" eyebrow="Guia de compra" title="Dúvidas frequentes" />
           <FaqList />
         </div>
       </section>
 
-      <section className="lj-section" aria-label="Aviso de lançamentos">
-        <div className="lj-container">
-          <NewsletterForm />
-        </div>
-      </section>
+
     </>
   );
 }

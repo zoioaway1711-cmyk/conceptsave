@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PRODUCTS, STORE, formatBRL } from "@/app/loja/_lib/catalog";
+import { PRODUCTS, applyCatalog, formatBRL, type CatalogSnapshot } from "@/app/loja/_lib/catalog";
+import { CatalogTab, SettingsTab } from "./catalog-admin";
 import { ALLOWED_TRANSITIONS, ORDER_STATUSES, ORDER_STATUS_LABEL, type OrderStatus } from "@/app/loja/_lib/order-status";
 import { apiDelete, apiFetch, apiPatch, apiPost } from "../_lib/api";
 import { downloadCsv } from "../_lib/csv";
@@ -30,7 +31,8 @@ type AdminOrder = {
 };
 
 const fmt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
-const paymentLabel = (m: string) => STORE.payment.find((p) => p.id === m)?.label ?? m;
+const PAYMENT_LABELS: Record<string, string> = { pix: "Pix", cartao: "Cartão de crédito", boleto: "Boleto" };
+const paymentLabel = (m: string) => PAYMENT_LABELS[m] ?? m;
 const ERRORS: Record<string, string> = {
   invalid_transition: "Essa mudança de status não é permitida (ou o pedido foi alterado por outra pessoa). Recarregue.",
   tracking_required: "Informe o código de rastreio para marcar como enviado.",
@@ -629,7 +631,40 @@ function SubscribersTab() {
   );
 }
 
-export function LojaAdminClient({ canOrders, canAnalytics }: { canOrders: boolean; canAnalytics: boolean }) {
+export function LojaAdminClient({ canOrders, canAnalytics, canCatalog }: { canOrders: boolean; canAnalytics: boolean; canCatalog: boolean }) {
+  // The catalog now lives in D1: load it once (also fills the registry the
+  // stock/subscribers tabs read product names from).
+  // Orders/stock/subscribers/metrics must keep working even if this fails
+  // (product names then fall back to SKUs); only the catalog tabs wait.
+  const [catalog, setCatalog] = useState<CatalogSnapshot | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const loadCatalogData = useCallback(async () => {
+    setCatalogError(null);
+    const r = await apiFetch<CatalogSnapshot>("/api/admin/loja/catalog");
+    if (r.ok) {
+      applyCatalog(r.data);
+      setCatalog(r.data);
+    } else setCatalogError(r.error);
+  }, []);
+  useEffect(() => {
+    const t = window.setTimeout(() => void loadCatalogData(), 0);
+    return () => window.clearTimeout(t);
+  }, [loadCatalogData]);
+
+  const catalogPending = (
+    <div className="space-y-2">
+      {catalogError ? (
+        <>
+          <p className="text-sm text-destructive">Não foi possível carregar o catálogo ({catalogError}).</p>
+          <Button size="sm" variant="outline" onClick={() => void loadCatalogData()}>
+            Tentar de novo
+          </Button>
+        </>
+      ) : (
+        <Spinner />
+      )}
+    </div>
+  );
   return (
     <div className="space-y-6 p-6 lg:p-8">
       <div>
@@ -639,11 +674,13 @@ export function LojaAdminClient({ canOrders, canAnalytics }: { canOrders: boolea
         </p>
       </div>
       {canOrders && <SummaryCards />}
-      <Tabs defaultValue={canOrders ? "pedidos" : "metricas"}>
+      <Tabs defaultValue={canOrders ? "pedidos" : canCatalog ? "catalogo" : "metricas"}>
         <TabsList>
           {canOrders && <TabsTrigger value="pedidos">Pedidos</TabsTrigger>}
           {canOrders && <TabsTrigger value="estoque">Estoque</TabsTrigger>}
           {canOrders && <TabsTrigger value="inscritos">Inscritos</TabsTrigger>}
+          {canCatalog && <TabsTrigger value="catalogo">Catálogo</TabsTrigger>}
+          {canCatalog && <TabsTrigger value="config">Configurações</TabsTrigger>}
           {canAnalytics && <TabsTrigger value="metricas">Métricas</TabsTrigger>}
         </TabsList>
         {canOrders && (
@@ -659,6 +696,16 @@ export function LojaAdminClient({ canOrders, canAnalytics }: { canOrders: boolea
         {canOrders && (
           <TabsContent value="inscritos" className="pt-4">
             <SubscribersTab />
+          </TabsContent>
+        )}
+        {canCatalog && (
+          <TabsContent value="catalogo" className="pt-4">
+            {catalog ? <CatalogTab catalog={catalog} onChanged={loadCatalogData} /> : catalogPending}
+          </TabsContent>
+        )}
+        {canCatalog && (
+          <TabsContent value="config" className="pt-4">
+            {catalog ? <SettingsTab key={catalog.version} catalog={catalog} onChanged={loadCatalogData} /> : catalogPending}
           </TabsContent>
         )}
         {canAnalytics && (

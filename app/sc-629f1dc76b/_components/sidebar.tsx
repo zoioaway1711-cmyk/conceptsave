@@ -28,7 +28,7 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
   const [signingOut, setSigningOut] = useState(false);
   // "Loja" is also reachable with analytics-only access.
   const items = NAV_ITEMS.filter(
-    (item) => permissions.includes(item.permission) || (item.href.endsWith("/loja") && permissions.includes("admin.store.analytics")),
+    (item) => permissions.includes(item.permission) || (item.href.endsWith("/loja") && (permissions.includes("admin.store.analytics") || permissions.includes("admin.store.catalog"))),
   );
 
   async function signOut() {

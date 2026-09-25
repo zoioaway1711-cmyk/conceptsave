@@ -8,6 +8,7 @@ import { notify } from "../_lib/feedback";
 import { addToCart, removeFavorite, toggleFavorite, useFavoriteEntries, type FavoriteEntry } from "../_lib/store";
 import { useHydrated } from "./cart-view";
 import { RecentlyViewedProducts } from "./client-sections";
+import { EmptyArt } from "./empty-art";
 import { ProductCard, ProductCardSkeleton } from "./product-card";
 import { CategoryCards } from "./sections";
 
@@ -42,7 +43,7 @@ function FavoriteActions({ product }: { product: Product }) {
             removeFavorite(product.slug);
           }}
         >
-          <ShoppingCart aria-hidden="true" /> Mover p/ carrinho
+          <ShoppingCart aria-hidden="true" /> Mover ao carrinho
         </button>
       ) : (
         <span className="lj-tiny lj-muted self-center">
@@ -93,9 +94,7 @@ export function FavoritesView() {
     return (
       <div className="flex flex-col gap-6">
         <div className="lj-card lj-card--pad flex flex-col items-center gap-3 py-12 text-center">
-          <span className="lj-icon-circle size-14">
-            <Heart aria-hidden="true" />
-          </span>
+          <EmptyArt icon={Heart} />
           <h2 className="lj-h3">Nenhum favorito ainda</h2>
           <p className="lj-small lj-muted max-w-sm">
             Toque no coração de um produto para salvá-lo aqui e comparar depois. Os favoritos ficam guardados neste navegador.

@@ -4,6 +4,7 @@ import { STORE, getProduct, type Product } from "@/app/loja/_lib/catalog";
 import { digits, fieldError, type CheckoutForm } from "@/app/loja/_lib/checkout";
 import { ALLOWED_TRANSITIONS, type OrderStatus } from "@/app/loja/_lib/order-status";
 import { computeTotals, type OrderTotals } from "@/app/loja/_lib/pricing";
+import { loadCatalog } from "./loja-catalog";
 
 /*
  * Storefront orders (loja_orders). The server is the only authority on
@@ -95,7 +96,9 @@ export const orderCreateSchema = z.object({
   }),
   payment: z.object({
     method: z.enum(["pix", "cartao", "boleto"]),
-    installments: z.number().int().min(1).max(STORE.maxInstallments).default(1),
+    // Upper bound is checked in createOrder against the LIVE setting — a
+    // schema-level .max(STORE.maxInstallments) would freeze at module load.
+    installments: z.number().int().min(1).max(12).default(1),
   }),
   items: z.array(z.object({ slug: z.string().max(80), qty: z.number().int().min(1).max(99) })).min(1).max(30),
   expectedTotal: z.number().nonnegative(),
@@ -146,8 +149,12 @@ function orderNumber(now: Date) {
 }
 
 export async function createOrder(db: D1Database, rawInput: OrderCreateInput): Promise<{ ok: true; id: string; number: string; totals: OrderTotals; items: OrderItem[] } | { ok: false; error: CreateOrderError }> {
+  await loadCatalog(db);
   const input: OrderCreateInput = { ...rawInput, address: { ...rawInput.address, uf: rawInput.address.uf.trim().toUpperCase() } };
   const fields = validateFields(input);
+  if (input.payment.method === "cartao" && input.payment.installments > STORE.maxInstallments) {
+    fields.installments = `Parcelamento disponível em até ${STORE.maxInstallments}x.`;
+  }
   if (Object.keys(fields).length) return { ok: false, error: { code: "invalid_fields", fields } };
 
   // Merge duplicate lines, then resolve each against the live catalog.

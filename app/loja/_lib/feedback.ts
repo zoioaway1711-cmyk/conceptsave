@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /*
  * One toast queue for the whole store. Components call `notify()`; the
@@ -61,4 +61,17 @@ const EMPTY: Toast[] = [];
 
 export function useToasts() {
   return useSyncExternalStore(subscribe, () => toasts, () => EMPTY);
+}
+
+/** Brief inline "done" state for a button (e.g. "✓ Adicionado"), auto-reset. */
+export function useFlash(ms = 1600) {
+  const [on, setOn] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const flash = useCallback(() => {
+    setOn(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setOn(false), ms);
+  }, [ms]);
+  return [on, flash] as const;
 }

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CreditCard, MessageCircle, Package, RotateCcw, ShieldCheck, Truck } from "lucide-react";
-import { FAQ, STORE } from "../_lib/catalog";
+import { STORE, faq } from "../_lib/catalog";
+import { loadCatalog } from "@/lib/loja-catalog";
 import { FaqList } from "../_components/sections";
-import { Breadcrumbs } from "../_components/ui";
+import { Breadcrumbs, JsonLd } from "../_components/ui";
 
 export const metadata: Metadata = {
   title: "Central de ajuda",
@@ -35,9 +36,18 @@ function Topic({ id, title, children }: { id: string; title: string; children: R
   );
 }
 
-export default function AjudaPage() {
+export default async function AjudaPage() {
+  await loadCatalog();
+  const FAQ = faq();
   return (
     <div className="lj-container py-6 sm:py-8">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.question, acceptedAnswer: { "@type": "Answer", text: f.answer } })),
+        }}
+      />
       <Breadcrumbs items={[{ label: "Loja", href: "/loja" }, { label: "Central de ajuda" }]} />
       <header className="mb-6 mt-4 max-w-2xl">
         <h1 className="lj-h2 sm:text-[32px]">Central de ajuda</h1>

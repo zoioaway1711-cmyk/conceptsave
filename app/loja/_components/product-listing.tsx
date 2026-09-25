@@ -10,6 +10,7 @@ import { CATEGORIES, PRODUCTS, categoryHref, discountPct, type CategorySlug, typ
 import { SEARCH_SUGGESTIONS, relatedCategories, relatedSearches, searchCatalog } from "../_lib/search";
 import { ProductRail, RecentlyViewedProducts, useTrackList } from "./client-sections";
 import { ProductCard, ProductCardSkeleton } from "./product-card";
+import { EmptyArt } from "./empty-art";
 import { searchHref } from "./search-box";
 import { CategoryCards } from "./sections";
 
@@ -299,11 +300,11 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10">
       {hasFilterOptions && (
         <aside aria-label="Filtros" className="hidden lg:block">
-          <div className="sticky top-[calc(var(--lj-header-h)+72px)] flex flex-col gap-4">
+          <div className="sticky top-[calc(var(--lj-header-real,120px)+24px)] flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h2 className="lj-h3">Filtrar</h2>
               {chips.length > 0 && (
-                <button type="button" className="lj-link text-sm" onClick={clearFilters}>
+                <button type="button" className="lj-link lj-hit text-sm" onClick={clearFilters}>
                   Limpar
                 </button>
               )}
@@ -345,7 +346,7 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="lj-plp-toolbar mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="lj-small lj-muted" aria-live="polite">
             <strong className="text-[color:var(--lj-ink)]">{filtered.length}</strong>{" "}
             {filtered.length === 1 ? "produto encontrado" : "produtos encontrados"}
@@ -395,7 +396,7 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
               </li>
             ))}
             <li>
-              <button type="button" className="lj-link px-2 text-sm" onClick={clearFilters}>
+              <button type="button" className="lj-link lj-hit px-2 text-sm" onClick={clearFilters}>
                 Limpar filtros
               </button>
             </li>
@@ -462,9 +463,7 @@ function SearchEmpty({ query }: { query: string }) {
   return (
     <div className="flex flex-col gap-8">
       <div className="lj-card lj-card--pad flex flex-col gap-4 sm:flex-row sm:items-start" role="status">
-        <span className="lj-icon-circle size-12">
-          <SearchX aria-hidden="true" />
-        </span>
+        <EmptyArt icon={SearchX} />
         <div className="flex flex-col gap-3">
           <h2 className="lj-h3">{query ? `Nenhum produto encontrado para “${query}”` : "Digite um termo para buscar"}</h2>
           <ul className="lj-small lj-muted list-disc pl-5">

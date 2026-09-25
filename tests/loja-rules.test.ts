@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
+const { applySeedCatalog } = await import("./helpers/loja-catalog");
+applySeedCatalog();
 
 const { fieldError, maskCpf, maskPhone, suggestEmail, validCpf, validateStep, EMPTY_CHECKOUT } = await import("../app/loja/_lib/checkout");
 const { computeTotals } = await import("../app/loja/_lib/pricing");

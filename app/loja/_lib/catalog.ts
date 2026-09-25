@@ -2,9 +2,9 @@
  * Single source of truth for the storefront catalog and store policies.
  *
  * Every commercial claim shown anywhere in /loja (price, previous price,
- * installments, shipping, delivery window, returns, ratings) must come from
- * this file — components never hardcode their own. Values here were carried
- * over verbatim from the original single-page store; nothing was added.
+ * installments, shipping, delivery window, returns, ratings) comes from the
+ * catalog registry below, which is filled from the database — components
+ * never hardcode their own.
  * Relationships between products (`related`, `boughtTogether`) are
  * explicit, hand-configured lists: they only ever pair a product with its
  * own application accessories, never one medicine with another.
@@ -64,198 +64,100 @@ export type Product = {
   boughtTogether: string[];
 };
 
+/** Store settings editable in the admin (loja_settings). */
+export type StoreSettings = {
+  supportHours: string;
+  whatsappUrl: string;
+  instagramUrl: string;
+  supportEmail: string;
+  privacyEmail: string;
+  maxInstallments: number;
+  deliveryWindow: string;
+  deliveryDetail: string;
+  paymentNote: string;
+  returns: string;
+};
+
+export type CatalogSnapshot = { version: string; products: Product[]; settings: StoreSettings };
+
+/*
+ * LIVE CATALOG REGISTRY.
+ *
+ * Products and store settings live in the database (loja_products /
+ * loja_settings, edited in the admin) — not in this file. They are loaded:
+ *  - on the server by `loadCatalog()` (lib/loja-catalog.ts), awaited by
+ *    every /loja page, layout and API route before it reads the catalog;
+ *  - in the browser by <CatalogProvider>, from the snapshot the server
+ *    rendered with (so SSR and hydration always agree).
+ *
+ * `PRODUCTS` and `STORE` are updated IN PLACE by `applyCatalog`, so the
+ * existing synchronous helpers (getProduct, STORE.delivery.window…) keep
+ * working unchanged. Anything derived from them must be computed on call
+ * (never at module load), since the registry starts empty.
+ *
+ * Known limitation: on the server the registry is shared by concurrent
+ * requests in one isolate. It only changes when the cache expires AND an
+ * admin actually edited something (same version → no-op), so a render in
+ * flight at that instant could mix old/new values for a moment. Prices
+ * are always re-validated server-side at order time, so this can never
+ * charge a wrong amount.
+ */
+export const PRODUCTS: Product[] = [];
+
 export const STORE = {
+  // Company identity: fixed facts, not admin-editable.
   name: "Save Concept",
   legalName: "Save Concept Indústria e Comércio Ltda.",
   cnpj: "32.198.560/0001-07",
   city: "Cotia, SP",
   since: 2019,
-  supportHours: "Seg. a sex., 9h às 18h",
-  /** Left empty on purpose: no real number/profile is configured yet. */
+  // Everything below comes from loja_settings via applyCatalog().
+  supportHours: "",
   whatsappUrl: "",
-  /** Privacy/LGPD contact e-mail (encarregado). Empty until the owner provides one. */
-  privacyEmail: "",
-  supportEmail: "",
   instagramUrl: "",
-  maxInstallments: 3,
-  delivery: {
-    window: "3 a 7 dias úteis",
-    detail: "Prazo médio, conforme o CEP. Código de rastreio enviado assim que o pedido sai do estoque.",
-  },
-  payment: [
-    { id: "pix", label: "Pix", detail: "À vista." },
-    { id: "cartao", label: "Cartão de crédito", detail: "Em até 3x sem juros." },
-    { id: "boleto", label: "Boleto", detail: "Envio após a compensação (até 2 dias úteis)." },
-  ],
-  /** No payment gateway yet: the team collects payment after the order. */
-  paymentNote: "Não há cobrança automática no site: depois do pedido, nossa equipe entra em contato para combinar o pagamento.",
-  returns: "Até 7 dias corridos após o recebimento, com lacre intacto. Reembolso na mesma forma de pagamento em até 10 dias úteis.",
-} as const;
+  supportEmail: "",
+  privacyEmail: "",
+  maxInstallments: 1,
+  delivery: { window: "", detail: "" },
+  payment: [] as { id: "pix" | "cartao" | "boleto"; label: string; detail: string }[],
+  paymentNote: "",
+  returns: "",
+};
+
+let appliedVersion = "";
+let catalogVersion = 0;
+
+/** Bumps whenever the registry changes — lets derived caches (search index) rebuild. */
+export function currentCatalogVersion() {
+  return catalogVersion;
+}
+
+export function applyCatalog(snapshot: CatalogSnapshot) {
+  if (snapshot.version === appliedVersion) return;
+  appliedVersion = snapshot.version;
+  catalogVersion++;
+  PRODUCTS.splice(0, PRODUCTS.length, ...snapshot.products);
+  const s = snapshot.settings;
+  Object.assign(STORE, {
+    supportHours: s.supportHours,
+    whatsappUrl: s.whatsappUrl,
+    instagramUrl: s.instagramUrl,
+    supportEmail: s.supportEmail,
+    privacyEmail: s.privacyEmail,
+    maxInstallments: s.maxInstallments,
+    delivery: { window: s.deliveryWindow, detail: s.deliveryDetail },
+    payment: [
+      { id: "pix", label: "Pix", detail: "À vista." },
+      { id: "cartao", label: "Cartão de crédito", detail: s.maxInstallments > 1 ? `Em até ${s.maxInstallments}x sem juros.` : "À vista." },
+      { id: "boleto", label: "Boleto", detail: "Envio após a compensação (até 2 dias úteis)." },
+    ],
+    paymentNote: s.paymentNote,
+    returns: s.returns,
+  });
+}
 
 const img = (base: string, alt: string, width: number, height: number): ProductImage => ({ base, alt, width, height });
-
 const IMG_TIRZEPATIDA = img("/loja/tirzepatida-60mg", "Frasco Save Concept Tirzepatida 60mg", 960, 1280);
-
-export const PRODUCTS: Product[] = [
-  {
-    slug: "tirzepatida-60mg",
-    sku: "tirzepatida-60-individual",
-    brand: "Save Concept",
-    name: "Tirzepatida 60mg",
-    presentation: "Frasco individual · 60mg / 4ml",
-    category: "frascos",
-    summary: "Frasco multidose de 60mg, vidro borossilicato tipo I com selo de inviolabilidade.",
-    description:
-      "Mesma base que envasamos desde 2019, agora concentrada em 60mg por frasco. Vidro borossilicato tipo I, lacre com selo de inviolabilidade.",
-    price: 1290,
-    oldPrice: 1450,
-    badge: "Mais vendido",
-    rating: 4.9,
-    reviewCount: 312,
-    specs: [
-      "Concentração: 60mg / 4ml",
-      "Lote atual: SC-0924B · val. 08/2027",
-      "Conservação: 2-8°C, ao abrigo de luz",
-      "Uso: multidose, via subcutânea",
-    ],
-    freeShipping: true,
-    available: true,
-    purchasable: false,
-    coldChain: true,
-    healthNotice: true,
-    image: IMG_TIRZEPATIDA,
-    keywords: ["tirzepatida", "tirzepatide", "frasco", "60mg", "injetavel"],
-    related: ["tirzepatida-60mg-kit-duo", "kit-aplicacao-premium", "diluente-bacteriostatico"],
-    boughtTogether: ["kit-aplicacao-premium", "diluente-bacteriostatico"],
-  },
-  {
-    slug: "retatrutida-60mg",
-    sku: "retatrutida-60-individual",
-    brand: "Save Concept",
-    name: "Retatrutida 60mg",
-    presentation: "Frasco individual · 60mg / 4ml",
-    category: "frascos",
-    summary: "Envasada na mesma planta e sob o mesmo controle de lote da linha Tirzepatida.",
-    description:
-      "Linha que entrou no catálogo em 2025, envasada na mesma planta e sob o mesmo controle de lote da Tirzepatida — muda o princípio ativo, não o processo.",
-    price: 1390,
-    badge: "Novidade",
-    rating: 4.9,
-    reviewCount: 41,
-    specs: [
-      "Concentração: 60mg / 4ml",
-      "Lote atual: SC-1024R · val. 10/2027",
-      "Conservação: 2-8°C, ao abrigo de luz",
-      "Uso: multidose, via subcutânea",
-    ],
-    freeShipping: true,
-    available: true,
-    purchasable: false,
-    coldChain: true,
-    healthNotice: true,
-    image: img("/loja/retatrutida-60mg", "Frasco Save Concept Retatrutida 60mg", 960, 1283),
-    keywords: ["retatrutida", "retatrutide", "frasco", "60mg", "injetavel"],
-    related: ["kit-aplicacao-premium", "diluente-bacteriostatico"],
-    boughtTogether: ["kit-aplicacao-premium", "diluente-bacteriostatico"],
-  },
-  {
-    slug: "tirzepatida-60mg-kit-duo",
-    sku: "tirzepatida-60-kit-duo",
-    brand: "Save Concept",
-    name: "Tirzepatida 60mg — Kit Duo",
-    presentation: "Kit com 2 frascos · 60mg / 4ml cada",
-    category: "kits",
-    summary: "Dois frascos do mesmo lote, com bolsa térmica reutilizável inclusa.",
-    description:
-      "Os mesmos dois frascos vendidos separado, saindo do mesmo lote e com desconto pra quem já fechou a rotina de 2 meses.",
-    price: 2450,
-    oldPrice: 2680,
-    units: { count: 2, label: "frasco" },
-    badge: "Kit com 2 unidades",
-    rating: 4.8,
-    reviewCount: 187,
-    specs: [
-      "Conteúdo: 2x frascos de 60mg / 4ml",
-      "Lotes parelhos (mesma leva de produção)",
-      "Conservação: 2-8°C, ao abrigo de luz",
-      "Inclui: bolsa térmica reutilizável",
-    ],
-    freeShipping: true,
-    available: true,
-    purchasable: false,
-    coldChain: true,
-    healthNotice: true,
-    image: { ...IMG_TIRZEPATIDA, alt: "Frasco Save Concept Tirzepatida 60mg (kit com 2 unidades)" },
-    keywords: ["tirzepatida", "tirzepatide", "kit", "duo", "2 frascos", "combo"],
-    related: ["tirzepatida-60mg", "kit-aplicacao-premium", "diluente-bacteriostatico"],
-    boughtTogether: ["kit-aplicacao-premium", "diluente-bacteriostatico"],
-  },
-  {
-    slug: "kit-aplicacao-premium",
-    sku: "kit-aplicacao-premium",
-    brand: "Save Concept",
-    name: "Kit de Aplicação Premium",
-    presentation: "10 seringas + bolsa térmica + lenços",
-    category: "acessorios",
-    summary: "Seringas 31G, bolsa térmica compacta, lenços com álcool 70% e cartela de controle.",
-    description:
-      "Era o brinde que mandávamos nos primeiros pedidos — virou produto porque quase todo mundo pedia pra comprar avulso.",
-    price: 219,
-    badge: "Acessório",
-    rating: 4.7,
-    reviewCount: 98,
-    specs: [
-      "10 seringas 1ml com agulha 31G",
-      "Bolsa térmica compacta",
-      "6 lenços com álcool 70%",
-      "Cartela de controle de aplicação",
-    ],
-    freeShipping: true,
-    available: true,
-    purchasable: true,
-    coldChain: false,
-    healthNotice: false,
-    image: img(
-      "/loja/kit-aplicacao",
-      "Kit de Aplicação Save Concept aberto, com seringas, bolsa térmica e lenços com álcool",
-      960,
-      877,
-    ),
-    keywords: ["kit", "aplicacao", "seringa", "seringas", "agulha", "31g", "bolsa termica", "alcool", "acessorio"],
-    related: ["diluente-bacteriostatico"],
-    boughtTogether: ["diluente-bacteriostatico"],
-  },
-  {
-    slug: "diluente-bacteriostatico",
-    sku: "diluente-bacteriostatico",
-    brand: "Save Concept",
-    name: "Diluente Bacteriostático",
-    presentation: "NaCl 0,9% · 10ml",
-    category: "acessorios",
-    summary: "Frasco multiperfuração de 10ml, compatível com toda a linha injetável.",
-    description:
-      "O mesmo diluente que vai junto quando você fecha um kit completo — vendido separado pra quem só precisa repor.",
-    price: 89,
-    badge: "Essencial",
-    rating: 4.9,
-    reviewCount: 141,
-    specs: [
-      "Composição: NaCl 0,9% bacteriostático",
-      "Volume: 10ml, multiperfuração",
-      "Validade após aberto: 28 dias",
-      "Compatível com toda a linha injetável",
-    ],
-    freeShipping: true,
-    available: true,
-    purchasable: true,
-    coldChain: false,
-    healthNotice: false,
-    image: img("/loja/diluente", "Frasco de diluente Save Concept com logo da marca", 960, 1440),
-    keywords: ["diluente", "bacteriostatico", "agua", "nacl", "soro", "10ml", "acessorio"],
-    related: ["kit-aplicacao-premium"],
-    boughtTogether: ["kit-aplicacao-premium"],
-  },
-];
 
 export const CATEGORIES: Category[] = [
   {
@@ -327,7 +229,9 @@ export const TESTIMONIALS = [
   },
 ];
 
-export const FAQ = [
+/** FAQ answers that quote store policies are built from the live settings. */
+export function faq() {
+  return [
   {
     question: "Vocês fabricam mesmo ou só revendem com etiqueta própria?",
     answer:
@@ -336,17 +240,17 @@ export const FAQ = [
   {
     question: "Como funciona o envio de produtos que precisam de refrigeração?",
     answer:
-      "Vai em caixa térmica com gelo reciclável, dimensionada pro tempo de trajeto até a sua região. Prazo médio de 3 a 7 dias úteis, dependendo do CEP.",
+      `Vai em caixa térmica com gelo reciclável, dimensionada pro tempo de trajeto até a sua região. Prazo médio de ${STORE.delivery.window}, dependendo do CEP.`,
   },
   {
     question: "Quais formas de pagamento vocês aceitam?",
     answer:
-      "Pix, cartão de crédito (em até 3x sem juros) e boleto. No boleto, o envio começa depois da compensação, que leva até 2 dias úteis.",
+      `Pix, cartão de crédito${STORE.maxInstallments > 1 ? ` (em até ${STORE.maxInstallments}x sem juros)` : ""} e boleto. No boleto, o envio começa depois da compensação, que leva até 2 dias úteis. ${STORE.paymentNote}`,
   },
   {
     question: "Posso trocar ou devolver um pedido?",
     answer:
-      "Sim, em até 7 dias corridos após o recebimento, desde que o lacre esteja intacto. O reembolso cai na mesma forma de pagamento em até 10 dias úteis.",
+      `Sim. ${STORE.returns}`,
   },
   {
     question: "Emitem nota fiscal?",
@@ -357,17 +261,34 @@ export const FAQ = [
     answer:
       "O número do lote e a validade ficam impressos no rótulo. Se quiser confirmar antes de comprar, é só chamar o nosso atendimento.",
   },
-];
+  ];
+}
 
-/* ---------- derived helpers ---------- */
+/* ---------- derived helpers (computed on call — the registry starts empty) ---------- */
 
-export const TOTAL_REVIEWS = PRODUCTS.reduce((sum, p) => sum + p.reviewCount, 0);
-export const AVERAGE_RATING =
-  Math.round((PRODUCTS.reduce((sum, p) => sum + p.rating * p.reviewCount, 0) / TOTAL_REVIEWS) * 10) / 10;
+export function totalReviews() {
+  return PRODUCTS.reduce((sum, p) => sum + p.reviewCount, 0);
+}
+
+export function averageRating() {
+  const total = totalReviews();
+  return total ? Math.round((PRODUCTS.reduce((sum, p) => sum + p.rating * p.reviewCount, 0) / total) * 10) / 10 : 0;
+}
 
 /** Discounts that can actually be bought online — drives every "Ofertas" entry point. */
-export const PURCHASABLE_OFFERS = PRODUCTS.filter((p) => p.purchasable && p.oldPrice !== undefined && p.oldPrice > p.price);
-export const PURCHASABLE_PRODUCTS = PRODUCTS.filter((p) => p.purchasable);
+export function purchasableOffers() {
+  return PRODUCTS.filter((p) => p.purchasable && p.oldPrice !== undefined && p.oldPrice > p.price);
+}
+
+export function purchasableProducts() {
+  return PRODUCTS.filter((p) => p.purchasable);
+}
+
+/** Storage instructions exactly as printed in the product's specs (e.g. "2-8°C, ao abrigo de luz"). */
+export function storageOf(product: Pick<Product, "specs">) {
+  const spec = product.specs.find((s) => /^conserva[cç][aã]o:/i.test(s));
+  return spec ? spec.slice(spec.indexOf(":") + 1).trim() : null;
+}
 
 export function getProduct(slug: string) {
   return PRODUCTS.find((p) => p.slug === slug);
@@ -396,7 +317,7 @@ export function formatBRL(value: number) {
 
 export function installmentText(price: number) {
   const n = STORE.maxInstallments;
-  return `ou ${n}x de ${formatBRL(price / n)} sem juros`;
+  return n > 1 ? `ou ${n}x de ${formatBRL(price / n)} sem juros` : "à vista";
 }
 
 export function productHref(slug: string) {

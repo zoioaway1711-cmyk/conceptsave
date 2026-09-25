@@ -57,7 +57,7 @@ export function AccountView() {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
-      <nav aria-label="Seções da conta" className="lg:sticky lg:top-[calc(var(--lj-header-h)+72px)] lg:self-start">
+      <nav aria-label="Seções da conta" className="lg:sticky lg:top-[calc(var(--lj-header-real,120px)+24px)] lg:self-start">
         <ul className="-mx-[var(--lj-gutter)] flex gap-2 overflow-x-auto px-[var(--lj-gutter)] pb-1 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0">
           {SECTIONS.map((s) => (
             <li key={s.id} className="shrink-0">
@@ -107,7 +107,7 @@ export function AccountView() {
                 <Clock className="size-4" aria-hidden="true" /> Buscas recentes
               </h3>
               {searches.length > 0 && (
-                <button type="button" className="lj-link text-sm" onClick={clearRecentSearches}>
+                <button type="button" className="lj-link lj-hit text-sm" onClick={clearRecentSearches}>
                   Limpar
                 </button>
               )}
@@ -126,7 +126,7 @@ export function AccountView() {
               <p className="lj-small lj-muted">Nenhuma busca por enquanto.</p>
             )}
             {viewed.length > 0 && (
-              <button type="button" className="lj-link self-start text-sm" onClick={clearRecentlyViewed}>
+              <button type="button" className="lj-link lj-hit self-start text-sm" onClick={clearRecentlyViewed}>
                 Limpar produtos vistos recentemente
               </button>
             )}

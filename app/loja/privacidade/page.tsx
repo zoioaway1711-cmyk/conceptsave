@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { loadCatalog } from "@/lib/loja-catalog";
 import Link from "next/link";
 import { STORE } from "../_lib/catalog";
 import { PrivacyPreferencesButton } from "../_components/consent-banner";
@@ -23,7 +24,8 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-export default function PrivacidadePage() {
+export default async function PrivacidadePage() {
+  await loadCatalog();
   return (
     <div className="lj-container max-w-3xl py-6 sm:py-8">
       <Breadcrumbs items={[{ label: "Loja", href: "/loja" }, { label: "Privacidade" }]} />

@@ -1,4 +1,4 @@
-import { CATEGORIES, PRODUCTS, type Category, type Product } from "./catalog";
+import { CATEGORIES, PRODUCTS, currentCatalogVersion, type Category, type Product } from "./catalog";
 
 /*
  * Client-side catalog search. The catalog is small and fully known at
@@ -21,9 +21,18 @@ function haystack(p: Product) {
   return normalize([p.name, p.presentation, p.brand, p.summary, ...p.keywords].join(" "));
 }
 
-const INDEX = PRODUCTS.map((p) => ({ product: p, text: haystack(p), name: normalize(p.name) }));
+// Built lazily and rebuilt whenever the catalog registry changes (it's
+// filled from the database, so it is empty when this module loads).
+let built = -1;
+let INDEX: { product: Product; text: string; name: string }[] = [];
+let VOCABULARY: string[] = [];
+function ensureIndex() {
+  if (built === currentCatalogVersion()) return;
+  built = currentCatalogVersion();
+  INDEX = PRODUCTS.map((p) => ({ product: p, text: haystack(p), name: normalize(p.name) }));
+  VOCABULARY = Array.from(new Set(INDEX.flatMap((e) => e.text.split(" ")).filter((w) => w.length >= 4)));
+}
 
-const VOCABULARY = Array.from(new Set(INDEX.flatMap((e) => e.text.split(" ")).filter((w) => w.length >= 4)));
 
 export function levenshtein(a: string, b: string) {
   const row = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -40,6 +49,7 @@ export function levenshtein(a: string, b: string) {
 }
 
 function correctWord(word: string) {
+  ensureIndex();
   if (word.length < 4 || VOCABULARY.includes(word)) return word;
   let best = word;
   let bestDistance = Math.max(2, Math.floor(word.length / 4));
@@ -54,6 +64,7 @@ function correctWord(word: string) {
 }
 
 function match(terms: string[]) {
+  ensureIndex();
   return INDEX.map((entry) => {
     let score = 0;
     for (const term of terms) {

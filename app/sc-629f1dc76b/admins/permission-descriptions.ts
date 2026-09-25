@@ -12,6 +12,7 @@ export const PERMISSION_LABELS: Record<Permission, { label: string; description:
   "admin.admins.manage": { label: "Admins", description: "Create admin accounts and manage everyone's permissions — including this page." },
   "admin.store.orders": { label: "Loja: pedidos e estoque", description: "Ver e atualizar pedidos da loja (inclui revelar o CPF para a nota fiscal) e editar o estoque." },
   "admin.store.analytics": { label: "Loja: métricas", description: "Ver as métricas anônimas de navegação e funil da loja." },
+  "admin.store.catalog": { label: "Loja: catálogo e configurações", description: "Editar produtos, preços, disponibilidade e as configurações da loja (WhatsApp, e-mails, prazos, parcelas)." },
 };
 
 export const ALL_PERMISSIONS = PERMISSIONS as readonly Permission[];

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeD1 } from "./helpers/fake-d1";
 import { applyMigrations } from "./helpers/apply-migrations";
+import { applySeedCatalog } from "./helpers/loja-catalog";
 
 const env: Record<string, unknown> = { SESSION_SECRET: "s".repeat(32) };
 vi.mock("cloudflare:workers", () => ({ env }));
@@ -8,12 +9,14 @@ vi.mock("cloudflare:workers", () => ({ env }));
 const { createOrder, decryptCpf, getOrder, listOrders, orderAccessToken, publicOrderView, transitionOrder, verifyOrderAccessToken } = await import("../lib/loja-orders");
 const { setStock } = await import("../lib/loja-stock");
 const { getProduct } = await import("../app/loja/_lib/catalog");
+applySeedCatalog();
 
 let db: ReturnType<typeof createFakeD1>;
 beforeEach(() => {
   db = createFakeD1();
   applyMigrations(db);
   env.DB = db;
+  applySeedCatalog();
 });
 
 const kit = getProduct("kit-aplicacao-premium")!;

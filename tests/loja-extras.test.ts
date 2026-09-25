@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeD1 } from "./helpers/fake-d1";
 import { applyMigrations } from "./helpers/apply-migrations";
+import { applySeedCatalog } from "./helpers/loja-catalog";
 
 const env: Record<string, unknown> = { SESSION_SECRET: "s".repeat(32) };
 vi.mock("cloudflare:workers", () => ({ env }));
@@ -19,6 +20,7 @@ beforeEach(() => {
   db = createFakeD1();
   applyMigrations(db);
   env.DB = db;
+  applySeedCatalog();
 });
 
 const post = (body: unknown) => subscribeRoute.POST(new Request("https://loja.test/api/loja/subscribe", { method: "POST", body: JSON.stringify(body) }));
@@ -66,7 +68,7 @@ describe("orders summary", () => {
 
 describe("sitemap / robots", () => {
   it("ignores an unverified x-vf-forwarded-host (no cache poisoning)", async () => {
-    const res = sitemap.GET(new Request("https://loja.test/loja/sitemap.xml", { headers: { host: "loja.test", "x-vf-forwarded-host": "evil.example" } }));
+    const res = await sitemap.GET(new Request("https://loja.test/loja/sitemap.xml", { headers: { host: "loja.test", "x-vf-forwarded-host": "evil.example" } }));
     const xml = await res.text();
     expect(xml).toContain("https://loja.test/loja/produto/");
     expect(xml).not.toContain("evil.example");
@@ -74,7 +76,7 @@ describe("sitemap / robots", () => {
   });
 
   it("robots never names the admin console path", async () => {
-    const txt = await robots.GET(new Request("https://loja.test/robots.txt", { headers: { host: "loja.test" } })).text();
+    const txt = await (await robots.GET(new Request("https://loja.test/robots.txt", { headers: { host: "loja.test" } }))).text();
     expect(txt).toContain("Sitemap: https://loja.test/loja/sitemap.xml");
     expect(txt).not.toMatch(/sc-629f1dc76b|admin/);
   });

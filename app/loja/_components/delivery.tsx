@@ -47,7 +47,7 @@ export function CepLookup({ autoFocus, onSaved, compact }: { autoFocus?: boolean
         )}
         <button
           type="button"
-          className="lj-link self-start text-sm"
+          className="lj-link lj-hit self-start text-sm"
           onClick={() => {
             setValue("");
             reset();
@@ -115,13 +115,13 @@ export function CepLookup({ autoFocus, onSaved, compact }: { autoFocus?: boolean
           href="https://buscacepinter.correios.com.br/app/endereco/index.php"
           target="_blank"
           rel="noopener noreferrer"
-          className="lj-link lj-tiny self-start"
+          className="lj-link lj-hit lj-tiny self-start"
         >
           Não sei meu CEP
         </a>
       )}
       {saved && (
-        <button type="button" className="lj-link lj-tiny self-start" onClick={() => setEditing(false)}>
+        <button type="button" className="lj-link lj-hit lj-tiny self-start" onClick={() => setEditing(false)}>
           Manter {formatCep(saved.cep)}
         </button>
       )}

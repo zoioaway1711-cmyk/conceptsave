@@ -10,6 +10,7 @@ import type { OrderTotals } from "../_lib/pricing";
 import { acknowledgeCartChanges, removeFromCart, setCartQty, toggleFavorite, useCart, useFavorites, type CartChange } from "../_lib/store";
 import { ProductRail, RecentlyViewedProducts } from "./client-sections";
 import { CepLookup, FulfillmentOption } from "./delivery";
+import { EmptyArt } from "./empty-art";
 import { CategoryCards } from "./sections";
 import { ProductImage, QuantityStepper } from "./ui";
 
@@ -165,9 +166,7 @@ export function CartView() {
           {undo && <UndoBar undo={undo} onDone={() => setUndo(null)} />}
           <CartChanges changes={changes} />
           <div className="lj-card lj-card--pad flex flex-col items-center gap-3 py-12 text-center">
-            <span className="lj-icon-circle size-14">
-              <ShoppingCart aria-hidden="true" />
-            </span>
+            <EmptyArt icon={ShoppingCart} />
             <h2 className="lj-h3">Seu carrinho está vazio</h2>
             <p className="lj-small lj-muted max-w-sm">Escolha uma categoria para começar ou veja o catálogo completo.</p>
             <Link href="/loja/produtos" className="lj-btn lj-btn--primary mt-2">
@@ -267,13 +266,13 @@ export function CartView() {
             </Link>
           </div>
 
-          <div className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--lj-header-h)+72px)] lg:self-start">
+          <div className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--lj-header-real,120px)+24px)] lg:self-start">
             <OrderSummary totals={totals}>
               <Link href="/loja/checkout" className="lj-btn lj-btn--primary lj-btn--lg lj-btn--block">
                 Finalizar compra <ArrowRight aria-hidden="true" />
               </Link>
               <p className="lj-tiny lj-muted inline-flex items-center justify-center gap-1.5">
-                <Lock className="size-3.5" aria-hidden="true" /> Pix, cartão em até {STORE.maxInstallments}x ou boleto
+                <Lock className="size-3.5" aria-hidden="true" /> Pix, cartão{STORE.maxInstallments > 1 ? ` em até ${STORE.maxInstallments}x` : ""} ou boleto
               </p>
             </OrderSummary>
           </div>

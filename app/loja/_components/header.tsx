@@ -17,15 +17,13 @@ import {
   Menu,
   ShieldCheck,
   ShoppingCart,
-  Truck,
   User,
   X,
 } from "lucide-react";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import {
   CATEGORIES,
-  PURCHASABLE_OFFERS,
-  STORE,
+  purchasableOffers,
   categoryHref,
   formatBRL,
   productHref,
@@ -33,13 +31,12 @@ import {
   type CategorySlug,
 } from "../_lib/catalog";
 import { formatCep, useCart, useDeliveryLocation, useFavorites } from "../_lib/store";
+import { AnnouncementBar } from "./announcement-bar";
+import { CartDrawer } from "./cart-drawer";
 import { CepLookup } from "./delivery";
 import { SearchBox } from "./search-box";
 import { ProductImage } from "./ui";
 
-// Offers link only exists while there's a discounted product that can be
-// bought online (today every discount is on vials, which aren't sold online).
-const OFFER_COUNT = PURCHASABLE_OFFERS.length;
 
 function CepButton() {
   const location = useDeliveryLocation();
@@ -75,7 +72,10 @@ function CepButton() {
  * catalog is small, so each category column lists its actual products —
  * one click from the menu to any PDP, with no wall of empty sub-links.
  */
+// Offers link only exists while there's a discounted product that can be
+// bought online (computed per render — the catalog comes from the database).
 function MegaMenu({ pathname }: { pathname: string }) {
+  const OFFER_COUNT = purchasableOffers().length;
   return (
     <NavigationMenu.Root className="lj-catnav relative hidden border-t border-[color:var(--lj-line)] lg:block" aria-label="Categorias">
       <NavigationMenu.List className="lj-container flex items-center gap-7">
@@ -185,6 +185,7 @@ function MobileMenu({ open, onOpenChange, pathname }: { open: boolean; onOpenCha
   const returnTo = useRef<CategorySlug | null>(null);
   const close = () => onOpenChange(false);
   const category = panel ? CATEGORIES.find((c) => c.slug === panel) : undefined;
+  const OFFER_COUNT = purchasableOffers().length;
 
   return (
     <Sheet
@@ -324,6 +325,21 @@ export function StoreHeader() {
   const favorites = useFavorites();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Publish the sticky header's real height as a CSS variable, so other
+  // sticky/fixed elements (filters bar, mobile search, sidebars) sit
+  // exactly below it at every breakpoint.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty("--lj-header-real", `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -372,17 +388,8 @@ export function StoreHeader() {
   // scrolling (which would shift content).
   return (
     <>
-      <div className="lj-topbar hidden sm:block">
-        <div className="lj-container flex h-9 items-center justify-between gap-4">
-          <p className="inline-flex items-center gap-2">
-            <Truck className="size-3.5" aria-hidden="true" /> Frete grátis em todos os produtos · prazo médio de {STORE.delivery.window}
-          </p>
-          <Link href="/" className="inline-flex items-center gap-1.5 font-semibold text-white hover:underline">
-            <ShieldCheck className="size-3.5" aria-hidden="true" /> Verificar autenticidade do produto
-          </Link>
-        </div>
-      </div>
-    <header className="lj-header" data-scrolled={scrolled ? "" : undefined}>
+      <AnnouncementBar />
+    <header ref={headerRef} className="lj-header" data-scrolled={scrolled ? "" : undefined}>
       <div className="lj-container flex items-center gap-2 py-2.5 md:gap-4 md:py-3">
         <button type="button" className="lj-header-icon -ml-2 lg:hidden" aria-label="Abrir menu" onClick={() => setMenuOpen(true)}>
           <Menu aria-hidden="true" />
@@ -415,15 +422,17 @@ export function StoreHeader() {
             <Heart aria-hidden="true" />
             {favorites.length > 0 && <span className="lj-count">{favorites.length}</span>}
           </Link>
-          <Link
-            href="/loja/carrinho"
+          <button
+            type="button"
             className="lj-header-icon"
+            aria-haspopup="dialog"
             aria-label={`Carrinho${count ? `, ${count} ${count === 1 ? "item" : "itens"}` : ", vazio"}`}
+            onClick={() => setCartOpen(true)}
           >
             <ShoppingCart aria-hidden="true" />
             <span className="hidden lg:inline">Carrinho</span>
             {count > 0 && <span className="lj-count">{count}</span>}
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -433,6 +442,7 @@ export function StoreHeader() {
 
       <MegaMenu pathname={pathname} />
       <MobileMenu open={menuOpen} onOpenChange={setMenuOpen} pathname={pathname} />
+      <CartDrawer open={cartOpen} onOpenChange={setCartOpen} />
     </header>
     </>
   );

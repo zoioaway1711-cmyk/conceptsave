@@ -1,4 +1,5 @@
 import { PRODUCTS } from "@/app/loja/_lib/catalog";
+import { loadCatalog } from "./loja-catalog";
 
 /*
  * Controlled stock for storefront SKUs (loja_stock). A SKU without a row
@@ -26,11 +27,15 @@ export async function publicStock(db: D1Database): Promise<PublicStock> {
   return out;
 }
 
-export const STOCK_SKUS = PRODUCTS.map((p) => p.sku);
+/** SKUs of the live catalog (call after loadCatalog()). */
+export function stockSkus() {
+  return PRODUCTS.map((p) => p.sku);
+}
 
 /** `quantity: null` stops controlling the SKU (row removed). */
 export async function setStock(db: D1Database, sku: string, quantity: number | null, actor: string) {
-  if (!STOCK_SKUS.includes(sku)) return false;
+  await loadCatalog(db);
+  if (!stockSkus().includes(sku)) return false;
   if (quantity === null) {
     await db.prepare("DELETE FROM loja_stock WHERE sku = ?").bind(sku).run();
     return true;

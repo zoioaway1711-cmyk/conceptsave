@@ -14,6 +14,6 @@ export async function POST(request: Request) {
   if (!limit.allowed) return rateLimitResponse(limit);
   const body = await readBody(request, subscribeSchema, 2000);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
-  await subscribe(db, body);
+  if (!(await subscribe(db, body))) return Response.json({ error: "invalid_sku" }, { status: 400 });
   return new Response(null, { status: 204 });
 }

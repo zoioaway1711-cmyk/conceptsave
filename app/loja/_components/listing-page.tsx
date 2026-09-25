@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { Breadcrumbs, type Crumb } from "./ui";
+import type { ProductImage as ProductImageData } from "../_lib/catalog";
+import { Breadcrumbs, ProductImage, type Crumb } from "./ui";
 import { ListingSkeleton, ProductListing, SearchTitle, type ListingMode } from "./product-listing";
 
 /*
@@ -12,16 +13,26 @@ export function ListingPage({
   title,
   description,
   crumbs,
+  image,
 }: {
   mode: ListingMode;
   title: React.ReactNode;
   description?: string;
   crumbs: Crumb[];
+  /** Category hero image (premium PLP header). */
+  image?: ProductImageData;
 }) {
   return (
     <div className="lj-container py-6 sm:py-8">
       <Breadcrumbs items={crumbs} />
-      <header className="mb-6 mt-4 max-w-3xl sm:mb-8">
+      <header
+        className={
+          image
+            ? "lj-hero mb-6 mt-4 grid items-center gap-4 rounded-[var(--lj-r-xl)] border border-[color:var(--lj-line)] p-5 sm:mb-8 sm:grid-cols-[1fr_200px] sm:p-8"
+            : "mb-6 mt-4 max-w-3xl sm:mb-8"
+        }
+      >
+        <div>
         <h1 className="lj-h2 sm:text-[32px]">
           {mode.kind === "search" ? (
             <Suspense fallback={title}>
@@ -31,7 +42,13 @@ export function ListingPage({
             title
           )}
         </h1>
-        {description && <p className="lj-small lj-muted mt-2">{description}</p>}
+        {description && <p className="lj-small lj-muted mt-2 max-w-2xl">{description}</p>}
+        </div>
+        {image && (
+          <span className="lj-media hidden aspect-square rounded-[var(--lj-r-lg)] p-4 sm:flex">
+            <ProductImage image={image} sizes="200px" priority decorative />
+          </span>
+        )}
       </header>
       <Suspense fallback={<ListingSkeleton />}>
         <ProductListing mode={mode} />

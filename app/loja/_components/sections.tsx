@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { ArrowRight, BellRing, ChevronDown, Factory, FileCheck, FlaskConical, MessageCircle, PackageCheck, Quote, Snowflake, Truck } from "lucide-react";
 import {
-  AVERAGE_RATING,
   CATEGORIES,
   DIFFERENTIATORS,
-  FAQ,
   RATING_BREAKDOWN,
   TESTIMONIALS,
-  TOTAL_REVIEWS,
   TRUST_ITEMS,
+  averageRating,
   categoryHref,
+  faq,
   productsInCategory,
+  totalReviews,
 } from "../_lib/catalog";
 import { ProductImage, SectionHeading, StarRating } from "./ui";
 
@@ -88,8 +88,10 @@ export function Differentiators() {
 }
 
 export function Reviews() {
+  const AVERAGE_RATING = averageRating();
+  const TOTAL_REVIEWS = totalReviews();
   return (
-    <section className="lj-section" aria-labelledby="avaliacoes-title">
+    <section className="lj-section lj-reveal lj-cv" aria-labelledby="avaliacoes-title">
       <div className="lj-container">
         <SectionHeading id="avaliacoes-title" eyebrow="Avaliações" title="O que dizem os clientes" />
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
@@ -134,7 +136,8 @@ export function Reviews() {
   );
 }
 
-export function FaqList({ items = FAQ }: { items?: { question: string; answer: string }[] }) {
+export function FaqList({ items: given }: { items?: { question: string; answer: string }[] }) {
+  const items = given ?? faq();
   return (
     <div className="lj-card lj-faq divide-y divide-[color:var(--lj-line)] px-4 sm:px-6">
       {items.map((item, i) => (

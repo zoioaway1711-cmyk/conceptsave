@@ -1,34 +1,33 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Info } from "lucide-react";
+import { loadCatalog } from "@/lib/loja-catalog";
+import { preload } from "react-dom";
+import Link from "next/link";
+import { ChevronDown, ChevronLeft, Info, ShieldCheck } from "lucide-react";
 import {
-  FAQ,
-  PRODUCTS,
   STORE,
   categoryHref,
   getCategory,
   getProduct,
   imageSrc,
+  imageSrcSet,
   productHref,
   productsBySlugs,
+  storageOf,
 } from "../../_lib/catalog";
 import { ProductRail, RecentlyViewedProducts, TrackView } from "../../_components/client-sections";
 import { BuyBox, BuyTogether, ProductGallery } from "../../_components/product-detail";
-import { FaqList } from "../../_components/sections";
 import { Breadcrumbs, JsonLd } from "../../_components/ui";
 
 type Props = { params: Promise<{ slug: string }> };
 
-export function generateStaticParams() {
-  return PRODUCTS.map((p) => ({ slug: p.slug }));
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  await loadCatalog();
   const product = getProduct((await params).slug);
   if (!product) return { title: "Produto não encontrado" };
   return {
     title: `${product.name} — ${product.presentation}`,
-    description: `${product.summary} Envio a partir de ${STORE.city}, nota fiscal em todo pedido e ${STORE.maxInstallments}x sem juros.`,
+    description: `${product.summary} Envio a partir de ${STORE.city}, nota fiscal em todo pedido${STORE.maxInstallments > 1 ? ` e ${STORE.maxInstallments}x sem juros` : ""}.`,
     openGraph: {
       title: product.name,
       description: product.summary,
@@ -37,9 +36,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-// Commercial questions only (shipping, payment, returns) — the product's own
-// facts stay in the "Informações do produto" block above.
-const PURCHASE_FAQ = FAQ.filter((f) => /envio|pagamento|trocar|nota fiscal/i.test(f.question));
+function Accordion({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
+  return (
+    <details open={open}>
+      <summary className="flex min-h-14 items-center justify-between gap-4 py-3 text-left text-[15px] font-bold text-[color:var(--lj-ink)]">
+        {title}
+        <ChevronDown className="lj-faq-chevron size-5 shrink-0 text-[color:var(--lj-muted)]" aria-hidden="true" />
+      </summary>
+      <div className="lj-small flex flex-col gap-2 pb-4 text-[color:var(--lj-text)]">{children}</div>
+    </details>
+  );
+}
 
 function splitSpec(spec: string) {
   const i = spec.indexOf(":");
@@ -47,10 +54,20 @@ function splitSpec(spec: string) {
 }
 
 export default async function ProdutoPage({ params }: Props) {
+  await loadCatalog();
   const product = getProduct((await params).slug);
   if (!product) notFound();
   const category = getCategory(product.category)!;
   const related = productsBySlugs(product.related);
+  // LCP image: start fetching it with the HTML, before the gallery hydrates.
+  preload(imageSrc(product.image, 960), {
+    as: "image",
+    imageSrcSet: imageSrcSet(product.image),
+    imageSizes: "(max-width: 1023px) 92vw, 560px",
+    fetchPriority: "high",
+  });
+  const storageValue = storageOf(product);
+  const storage = storageValue ? `Conservar em ${storageValue}` : null;
 
   return (
     <>
@@ -88,42 +105,35 @@ export default async function ProdutoPage({ params }: Props) {
         }}
       />
 
-      <div className="lj-container pb-28 pt-6 sm:pt-8 lg:pb-0">
-        <Breadcrumbs
-          items={[
-            { label: "Loja", href: "/loja" },
-            { label: category.name, href: categoryHref(category.slug) },
-            { label: product.name },
-          ]}
-        />
+      <div className="lj-container pb-28 pt-6 sm:pt-8">
+        <Link href={categoryHref(category.slug)} className="lj-link lj-hit inline-flex items-center gap-1 text-sm sm:hidden">
+          <ChevronLeft className="size-4" aria-hidden="true" /> {category.name}
+        </Link>
+        <div className="hidden sm:block">
+          <Breadcrumbs
+            items={[
+              { label: "Loja", href: "/loja" },
+              { label: category.name, href: categoryHref(category.slug) },
+              { label: product.name },
+            ]}
+          />
+        </div>
 
         <div className="mt-5 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-12">
-          <div className="lg:sticky lg:top-[calc(var(--lj-header-h)+72px)] lg:self-start">
+          <div className="lg:sticky lg:top-[calc(var(--lj-header-real,120px)+24px)] lg:self-start">
             <ProductGallery product={product} />
           </div>
           <BuyBox product={product} />
         </div>
 
         <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-12">
-          <section className="lj-card lj-card--pad" aria-labelledby="info-title">
+          <section aria-labelledby="info-title">
             <p className="lj-eyebrow mb-2">Informações do produto</p>
-            <h2 id="info-title" className="lj-h2 text-[22px]">
+            <h2 id="info-title" className="lj-h2 mb-4 text-[22px]">
               Sobre {product.name}
             </h2>
-            <p className="lj-small mt-3 text-[color:var(--lj-text)]">{product.description}</p>
-            <dl className="mt-5 divide-y divide-[color:var(--lj-line)] rounded-[var(--lj-r-md)] border border-[color:var(--lj-line)]">
-              {product.specs.map((spec) => {
-                const { label, value } = splitSpec(spec);
-                return (
-                  <div key={spec} className="lj-small grid grid-cols-1 gap-1 px-4 py-3 min-[420px]:grid-cols-[140px_1fr]">
-                    <dt className="font-semibold text-[color:var(--lj-ink)]">{label || "Item"}</dt>
-                    <dd className="text-[color:var(--lj-text)]">{value}</dd>
-                  </div>
-                );
-              })}
-            </dl>
             {product.healthNotice && (
-              <p className="lj-alert lj-alert--warning mt-5">
+              <p className="lj-alert lj-alert--warning mb-4">
                 <Info aria-hidden="true" />
                 <span>
                   Leia com atenção as informações e as instruções de conservação impressas no rótulo antes de qualquer uso.
@@ -131,16 +141,63 @@ export default async function ProdutoPage({ params }: Props) {
                 </span>
               </p>
             )}
+            {/* Premium-store pattern: scannable accordions instead of one long block. Product facts first, then commercial terms. */}
+            <div className="lj-card lj-faq divide-y divide-[color:var(--lj-line)] px-4 sm:px-6">
+              <Accordion title="Descrição" open>
+                <p>{product.description}</p>
+              </Accordion>
+              <Accordion title={product.category === "acessorios" ? "O que vem na embalagem" : "Especificações"}>
+                <dl className="divide-y divide-[color:var(--lj-line)]">
+                  {product.specs.map((spec) => {
+                    const { label, value } = splitSpec(spec);
+                    return (
+                      <div key={spec} className="grid grid-cols-1 gap-1 py-2.5 min-[420px]:grid-cols-[140px_1fr]">
+                        <dt className="font-semibold text-[color:var(--lj-ink)]">{label || "Item"}</dt>
+                        <dd>{value}</dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </Accordion>
+              {storage && (
+                <Accordion title="Conservação">
+                  <p>{storage}.</p>
+                  {product.coldChain && <p>O envio é feito em caixa térmica com gelo reciclável para manter a faixa de temperatura no trajeto.</p>}
+                </Accordion>
+              )}
+              <Accordion title="Entrega e frete">
+                <p>
+                  {product.freeShipping ? "Frete grátis." : "Frete informado na confirmação do pedido."} Prazo médio de {STORE.delivery.window}, conforme
+                  o CEP, a partir da confirmação do pagamento. {STORE.delivery.detail}
+                </p>
+              </Accordion>
+              <Accordion title="Pagamento">
+                <p>{STORE.paymentNote}</p>
+                <ul className="list-disc pl-5">
+                  {STORE.payment.map((p) => (
+                    <li key={p.id}>
+                      {p.label}: {p.detail}
+                    </li>
+                  ))}
+                </ul>
+              </Accordion>
+              <Accordion title="Trocas e devoluções">
+                <p>{STORE.returns}</p>
+              </Accordion>
+            </div>
           </section>
 
           <div className="flex flex-col gap-6">
             <BuyTogether product={product} />
-            <section aria-labelledby="compra-title">
-              <h2 id="compra-title" className="lj-h3 mb-3">
-                Dúvidas sobre a compra
-              </h2>
-              <FaqList items={PURCHASE_FAQ} />
-            </section>
+            <Link href="/loja/autenticidade" className="lj-card lj-card--pad group flex items-start gap-3 hover:shadow-[var(--lj-shadow-md)]">
+              <span className="lj-icon-circle">
+                <ShieldCheck aria-hidden="true" />
+              </span>
+              <span>
+                <strong className="block text-[color:var(--lj-ink)]">Autenticidade verificável</strong>
+                <span className="lj-small lj-muted">Cada unidade tem serial e QR Code no selo. Veja como conferir →</span>
+              </span>
+            </Link>
           </div>
         </div>
       </div>

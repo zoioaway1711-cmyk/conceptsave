@@ -3,16 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
-import { Check, CreditCard, Info, Share2, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, X, ZoomIn } from "lucide-react";
+import { Check, CreditCard, Info, Share2, Snowflake, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, X, ZoomIn } from "lucide-react";
 import {
   STORE,
   formatBRL,
+  installmentText,
+  storageOf,
   imageSrc,
   productsBySlugs,
   type Product,
 } from "../_lib/catalog";
 import { useAvailability } from "../_lib/stock";
-import { notify } from "../_lib/feedback";
+import { notify, useFlash } from "../_lib/feedback";
 import { addToCart } from "../_lib/store";
 import { CepLookup, DeliveryInfo } from "./delivery";
 import { OptInForm } from "./client-sections";
@@ -137,6 +139,12 @@ export function BuyBox({ product }: { product: Product }) {
   const ctaRef = useRef<HTMLDivElement>(null);
   const [ctaVisible, setCtaVisible] = useState(true);
   const availability = useAvailability(product);
+  const [added, flashAdded] = useFlash();
+  const storage = storageOf(product);
+  const add = () => {
+    addToCart(product.slug, qty);
+    flashAdded();
+  };
 
   useEffect(() => {
     const el = ctaRef.current;
@@ -169,12 +177,18 @@ export function BuyBox({ product }: { product: Product }) {
       <div className="lj-card lj-card--pad flex flex-col gap-4">
         <PriceBlock product={product} size="lg" />
         <StockLabel product={product} long />
+        {product.coldChain && storage && (
+          <p className="lj-tiny inline-flex items-center gap-1.5 font-semibold text-[color:var(--lj-primary)]">
+            <Snowflake className="size-4" aria-hidden="true" /> Conservar em {storage} · enviado refrigerado
+          </p>
+        )}
         {availability.buyable ? (
           <>
             <div ref={ctaRef} className="flex flex-col gap-3 sm:flex-row">
               <QuantityStepper value={qty} onChange={setQty} label={product.name} />
-              <button type="button" className="lj-btn lj-btn--primary lj-btn--lg flex-1" onClick={() => addToCart(product.slug, qty)}>
-                <ShoppingCart aria-hidden="true" /> Adicionar ao carrinho
+              <button type="button" className="lj-btn lj-btn--primary lj-btn--lg flex-1" data-done={added ? "" : undefined} onClick={add}>
+                {added ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
+                {added ? "Adicionado ao carrinho" : "Adicionar ao carrinho"}
               </button>
             </div>
             <button type="button" className="lj-btn lj-btn--secondary lj-btn--block" onClick={buyNow}>
@@ -234,15 +248,20 @@ export function BuyBox({ product }: { product: Product }) {
       </div>
 
       {/* Mobile sticky buy bar — shown whenever the main CTA is off screen. */}
+      {/* Sticky buy bar (all sizes) once the main CTA scrolls away — premium-store pattern. */}
       {!ctaVisible && availability.buyable && (
         <div className="lj-buybar lj-scope">
-          <div className="flex items-center gap-3">
+          <div className="lj-container flex items-center gap-3 !px-0 lg:!px-[var(--lj-gutter)]">
+            <span className="lj-media hidden size-12 shrink-0 rounded-[var(--lj-r-sm)] p-1 lg:flex">
+              <ProductImage image={product.image} sizes="48px" decorative />
+            </span>
             <div className="min-w-0 flex-1">
-              <p className="lj-tiny lj-muted truncate">{product.name}</p>
+              <p className="lj-tiny lj-muted truncate lg:text-sm lg:font-semibold lg:text-[color:var(--lj-ink)]">{product.name}</p>
               <p className="lj-price text-lg">{formatBRL(product.price)}</p>
             </div>
-            <button type="button" className="lj-btn lj-btn--primary" onClick={() => addToCart(product.slug, qty)}>
-              <ShoppingCart aria-hidden="true" /> Adicionar
+            <span className="lj-small lj-muted hidden lg:inline">{installmentText(product.price)}</span>
+            <button type="button" className="lj-btn lj-btn--primary" onClick={add}>
+              {added ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />} {added ? "Adicionado" : "Adicionar"}
             </button>
           </div>
         </div>

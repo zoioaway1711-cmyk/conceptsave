@@ -6,6 +6,7 @@ export default async function LojaAdminPage() {
   const admin = await requireViewer();
   const canOrders = hasPermission(admin, "admin.store.orders");
   const canAnalytics = hasPermission(admin, "admin.store.analytics");
-  if (!canOrders && !canAnalytics) return <NoAccess permission="admin.store.orders" />;
-  return <LojaAdminClient canOrders={canOrders} canAnalytics={canAnalytics} />;
+  const canCatalog = hasPermission(admin, "admin.store.catalog");
+  if (!canOrders && !canAnalytics && !canCatalog) return <NoAccess permission="admin.store.orders" />;
+  return <LojaAdminClient canOrders={canOrders} canAnalytics={canAnalytics} canCatalog={canCatalog} />;
 }

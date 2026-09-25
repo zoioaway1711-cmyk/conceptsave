@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Barcode, CreditCard, QrCode, ShieldCheck } from "lucide-react";
-import { CATEGORIES, PURCHASABLE_OFFERS, STORE, categoryHref } from "../_lib/catalog";
+import { Barcode, CreditCard, FileCheck, Mail, QrCode, ShieldCheck, Snowflake, Truck } from "lucide-react";
+import { CATEGORIES, STORE, categoryHref, purchasableOffers } from "../_lib/catalog";
+import { OptInForm } from "./client-sections";
 import { PrivacyPreferencesButton } from "./consent-banner";
 import { ThemeSwitcher } from "./theme-switcher";
 
@@ -10,6 +11,32 @@ const PAYMENT_ICONS = { pix: QrCode, cartao: CreditCard, boleto: Barcode } as co
 export function StoreFooter() {
   return (
     <footer className="lj-footer">
+      <div className="border-b border-[color:var(--lj-line)] bg-[color:var(--lj-soft)]">
+        <div className="lj-container grid gap-6 py-10 lg:grid-cols-[1fr_440px] lg:items-center">
+          <div className="flex items-start gap-3">
+            <span className="lj-icon-circle bg-[color:var(--lj-surface)]">
+              <Mail aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="lj-h3">Lançamentos e reposição de estoque</h2>
+              <p className="lj-small lj-muted mt-1">Um aviso por e-mail quando um lote novo for liberado. Sem spam.</p>
+            </div>
+          </div>
+          <OptInForm kind="news" />
+        </div>
+      </div>
+      <ul className="lj-container grid grid-cols-2 gap-4 border-b border-[color:var(--lj-line)] py-6 lg:grid-cols-4" aria-label="Garantias da loja">
+        {[
+          { icon: Truck, text: "Frete grátis" },
+          { icon: FileCheck, text: "Nota fiscal em todo pedido" },
+          { icon: Snowflake, text: "Envio refrigerado" },
+          { icon: ShieldCheck, text: "Autenticidade verificável" },
+        ].map((g) => (
+          <li key={g.text} className="lj-small inline-flex items-center gap-2 font-semibold text-[color:var(--lj-ink)]">
+            <g.icon className="size-5 text-[color:var(--lj-primary)]" aria-hidden="true" /> {g.text}
+          </li>
+        ))}
+      </ul>
       <div className="lj-container grid grid-cols-2 gap-8 py-12 lg:grid-cols-[1.4fr_1fr_1fr_1.3fr]">
         <div className="col-span-2 flex flex-col gap-3 lg:col-span-1">
           <div className="flex items-center gap-2">
@@ -28,49 +55,55 @@ export function StoreFooter() {
         <nav aria-label="Categorias da loja" className="flex flex-col gap-2">
           <p className="lj-tiny font-bold uppercase tracking-[0.08em] text-[color:var(--lj-ink)]">Loja</p>
           {CATEGORIES.map((c) => (
-            <Link key={c.slug} href={categoryHref(c.slug)} className="lj-small lj-muted py-1">
+            <Link key={c.slug} href={categoryHref(c.slug)} className="lj-small lj-muted py-2">
               {c.name}
             </Link>
           ))}
-          {PURCHASABLE_OFFERS.length > 0 && (
-            <Link href="/loja/ofertas" className="lj-small lj-muted py-1">
+          {purchasableOffers().length > 0 && (
+            <Link href="/loja/ofertas" className="lj-small lj-muted py-2">
               Ofertas
             </Link>
           )}
-          <Link href="/loja/produtos" className="lj-small lj-muted py-1">
+          <Link href="/loja/produtos" className="lj-small lj-muted py-2">
             Todos os produtos
           </Link>
         </nav>
 
         <nav aria-label="Ajuda" className="flex flex-col gap-2">
           <p className="lj-tiny font-bold uppercase tracking-[0.08em] text-[color:var(--lj-ink)]">Ajuda</p>
-          <Link href="/loja/ajuda" className="lj-small lj-muted py-1">
+          <Link href="/loja/ajuda" className="lj-small lj-muted py-2">
             Central de ajuda
           </Link>
-          <Link href="/loja/ajuda#trocas" className="lj-small lj-muted py-1">
+          <Link href="/loja/sobre" className="lj-small lj-muted py-2">
+            Sobre a Save Concept
+          </Link>
+          <Link href="/loja/autenticidade" className="lj-small lj-muted py-2">
+            Como verificar autenticidade
+          </Link>
+          <Link href="/loja/ajuda#trocas" className="lj-small lj-muted py-2">
             Trocas e devoluções
           </Link>
-          <Link href="/loja/privacidade" className="lj-small lj-muted py-1">
+          <Link href="/loja/privacidade" className="lj-small lj-muted py-2">
             Privacidade
           </Link>
-          <Link href="/loja/carrinho" className="lj-small lj-muted py-1">
+          <Link href="/loja/carrinho" className="lj-small lj-muted py-2">
             Meu carrinho
           </Link>
-          <Link href="/loja/favoritos" className="lj-small lj-muted py-1">
+          <Link href="/loja/favoritos" className="lj-small lj-muted py-2">
             Favoritos
           </Link>
-          <Link href="/loja/conta" className="lj-small lj-muted py-1">
+          <Link href="/loja/conta" className="lj-small lj-muted py-2">
             Minha conta e pedidos
           </Link>
           <PrivacyPreferencesButton />
-          <p className="lj-small lj-muted py-1">Atendimento: {STORE.supportHours}</p>
+          <p className="lj-small lj-muted py-2">Atendimento: {STORE.supportHours}</p>
           {STORE.whatsappUrl && (
-            <a href={STORE.whatsappUrl} className="lj-small lj-muted py-1" target="_blank" rel="noopener noreferrer">
+            <a href={STORE.whatsappUrl} className="lj-small lj-muted py-2" target="_blank" rel="noopener noreferrer">
               WhatsApp
             </a>
           )}
           {STORE.instagramUrl && (
-            <a href={STORE.instagramUrl} className="lj-small lj-muted py-1" target="_blank" rel="noopener noreferrer">
+            <a href={STORE.instagramUrl} className="lj-small lj-muted py-2" target="_blank" rel="noopener noreferrer">
               Instagram
             </a>
           )}

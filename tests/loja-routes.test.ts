@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeD1 } from "./helpers/fake-d1";
 import { applyMigrations } from "./helpers/apply-migrations";
+import { applySeedCatalog } from "./helpers/loja-catalog";
 
 const env: Record<string, unknown> = { SESSION_SECRET: "s".repeat(32) };
 vi.mock("cloudflare:workers", () => ({ env }));
@@ -18,6 +19,7 @@ beforeEach(() => {
   db = createFakeD1();
   applyMigrations(db);
   env.DB = db;
+  applySeedCatalog();
 });
 
 const url = (path: string) => `https://loja.test${path}`;

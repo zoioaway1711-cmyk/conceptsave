@@ -69,6 +69,7 @@
   --lj-glass: rgba(255, 255, 255, 0.92);
   --lj-media-center: #ffffff;
   --lj-topbar-bg: #0b1b33;
+  --lj-on-success: #ffffff;
 
   /* shape */
   --lj-r-sm: 8px;
@@ -137,6 +138,7 @@
   --lj-deal-soft: #3a1c0c;
   --lj-success: #4fd1a5;
   --lj-success-soft: #0f2e27;
+  --lj-on-success: #04150f;
   --lj-warning: #f3b64d;
   --lj-warning-soft: #33260c;
   --lj-danger: #ff8593;
@@ -173,6 +175,7 @@
     --lj-deal-soft: #3a1c0c;
     --lj-success: #4fd1a5;
     --lj-success-soft: #0f2e27;
+  --lj-on-success: #04150f;
     --lj-warning: #f3b64d;
     --lj-warning-soft: #33260c;
     --lj-danger: #ff8593;
@@ -324,6 +327,17 @@
 }
 .lj-link:hover {
   text-decoration: underline;
+}
+/* Standalone text actions: 44px touch target without changing the look. */
+.lj-hit {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.lj-breadcrumbs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
 }
 
 /* ---------- buttons ---------- */
@@ -713,6 +727,18 @@
 .lj-header[data-scrolled] {
   box-shadow: 0 6px 20px -12px rgba(11, 27, 51, 0.25);
 }
+.lj-route {
+  animation: lj-route-in 0.28s var(--lj-ease) both;
+}
+@keyframes lj-route-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.lj-announce {
+  animation: lj-fade-down 0.35s var(--lj-ease);
+}
 .lj-topbar {
   background: var(--lj-topbar-bg);
   color: #dbe5f3;
@@ -774,6 +800,27 @@
 .lj-megatrigger {
   gap: 6px;
   cursor: pointer;
+}
+.lj-catnav-link {
+  position: relative;
+  border-bottom: 0 !important;
+}
+.lj-catnav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lj-primary);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.22s var(--lj-ease);
+}
+.lj-catnav-link:hover::after,
+.lj-catnav-link[aria-current="page"]::after {
+  transform: scaleX(1);
 }
 .lj-catnav-link:hover,
 .lj-catnav-link[aria-current="page"],
@@ -908,6 +955,28 @@
   color: var(--lj-primary);
 }
 
+/* Mobile: the suggestions panel takes the whole screen below the header
+   (premium-app pattern) instead of a cramped dropdown. */
+@media (max-width: 767px) {
+  .lj-search-panel {
+    /* The sticky header has backdrop-filter, which makes it the containing
+       block for fixed descendants — so anchor to its bottom edge and size
+       to the rest of the viewport explicitly. */
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 100%;
+    bottom: auto;
+    height: calc(100dvh - var(--lj-header-real, 120px));
+    max-height: none;
+    overflow-y: auto;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    padding: 12px var(--lj-gutter) calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
 /* ---------- product media ---------- */
 
 .lj-media {
@@ -922,6 +991,12 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
+  animation: lj-img-in 0.45s var(--lj-ease) both;
+}
+@keyframes lj-img-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* ---------- product card ---------- */
@@ -978,6 +1053,32 @@
 .lj-pcard-raise {
   position: relative;
   z-index: 2;
+}
+/* Quick view: desktop pointer only, shown on hover/keyboard focus. */
+.lj-quick {
+  position: absolute !important;
+  left: 50%;
+  bottom: 10px;
+  transform: translate(-50%, 6px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s var(--lj-ease);
+}
+@media (hover: hover) and (min-width: 1024px) {
+  .lj-pcard:hover .lj-quick,
+  .lj-pcard:focus-within .lj-quick,
+  .lj-quick:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
+  }
+}
+@media not ((hover: hover) and (min-width: 1024px)) {
+  .lj-quick {
+    display: none !important;
+  }
 }
 .lj-fav {
   display: inline-flex;
@@ -1163,7 +1264,7 @@
   .lj-toast {
     left: auto;
     bottom: auto;
-    top: calc(var(--lj-header-h) + 60px);
+    top: calc(var(--lj-header-real, 120px) + 12px);
     width: 380px;
   }
 }
@@ -1171,7 +1272,7 @@
 .lj-toaster {
   position: fixed;
   z-index: var(--lj-z-toast);
-  top: calc(var(--lj-header-h) + 60px);
+  top: calc(var(--lj-header-real, 120px) + 12px);
   left: 12px;
   right: 12px;
   display: flex;
@@ -1250,10 +1351,65 @@
   border-top: 1px solid var(--lj-line);
   padding: 10px var(--lj-gutter) calc(10px + env(safe-area-inset-bottom));
 }
-@media (min-width: 1024px) {
-  .lj-buybar {
-    display: none;
+.lj-btn--primary[data-done] {
+  background: var(--lj-success);
+  color: var(--lj-on-success);
+}
+
+.lj-totop {
+  position: fixed;
+  z-index: var(--lj-z-buybar);
+  right: 16px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lj-surface);
+  color: var(--lj-ink);
+  border: 1px solid var(--lj-line);
+  box-shadow: var(--lj-shadow-md);
+  animation: lj-fade-down 0.2s var(--lj-ease);
+}
+.lj-totop:hover {
+  color: var(--lj-primary);
+}
+
+/* PLP toolbar sticks under the header on mobile/tablet. */
+@media (max-width: 1023px) {
+  .lj-plp-toolbar {
+    position: sticky;
+    top: var(--lj-header-real, 120px);
+    z-index: 20;
+    margin-inline: calc(var(--lj-gutter) * -1);
+    padding: 8px var(--lj-gutter);
+    background: var(--lj-glass);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--lj-line);
   }
+}
+
+/* Gentle reveal for below-the-fold sections (JS adds .is-visible). */
+/* Hidden only once JS has confirmed it's running (html.lj-motion), so a
+   script failure can never leave sections invisible. */
+.lj-motion .lj-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.6s var(--lj-ease),
+    transform 0.6s var(--lj-ease);
+}
+.lj-motion .lj-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+/* Skip layout/paint work for offscreen sections until they're near. */
+.lj-cv {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
 }
 
 /* ---------- zoom ---------- */

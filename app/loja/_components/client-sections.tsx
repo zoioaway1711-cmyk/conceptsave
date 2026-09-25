@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import Link from "next/link";
-import { BellRing, CheckCircle2, Mail } from "lucide-react";
+import { BellRing, CheckCircle2 } from "lucide-react";
 import { OPT_IN_TEXT, type OptInKind } from "../_lib/consent-texts";
 import { ecommerce, toItem, track } from "../_lib/analytics";
 import { getProduct, productsBySlugs, type Product } from "../_lib/catalog";
@@ -81,7 +81,7 @@ export function RecentlyViewedProducts({
       title={title}
       products={products}
       action={
-        <button type="button" className="lj-link text-sm" onClick={clearRecentlyViewed}>
+        <button type="button" className="lj-link lj-hit text-sm" onClick={clearRecentlyViewed}>
           Limpar histórico
         </button>
       }
@@ -197,24 +197,5 @@ export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: s
         </p>
       )}
     </form>
-  );
-}
-
-export function NewsletterForm() {
-  return (
-    <div className="lj-card lj-card--pad flex flex-col items-start gap-4 bg-[color:var(--lj-primary-soft)] md:flex-row md:items-center md:justify-between">
-      <div className="flex items-start gap-3">
-        <span className="lj-icon-circle bg-[color:var(--lj-surface)]">
-          <Mail aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="lj-h3">Lançamentos e reposição de estoque</h2>
-          <p className="lj-small lj-muted mt-1">Receba um aviso quando um lote novo for liberado.</p>
-        </div>
-      </div>
-      <div className="w-full md:max-w-[440px]">
-        <OptInForm kind="news" />
-      </div>
-    </div>
   );
 }

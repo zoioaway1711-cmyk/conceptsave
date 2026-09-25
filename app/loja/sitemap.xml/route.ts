@@ -1,3 +1,4 @@
+import { loadCatalog } from "@/lib/loja-catalog";
 import { publicOrigin } from "@/lib/public-origin";
 import { CATEGORIES, PRODUCTS, categoryHref, productHref } from "../_lib/catalog";
 
@@ -7,12 +8,15 @@ import { CATEGORIES, PRODUCTS, categoryHref, productHref } from "../_lib/catalog
  * or the Workers hostname) without hardcoding one. Only public, indexable
  * pages are listed — never cart, checkout, account, orders or search.
  */
-export function GET(request: Request) {
+export async function GET(request: Request) {
+  await loadCatalog();
   const origin = publicOrigin(request);
   const paths = [
     "/loja",
     "/loja/produtos",
     "/loja/ajuda",
+    "/loja/sobre",
+    "/loja/autenticidade",
     "/loja/privacidade",
     ...CATEGORIES.map((c) => categoryHref(c.slug)),
     ...PRODUCTS.map((p) => productHref(p.slug)),

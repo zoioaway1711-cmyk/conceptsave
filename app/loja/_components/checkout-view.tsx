@@ -23,6 +23,7 @@ import { refreshStock } from "../_lib/stock";
 import { clearCart, formatCep, rememberOrder, saveDeliveryLocation, useCart, useDeliveryLocation } from "../_lib/store";
 import { CartChanges, OrderSummary, useHydrated } from "./cart-view";
 import { FulfillmentOption } from "./delivery";
+import { HowItWorks } from "./how-it-works";
 import { ProductImage } from "./ui";
 
 /*
@@ -315,7 +316,7 @@ export function CheckoutView() {
       setErrors(fields);
       const invalid = Object.keys(fields) as (keyof CheckoutForm)[];
       setSummary(invalid);
-      setStep(invalid.some((k) => ["name", "email", "cpf", "phone"].includes(k)) ? 0 : 1);
+      setStep(invalid.some((k) => ["name", "email", "cpf", "phone"].includes(k)) ? 0 : invalid.includes("installments") ? 2 : 1);
       return;
     }
     if (code === "price_changed") {
@@ -669,13 +670,10 @@ export function CheckoutView() {
                   </li>
                 ))}
               </ul>
-              <p className="lj-alert lj-alert--info" role="note">
-                <Info aria-hidden="true" />
-                <span>
-                  Ao confirmar, o pedido é registrado e nossa equipe entra em contato para combinar o pagamento. Nada é cobrado
-                  automaticamente.
-                </span>
-              </p>
+              <div className="lj-panel p-4">
+                <p className="lj-label mb-3">O que acontece depois de confirmar</p>
+                <HowItWorks compact />
+              </div>
               {submitError && (
                 <p className="lj-alert lj-alert--error" role="alert">
                   <AlertCircle aria-hidden="true" />

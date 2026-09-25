@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PRODUCTS } from "@/app/loja/_lib/catalog";
 import { OPT_IN_TEXT } from "@/app/loja/_lib/consent-texts";
+import { loadCatalog } from "./loja-catalog";
 
 /*
  * Storefront e-mail opt-ins (loja_subscribers). The store has no e-mail
@@ -9,8 +10,6 @@ import { OPT_IN_TEXT } from "@/app/loja/_lib/consent-texts";
  * reveals whether an e-mail was already on the list).
  */
 
-const SKUS = PRODUCTS.map((p) => p.sku);
-
 export const subscribeSchema = z
   .object({
     email: z.string().trim().toLowerCase().max(160).regex(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/),
@@ -18,13 +17,17 @@ export const subscribeSchema = z
     sku: z.string().max(80).optional(),
     consent: z.literal(true),
   })
-  .refine((v) => (v.kind === "restock" ? Boolean(v.sku && SKUS.includes(v.sku)) : !v.sku), { message: "invalid_sku" });
+  .refine((v) => (v.kind === "restock" ? Boolean(v.sku) : !v.sku), { message: "invalid_sku" });
 
+/** Returns false when a restock sign-up names a SKU that isn't in the live catalog. */
 export async function subscribe(db: D1Database, input: z.infer<typeof subscribeSchema>) {
+  await loadCatalog(db);
+  if (input.kind === "restock" && !PRODUCTS.some((p) => p.sku === input.sku)) return false;
   await db
     .prepare("INSERT OR IGNORE INTO loja_subscribers (email, kind, sku, consent_text, created_at) VALUES (?, ?, ?, ?, ?)")
     .bind(input.email, input.kind, input.kind === "restock" ? input.sku : "", OPT_IN_TEXT[input.kind], new Date().toISOString())
     .run();
+  return true;
 }
 
 export type Subscriber = { id: number; email: string; kind: "news" | "restock"; sku: string; consentText: string; createdAt: string };

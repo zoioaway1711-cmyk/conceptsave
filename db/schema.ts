@@ -395,3 +395,49 @@ export const lojaSubscribers = sqliteTable("loja_subscribers", {
   uniq: uniqueIndex("idx_loja_subscribers_unique").on(table.email, table.kind, table.sku),
   kindCheck: check("loja_subscribers_kind_check", sql`${table.kind} IN ('news','restock')`),
 }));
+
+// Storefront catalog (source of truth since migration 0015; edited in the
+// admin → Loja → Catálogo). Structural fields (slug, category, image,
+// related lists) are set by the team in code/migrations; the admin edits
+// commercial/content fields. JSON columns hold arrays/objects verbatim.
+export const lojaProducts = sqliteTable("loja_products", {
+  slug: text("slug").primaryKey(),
+  sku: text("sku").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  brand: text("brand").notNull(),
+  name: text("name").notNull(),
+  presentation: text("presentation").notNull(),
+  category: text("category").notNull(),
+  summary: text("summary").notNull(),
+  description: text("description").notNull(),
+  price: real("price").notNull(),
+  oldPrice: real("old_price"),
+  unitsJson: text("units_json"),
+  badge: text("badge"),
+  rating: real("rating").notNull().default(0),
+  reviewCount: integer("review_count").notNull().default(0),
+  specsJson: text("specs_json").notNull(),
+  freeShipping: integer("free_shipping", { mode: "boolean" }).notNull(),
+  available: integer("available", { mode: "boolean" }).notNull(),
+  purchasable: integer("purchasable", { mode: "boolean" }).notNull(),
+  coldChain: integer("cold_chain", { mode: "boolean" }).notNull(),
+  healthNotice: integer("health_notice", { mode: "boolean" }).notNull(),
+  imageJson: text("image_json").notNull(),
+  keywordsJson: text("keywords_json").notNull(),
+  relatedJson: text("related_json").notNull(),
+  boughtTogetherJson: text("bought_together_json").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  updatedBy: text("updated_by").notNull(),
+}, (table) => ({
+  skuUnique: uniqueIndex("idx_loja_products_sku").on(table.sku),
+  categoryCheck: check("loja_products_category_check", sql`${table.category} IN ('frascos','kits','acessorios')`),
+  priceCheck: check("loja_products_price_check", sql`${table.price} > 0 AND (${table.oldPrice} IS NULL OR ${table.oldPrice} > ${table.price})`),
+}));
+
+// Store settings, one row per key, value stored as JSON.
+export const lojaSettings = sqliteTable("loja_settings", {
+  key: text("key").primaryKey(),
+  valueJson: text("value_json").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  updatedBy: text("updated_by").notNull(),
+});

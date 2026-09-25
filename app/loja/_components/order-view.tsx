@@ -9,6 +9,7 @@ import { notify } from "../_lib/feedback";
 import { ORDER_FLOW, ORDER_STATUS_HINT, ORDER_STATUS_LABEL, type OrderStatus } from "../_lib/order-status";
 import type { OrderTotals } from "../_lib/pricing";
 import { OrderSummary } from "./cart-view";
+import { HowItWorks } from "./how-it-works";
 import { Breadcrumbs, ProductImage } from "./ui";
 
 export type PublicOrder = {
@@ -217,6 +218,15 @@ export function OrderView({ id }: { id: string }) {
             )}
           </section>
 
+          {order.status === "received" && (
+            <section className="lj-card lj-card--pad" aria-labelledby="proximos">
+              <h2 id="proximos" className="lj-h3 mb-4">
+                Próximos passos
+              </h2>
+              <HowItWorks compact />
+            </section>
+          )}
+
           <section className="lj-card lj-card--pad" aria-labelledby="itens">
             <h2 id="itens" className="lj-h3 mb-3">
               Itens
@@ -276,7 +286,7 @@ export function OrderView({ id }: { id: string }) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--lj-header-h)+72px)] lg:self-start">
+        <div className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--lj-header-real,120px)+24px)] lg:self-start">
           <OrderSummary totals={order.totals} title="Valores do pedido" />
           <div className="lj-card lj-card--pad flex flex-col gap-3">
             <h2 className="lj-h3 inline-flex items-center gap-2">
