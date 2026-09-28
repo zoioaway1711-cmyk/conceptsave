@@ -8,6 +8,10 @@ import { CATEGORIES, PRODUCTS, categoryHref, productHref } from "../_lib/catalog
  * or the Workers hostname) without hardcoding one. Only public, indexable
  * pages are listed — never cart, checkout, account, orders or search.
  */
+// Reads D1 and the request's origin, so it must run per request — never be
+// prerendered at build time (the Vercel build has no D1 and would fail).
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   await loadCatalog();
   const origin = publicOrigin(request);
