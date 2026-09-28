@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { hashPassword, verifyPassword } from "./password";
 import { OWNER_PERMISSIONS, type Permission } from "./permissions";
+import { ADMIN_COOKIE, LEGACY_ADMIN_COOKIE, readCookie } from "./session-cookie";
 
 function runtime() {
   return env as unknown as { ADMIN_USER?: string; ADMIN_PASSWORD?: string; SESSION_SECRET?: string };
@@ -21,6 +22,16 @@ export function adminConfigured() {
 export type AdminUser = { id: string; username: string; permissions: Permission[]; sessionId?: string };
 
 export const ADMIN_SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
+
+/**
+ * Idle timeout on top of the 8h absolute lifetime: a session nobody has
+ * used for this long (a laptop left logged in, a cookie copied off a
+ * shared machine) stops working even if its 8h aren't up yet. Every
+ * authenticated admin request refreshes `last_seen_at`, and the panel's
+ * own polling keeps an open tab alive, so this only hits abandoned
+ * sessions.
+ */
+export const ADMIN_SESSION_IDLE_SECONDS = 2 * 60 * 60;
 
 async function signingKey() {
   const secret = runtime().SESSION_SECRET;
@@ -60,7 +71,7 @@ export async function createAdminCookie(adminUserId: string, meta: { ip: string;
 export async function resolveAdminFromCookieHeader(cookieHeader: string | null | undefined): Promise<AdminUser | null> {
   const secret = runtime().SESSION_SECRET;
   if (!secret) return null;
-  const cookie = cookieHeader?.match(/(?:^|;\s*)vf_admin=([^;]+)/)?.[1];
+  const cookie = readCookie(cookieHeader, [ADMIN_COOKIE, LEGACY_ADMIN_COOKIE]);
   const match = cookie?.match(/^admin\.([A-Za-z0-9_-]{1,80})\.(ses_[A-Za-z0-9-]{1,80})\.(\d+)\.([a-f0-9]{64})$/);
   if (!match || !Number.isSafeInteger(Number(match[3])) || Number(match[3]) <= Date.now()) return null;
   const [, adminId, sessionId, expiresAtRaw] = match;
@@ -68,11 +79,13 @@ export async function resolveAdminFromCookieHeader(cookieHeader: string | null |
   const valid = await crypto.subtle.verify("HMAC", await signingKey(), signature, new TextEncoder().encode(`admin.${adminId}.${sessionId}.${expiresAtRaw}`));
   if (!valid) return null;
   const row = await db().prepare(
-    `SELECT au.id, au.username, au.permissions_json AS permissionsJson, au.disabled, s.revoked_at AS revokedAt
+    `SELECT au.id, au.username, au.permissions_json AS permissionsJson, au.disabled, s.revoked_at AS revokedAt, s.last_seen_at AS lastSeenAt
      FROM admin_sessions s JOIN admin_users au ON au.id = s.admin_id
      WHERE s.id = ? AND s.admin_id = ?`,
-  ).bind(sessionId, adminId).first<{ id: string; username: string; permissionsJson: string; disabled: number; revokedAt: string | null }>();
+  ).bind(sessionId, adminId).first<{ id: string; username: string; permissionsJson: string; disabled: number; revokedAt: string | null; lastSeenAt: string | null }>();
   if (!row || row.disabled || row.revokedAt) return null;
+  const lastSeen = row.lastSeenAt ? Date.parse(row.lastSeenAt) : NaN;
+  if (Number.isFinite(lastSeen) && Date.now() - lastSeen > ADMIN_SESSION_IDLE_SECONDS * 1000) return null;
   // Best-effort presence touch for the sessions list — never allowed to
   // fail or slow down the auth check itself.
   db().prepare("UPDATE admin_sessions SET last_seen_at=? WHERE id=?").bind(new Date().toISOString(), sessionId).run().catch(() => {});
@@ -138,6 +151,18 @@ export async function revokeAdminSession(db: D1Database, sessionId: string, requ
   if (session.adminId !== requester.id && !requester.canManageAll) return false;
   const result = await db.prepare("UPDATE admin_sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL").bind(new Date().toISOString(), sessionId).run();
   return result.meta.changes > 0;
+}
+
+/**
+ * Kills every still-active session of one admin — used when an account is
+ * disabled. Without it, the sessions only stay blocked by the `disabled`
+ * flag, and re-enabling the account later would silently bring back every
+ * cookie issued before (including one on the stolen device that was the
+ * reason for disabling it). Returns how many sessions were revoked.
+ */
+export async function revokeAllAdminSessions(db: D1Database, adminId: string): Promise<number> {
+  const result = await db.prepare("UPDATE admin_sessions SET revoked_at=? WHERE admin_id=? AND revoked_at IS NULL").bind(new Date().toISOString(), adminId).run();
+  return result.meta.changes ?? 0;
 }
 
 export function hasPermission(admin: AdminUser | null, permission: Permission): boolean {

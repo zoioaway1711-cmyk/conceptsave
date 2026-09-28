@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { handleTelegramCommand } from "@/lib/telegram-commands";
 import { sendTelegramAlert } from "@/lib/telegram";
+import { constantTimeEqual } from "@/lib/proxy-trust";
 
 function runtime() {
   return env as unknown as { DB: D1Database; TELEGRAM_CHAT_ID?: string; TELEGRAM_WEBHOOK_SECRET?: string };
@@ -30,7 +31,9 @@ export async function POST(request: Request) {
   if (!TELEGRAM_CHAT_ID || !TELEGRAM_WEBHOOK_SECRET) return new Response("not configured", { status: 503 });
 
   const secret = request.headers.get("x-telegram-bot-api-secret-token");
-  if (secret !== TELEGRAM_WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
+  // Constant-time: `!==` stops at the first differing character, so response
+  // latency would leak how much of a guessed token was right.
+  if (!secret || !constantTimeEqual(secret, TELEGRAM_WEBHOOK_SECRET)) return new Response("forbidden", { status: 403 });
 
   const update = await request.json().catch(() => null) as { message?: { chat?: { id?: number | string }; message_id?: number; text?: string } } | null;
   const message = update?.message;

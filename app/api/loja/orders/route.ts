@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { createOrder, orderAccessToken, orderCreateSchema } from "@/lib/loja-orders";
-import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceGlobalLimit, enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { sendTelegramAlert } from "@/lib/telegram";
 import { formatBRL } from "@/app/loja/_lib/catalog";
 
@@ -20,16 +20,28 @@ export async function POST(request: Request) {
   // hammered — generous enough for a real shopper correcting fields or
   // several people behind one carrier NAT. Unpaid orders hold no stock, so
   // a burst of fake orders can't sell the store out.
-  const limit = await enforceRateLimits(db(), "loja_order_create", clientIp(request), [
+  const limit = await enforceRateLimits(db(), "loja_order_create", rateLimitKey(request), [
     { limit: 12, windowSeconds: 600 },
     { limit: 40, windowSeconds: 86400 },
   ]);
   if (!limit.allowed) return rateLimitResponse(limit);
+  // Store-wide cap: bounds fake-order floods (and Telegram alert spam) even
+  // from an attacker spread over many networks.
+  const global = await enforceGlobalLimit(db(), "loja_order_create", 300);
+  if (!global.allowed) return rateLimitResponse(global);
 
   const body = await readBody(request, orderCreateSchema, 16000);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
 
-  const result = await createOrder(db(), body);
+  let result: Awaited<ReturnType<typeof createOrder>>;
+  try {
+    result = await createOrder(db(), body);
+  } catch (error) {
+    // Database/internal failure: log it for us, tell the shopper nothing
+    // about internals (no messages, no stack traces).
+    console.error("[loja] createOrder failed", error);
+    return Response.json({ error: "server_error" }, { status: 500 });
+  }
   if (!result.ok) {
     const status = result.error.code === "invalid_fields" ? 422 : 409;
     return Response.json({ error: result.error.code, detail: result.error }, { status });

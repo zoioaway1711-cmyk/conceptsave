@@ -69,7 +69,9 @@ export function OrderSummary({
         </div>
       </dl>
       {pending && totals.itemCount > 0 && (
-        <p className="lj-tiny lj-muted -mt-2">Frascos e kits têm frete grátis. O frete dos acessórios é informado na confirmação do pedido.</p>
+        <p className="lj-tiny lj-muted -mt-2">
+          Itens marcados com frete grátis não pagam envio; o frete dos demais é informado na confirmação do pedido.
+        </p>
       )}
       <hr className="lj-divider" />
       <div className="flex items-baseline justify-between gap-3">

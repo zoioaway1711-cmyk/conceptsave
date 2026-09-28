@@ -130,6 +130,8 @@ export function CheckoutView() {
   const formRef = useRef<HTMLFormElement>(null);
   const firstRender = useRef(true);
   const began = useRef(false);
+  // Latest CEP typed: a slower lookup for an older value must not overwrite it.
+  const cepRequest = useRef("");
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -214,12 +216,14 @@ export function CheckoutView() {
     const masked = maskCep(raw);
     update("cep", masked);
     const d = masked.replace(/\D/g, "");
+    cepRequest.current = d;
     if (d.length !== 8) {
       setCepStatus({ state: "idle" });
       return;
     }
     setCepStatus({ state: "loading" });
     const result = await lookupCep(d);
+    if (cepRequest.current !== d) return; // the shopper already changed the CEP
     setCepStatus(result);
     if (result.state === "valid") {
       const loc = result.location;
@@ -423,6 +427,8 @@ export function CheckoutView() {
               <Field
                 id="name"
                 autoComplete="name"
+                autoCapitalize="words"
+                maxLength={120}
                 value={effective.name}
                 onChange={(e) => update("name", e.target.value)}
                 onBlur={() => onBlurValidate("name")}
@@ -434,6 +440,9 @@ export function CheckoutView() {
                 type="email"
                 autoComplete="email"
                 inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                maxLength={160}
                 value={effective.email}
                 onChange={(e) => update("email", e.target.value.trim())}
                 onBlur={() => onBlurValidate("email")}
@@ -465,8 +474,8 @@ export function CheckoutView() {
                 hint={
                   <>
                     Necessário para emitir a nota fiscal; guardado criptografado.{" "}
-                    <Link href="/loja/privacidade" className="lj-link" target="_blank">
-                      Como usamos seus dados
+                    <Link href="/loja/privacidade" className="lj-link" target="_blank" rel="noopener noreferrer">
+                      Como usamos seus dados<span className="lj-sr-only"> (abre em nova aba)</span>
                     </Link>
                   </>
                 }
@@ -520,6 +529,7 @@ export function CheckoutView() {
                 <Field
                   id="street"
                   autoComplete="address-line1"
+                  maxLength={160}
                   value={effective.street}
                   onChange={(e) => update("street", e.target.value)}
                   onBlur={() => onBlurValidate("street")}
@@ -528,7 +538,10 @@ export function CheckoutView() {
                 />
                 <Field
                   id="number"
-                  autoComplete="address-line2"
+                  autoComplete="off"
+                  inputMode="text"
+                  placeholder="Ex.: 120 ou S/N"
+                  maxLength={10}
                   value={effective.number}
                   onChange={(e) => update("number", e.target.value)}
                   onBlur={() => onBlurValidate("number")}
@@ -538,7 +551,8 @@ export function CheckoutView() {
                 <Field
                   id="complement"
                   optional
-                  autoComplete="address-line3"
+                  autoComplete="address-line2"
+                  maxLength={80}
                   placeholder="Apto, bloco, referência"
                   value={effective.complement}
                   onChange={(e) => update("complement", e.target.value)}
@@ -546,6 +560,8 @@ export function CheckoutView() {
                 />
                 <Field
                   id="district"
+                  autoComplete="address-level3"
+                  maxLength={80}
                   value={effective.district}
                   onChange={(e) => update("district", e.target.value)}
                   onBlur={() => onBlurValidate("district")}
@@ -555,6 +571,7 @@ export function CheckoutView() {
                 <Field
                   id="city"
                   autoComplete="address-level2"
+                  maxLength={80}
                   value={effective.city}
                   onChange={(e) => update("city", e.target.value)}
                   onBlur={() => onBlurValidate("city")}

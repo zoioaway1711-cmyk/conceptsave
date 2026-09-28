@@ -2,7 +2,7 @@ import { isSameOrigin } from "@/lib/api-validation";
 import { customerId } from "@/lib/customer-auth";
 import { database, resolveMergedProfileId } from "@/lib/customer-profile";
 import { touchPresence } from "@/lib/presence";
-import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 /**
  * Lightweight "I'm still here" ping so Live Intelligence can tell ONLINE
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   if (!rawId) return Response.json({ error: "unauthorized" }, { status: 401 });
   const profileId = await resolveMergedProfileId(rawId);
   const db = database();
-  const limit = await enforceRateLimits(db, "presence_heartbeat", `${clientIp(request)}:${profileId}`, [{ limit: 6, windowSeconds: 60 }]);
+  const limit = await enforceRateLimits(db, "presence_heartbeat", `${rateLimitKey(request)}:${profileId}`, [{ limit: 6, windowSeconds: 60 }]);
   if (!limit.allowed) return rateLimitResponse(limit);
   await touchPresence(db, profileId);
   return Response.json({ ok: true }, { headers: { "cache-control": "no-store" } });

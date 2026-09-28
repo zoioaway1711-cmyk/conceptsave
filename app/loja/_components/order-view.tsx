@@ -104,6 +104,9 @@ export function OrderView({ id }: { id: string }) {
   const token = params.get("t") ?? "";
   const isNew = params.get("novo") === "1";
   const [result, setResult] = useState<Awaited<ReturnType<typeof fetchOrder>> | null>(null);
+  // Bumped by "Tentar de novo": refetches in place (skeleton, then result)
+  // instead of reloading the whole store.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -111,7 +114,7 @@ export function OrderView({ id }: { id: string }) {
     return () => {
       alive = false;
     };
-  }, [id, token]);
+  }, [id, token, attempt]);
 
   if (!result) return <div className="lj-skeleton h-96 rounded-[var(--lj-r-lg)]" aria-busy="true" aria-label="Carregando pedido" />;
 
@@ -130,7 +133,14 @@ export function OrderView({ id }: { id: string }) {
             Meus pedidos
           </Link>
           {result.state === "error" && (
-            <button type="button" className="lj-btn lj-btn--secondary" onClick={() => window.location.reload()}>
+            <button
+              type="button"
+              className="lj-btn lj-btn--secondary"
+              onClick={() => {
+                setResult(null);
+                setAttempt((n) => n + 1);
+              }}
+            >
               Tentar de novo
             </button>
           )}
@@ -297,7 +307,7 @@ export function OrderView({ id }: { id: string }) {
             </p>
             {STORE.whatsappUrl && (
               <a href={STORE.whatsappUrl} target="_blank" rel="noopener noreferrer" className="lj-btn lj-btn--secondary">
-                Falar no WhatsApp
+                Falar no WhatsApp<span className="lj-sr-only"> (abre em nova aba)</span>
               </a>
             )}
           </div>

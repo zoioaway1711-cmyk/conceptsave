@@ -69,7 +69,7 @@ describe("createOrder", () => {
   });
 
   it("checks stock at creation but does NOT reserve it (unpaid orders can't sell the store out)", async () => {
-    await setStock(db as never, kit.sku, 3, "test");
+    await setStock(db as never, kit.sku, 3, null, "test");
     for (let i = 0; i < 3; i++) expect((await createOrder(db as never, input())).ok).toBe(true);
     // Three unpaid orders of 2 each: stock untouched.
     expect(db.raw.prepare("SELECT quantity FROM loja_stock WHERE sku = ?").get(kit.sku)).toEqual({ quantity: 3 });
@@ -94,7 +94,7 @@ describe("order transitions", () => {
   });
 
   it("reserves stock on payment approval, refuses to oversell, and cancel returns exactly what was reserved", async () => {
-    await setStock(db as never, kit.sku, 3, "test");
+    await setStock(db as never, kit.sku, 3, null, "test");
     const a = await createOrder(db as never, input());
     const b = await createOrder(db as never, input());
     if (!a.ok || !b.ok) throw new Error("setup");
@@ -113,7 +113,7 @@ describe("order transitions", () => {
   it("never returns stock an order didn't take (SKU controlled only after the order)", async () => {
     const r = await createOrder(db as never, input());
     if (!r.ok) throw new Error("setup");
-    await setStock(db as never, kit.sku, 10, "test");
+    await setStock(db as never, kit.sku, 10, null, "test");
     expect((await transitionOrder(db as never, r.id, "cancelled")).ok).toBe(true);
     expect(db.raw.prepare("SELECT quantity FROM loja_stock WHERE sku = ?").get(kit.sku)).toEqual({ quantity: 10 });
   });

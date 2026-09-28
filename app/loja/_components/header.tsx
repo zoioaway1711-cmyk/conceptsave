@@ -195,7 +195,7 @@ function MobileMenu({ open, onOpenChange, pathname }: { open: boolean; onOpenCha
         if (!v) setPanel(null);
       }}
     >
-      <SheetContent side="left" showCloseButton={false} className="lj-scope lj-sheet w-[88vw] max-w-[360px] gap-0 p-0">
+      <SheetContent side="left" showCloseButton={false} overlayClassName="lj-scope lj-sheet-overlay" className="lj-scope lj-sheet w-[88vw] max-w-[360px] gap-0 p-0">
         <div className="flex items-center justify-between border-b border-[color:var(--lj-line)] px-4 py-3">
           <SheetTitle className="lj-display text-base font-extrabold text-[color:var(--lj-ink)]">
             {category ? category.name : "Menu"}
@@ -328,9 +328,14 @@ export function StoreHeader() {
   const [cartOpen, setCartOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
 
+  const checkout = pathname === "/loja/checkout";
+
   // Publish the sticky header's real height as a CSS variable, so other
-  // sticky/fixed elements (filters bar, mobile search, sidebars) sit
-  // exactly below it at every breakpoint.
+  // sticky/fixed elements (filters bar, mobile search, sidebars, toasts)
+  // sit exactly below it at every breakpoint. Re-measured when the header
+  // switches between the full and the compact checkout variant (a
+  // different element), so landing on checkout first — or leaving it —
+  // never leaves a stale or missing value.
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -339,7 +344,7 @@ export function StoreHeader() {
     const ro = new ResizeObserver(set);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [checkout]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -364,9 +369,9 @@ export function StoreHeader() {
   }, []);
 
   // Checkout gets a distraction-free header: no search, no category nav.
-  if (pathname === "/loja/checkout") {
+  if (checkout) {
     return (
-      <header className="lj-header">
+      <header ref={headerRef} className="lj-header">
         <div className="lj-container flex h-16 items-center justify-between gap-3">
           <Link href="/loja/carrinho" className="lj-header-icon -ml-2">
             <ArrowLeft aria-hidden="true" /> <span className="hidden sm:inline">Carrinho</span>

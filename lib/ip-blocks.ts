@@ -1,9 +1,17 @@
 export type BlockedIp = { ip: string; reason: string; blockedBy: string; blockedAt: string; expiresAt: string | null };
 
 /** Checked BEFORE the rate limiter on admin login — an already-blocked IP never touches the rate_limits counters again. */
-export async function isIpBlocked(db: D1Database, ip: string): Promise<boolean> {
-  if (!ip || ip === "unknown") return false;
-  const row = await db.prepare("SELECT 1 FROM blocked_ips WHERE ip=? AND (expires_at IS NULL OR expires_at > ?)").bind(ip, new Date().toISOString()).first();
+export async function isIpBlocked(db: D1Database, ip: string | string[]): Promise<boolean> {
+  // Accepts several identities for the same visitor — the exact address
+  // (manual blocks typed by a human) and its rate-limit key (an IPv6 /64,
+  // what automatic blocks store, since a single IPv6 customer can rotate
+  // through 2^64 addresses and would otherwise dodge an exact-address block).
+  const candidates = [...new Set((Array.isArray(ip) ? ip : [ip]).filter((value) => value && value !== "unknown"))];
+  if (candidates.length === 0) return false;
+  const row = await db
+    .prepare(`SELECT 1 FROM blocked_ips WHERE ip IN (${candidates.map(() => "?").join(", ")}) AND (expires_at IS NULL OR expires_at > ?) LIMIT 1`)
+    .bind(...candidates, new Date().toISOString())
+    .first();
   return Boolean(row);
 }
 

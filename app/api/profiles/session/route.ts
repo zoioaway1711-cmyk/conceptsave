@@ -7,7 +7,8 @@ import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, reco
 import { getMaterial } from "@/lib/materials";
 import { notifyNewCustomerFirstAccess } from "@/lib/alerts";
 import { touchPresence } from "@/lib/presence";
-import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
+import { clientIp, enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
+import { CUSTOMER_COOKIE, LEGACY_CUSTOMER_COOKIE, clearedSessionCookies, headersWithCookies, sessionCookies } from "@/lib/session-cookie";
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
@@ -21,7 +22,11 @@ export async function POST(request: Request) {
   // At 80 bits of entropy the serial itself can't be brute-forced, but rate
   // limiting login attempts is still cheap defense-in-depth and slows any
   // credential-stuffing-style automation.
-  const limit = await enforceRateLimits(db, "customer_login", ip, [
+  // Keyed by rateLimitKey (IPv6 collapsed to its /64): imported serials
+  // aren't guaranteed to carry the full 80 bits of generated ones, and a
+  // per-address limit would let one IPv6 customer rotate through 2^64
+  // addresses to enumerate them.
+  const limit = await enforceRateLimits(db, "customer_login", rateLimitKey(request), [
     { limit: 10, windowSeconds: 60 },
     { limit: 30, windowSeconds: 3600 },
   ]);
@@ -106,12 +111,12 @@ export async function POST(request: Request) {
   await touchPresence(db, profileId, now);
   await db.prepare("UPDATE customer_profiles SET last_active=? WHERE id=?").bind(now, profileId).run();
   await recordLiveEvent(db, { type: "USER_LOGIN", actorProfileId: profileId, ip, ...location, device, deviceFingerprint: fingerprint, ...geo });
-  return Response.json({ authenticated: true, profile: await getProfileWithLicenses(profileId) }, { headers: { "cache-control": "no-store", "set-cookie": `vf_customer=${await customerCookie(profileId)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${CUSTOMER_SESSION_MAX_AGE_SECONDS}` } });
+  return Response.json({ authenticated: true, profile: await getProfileWithLicenses(profileId) }, { headers: headersWithCookies(sessionCookies(CUSTOMER_COOKIE, LEGACY_CUSTOMER_COOKIE, await customerCookie(profileId), CUSTOMER_SESSION_MAX_AGE_SECONDS), { "cache-control": "no-store" }) });
 }
 export async function DELETE(request: Request) {
   const db = database();
   const rawId = await customerId(request);
   const profileId = rawId ? await resolveMergedProfileId(rawId) : null;
   if (profileId) await recordLiveEvent(db, { type: "USER_LOGOUT", actorProfileId: profileId, ip: clientIp(request) });
-  return Response.json({ authenticated: false }, { headers: { "set-cookie": "vf_customer=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0", "cache-control": "no-store" } });
+  return Response.json({ authenticated: false }, { headers: headersWithCookies(clearedSessionCookies(CUSTOMER_COOKIE, LEGACY_CUSTOMER_COOKIE), { "cache-control": "no-store" }) });
 }

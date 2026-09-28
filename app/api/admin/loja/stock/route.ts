@@ -19,6 +19,8 @@ export async function GET(request: Request) {
 const putSchema = z.object({
   sku: z.string().max(80),
   quantity: z.number().int().min(0).max(100000).nullable(),
+  // The quantity the admin saw (null = not controlled); see setStock().
+  expected: z.number().int().min(0).max(100000).nullable(),
 });
 
 export async function PUT(request: Request) {
@@ -28,7 +30,9 @@ export async function PUT(request: Request) {
   const body = await readBody(request, putSchema);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
   // setStock loads the catalog itself and rejects unknown SKUs.
-  if (!(await setStock(db(), body.sku, body.quantity, admin.username))) return Response.json({ error: "unknown_sku" }, { status: 400 });
+  const outcome = await setStock(db(), body.sku, body.quantity, body.expected, admin.username);
+  if (outcome === "unknown_sku") return Response.json({ error: "unknown_sku" }, { status: 400 });
+  if (outcome === "conflict") return Response.json({ error: "stock_conflict", stock: await listStock(db()) }, { status: 409 });
   await logAudit(db(), {
     actor: admin.username,
     action: "STORE_STOCK_SET",

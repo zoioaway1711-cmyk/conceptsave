@@ -29,8 +29,8 @@ function secret() {
   return s;
 }
 
-async function hkdfKey(info: string, usage: "encrypt" | "sign") {
-  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret()), "HKDF", false, ["deriveKey"]);
+async function hkdfKey(info: string, usage: "encrypt" | "sign", rawSecret: string = secret()) {
+  const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(rawSecret), "HKDF", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(
     { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: new TextEncoder().encode(info) },
     material,
@@ -40,20 +40,52 @@ async function hkdfKey(info: string, usage: "encrypt" | "sign") {
   );
 }
 
-/** CPF at rest: AES-GCM with its own HKDF label (not the license-serial key). */
+/*
+ * CPF at rest: AES-GCM. Two key generations, told apart by a prefix:
+ * - "v2:<base64>" — key derived from the OPTIONAL `LOJA_DATA_KEY` secret.
+ *   Used for every new order once that secret is configured, so CPFs no
+ *   longer depend on SESSION_SECRET: rotating the session secret (e.g.
+ *   after a suspected admin-cookie leak) stops destroying every stored
+ *   CPF, and a leak of the session secret alone no longer opens them.
+ * - "<base64>" (legacy, no prefix) — key derived from SESSION_SECRET with
+ *   its own HKDF label. Still written when LOJA_DATA_KEY isn't set, and
+ *   always readable, so existing orders keep working unchanged.
+ * Base64 never contains ':', so the prefix can't be confused with legacy data.
+ */
+const CPF_V2_PREFIX = "v2:";
+
+function dataKeySecret(): string | undefined {
+  const value = (env as unknown as { LOJA_DATA_KEY?: string }).LOJA_DATA_KEY;
+  return value && value.length >= 32 ? value : undefined;
+}
+
+function toBase64(bytes: Uint8Array) {
+  return btoa(String.fromCharCode(...bytes));
+}
+
 export async function encryptCpf(cpf: string) {
-  const key = await hkdfKey("loja.cpf_encryption", "encrypt");
+  const dataKey = dataKeySecret();
+  const key = dataKey ? await hkdfKey("loja.cpf_encryption.v2", "encrypt", dataKey) : await hkdfKey("loja.cpf_encryption", "encrypt");
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(cpf)));
   const out = new Uint8Array(iv.length + ct.length);
   out.set(iv, 0);
   out.set(ct, iv.length);
-  return btoa(String.fromCharCode(...out));
+  return dataKey ? `${CPF_V2_PREFIX}${toBase64(out)}` : toBase64(out);
 }
 
 export async function decryptCpf(encoded: string) {
-  const key = await hkdfKey("loja.cpf_encryption", "encrypt");
-  const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+  let key: CryptoKey;
+  let payload = encoded;
+  if (encoded.startsWith(CPF_V2_PREFIX)) {
+    const dataKey = dataKeySecret();
+    if (!dataKey) throw new Error("LOJA_DATA_KEY ausente para CPF v2");
+    key = await hkdfKey("loja.cpf_encryption.v2", "encrypt", dataKey);
+    payload = encoded.slice(CPF_V2_PREFIX.length);
+  } else {
+    key = await hkdfKey("loja.cpf_encryption", "encrypt");
+  }
+  const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
   const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(0, 12) }, key, bytes.slice(12));
   return new TextDecoder().decode(plain);
 }
@@ -289,10 +321,20 @@ function maskEmail(email: string) {
   return `${user.slice(0, 2)}${"•".repeat(Math.max(1, user.length - 2))}@${domain}`;
 }
 
-/** What the customer's order page may see: contact data partially masked. */
+/**
+ * What the customer's order page may see: contact data partially masked,
+ * and no back-office data — the admin's free-text status notes and the
+ * per-line stock reservation flags stay internal.
+ */
 export function publicOrderView(order: StoredOrder) {
   return {
     ...order,
+    history: order.history.map(({ status, at }) => ({ status, at })),
+    items: order.items.map((item) => {
+      const publicItem = { ...item };
+      delete publicItem.reserved;
+      return publicItem;
+    }),
     customer: {
       name: order.customer.name.split(/\s+/)[0],
       email: maskEmail(order.customer.email),

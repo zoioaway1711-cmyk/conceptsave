@@ -115,8 +115,12 @@ describe("catalog in D1", () => {
   it("regression: stock/subscribe load the catalog themselves and reject unknown SKUs", async () => {
     const { setStock } = await import("../lib/loja-stock");
     const { subscribe } = await import("../lib/loja-subscribers");
-    expect(await setStock(db as never, "nao-existe", 3, "admin")).toBe(false);
-    expect(await setStock(db as never, "kit-aplicacao-premium", 3, "admin")).toBe(true);
+    expect(await setStock(db as never, "nao-existe", 3, null, "admin")).toBe("unknown_sku");
+    expect(await setStock(db as never, "kit-aplicacao-premium", 3, null, "admin")).toBe("ok");
+    // Stale view (someone changed it meanwhile) → refused, value untouched.
+    expect(await setStock(db as never, "kit-aplicacao-premium", 10, 5, "admin")).toBe("conflict");
+    expect(await setStock(db as never, "kit-aplicacao-premium", 10, null, "admin")).toBe("conflict");
+    expect(await setStock(db as never, "kit-aplicacao-premium", 10, 3, "admin")).toBe("ok");
     expect(await subscribe(db as never, { email: "a@example.com", kind: "restock", sku: "nao-existe", consent: true })).toBe(false);
   });
 

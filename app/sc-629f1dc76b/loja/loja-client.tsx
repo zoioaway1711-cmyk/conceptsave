@@ -39,6 +39,9 @@ const ERRORS: Record<string, string> = {
   out_of_stock: "Estoque insuficiente para confirmar o pagamento deste pedido. Ajuste o estoque na aba Estoque ou fale com o cliente.",
   forbidden: "Sem permissão.",
   network_error: "Falha de rede.",
+  rate_limited: "Limite de revelações de CPF por hora atingido. Por segurança, tente novamente mais tarde.",
+  cpf_unavailable: "Não foi possível abrir o CPF deste pedido (a chave do servidor mudou depois da compra). Peça o CPF ao cliente.",
+  stock_conflict: "O estoque deste produto mudou enquanto você editava (por exemplo, um pedido aprovado). Recarregue e ajuste de novo.",
 };
 
 function statusVariant(s: OrderStatus): "default" | "secondary" | "destructive" | "outline" {
@@ -283,12 +286,17 @@ function StockTab() {
   }, [load]);
 
   async function save(sku: string, quantity: number | null) {
-    const r = await apiFetch<{ stock: StockRow[] }>("/api/admin/loja/stock", { method: "PUT", body: JSON.stringify({ sku, quantity }) });
+    // Send what we're looking at, so the server refuses if it changed meanwhile.
+    const expected = rows?.find((row) => row.sku === sku)?.quantity ?? null;
+    const r = await apiFetch<{ stock: StockRow[] }>("/api/admin/loja/stock", { method: "PUT", body: JSON.stringify({ sku, quantity, expected }) });
     if (r.ok) {
       setRows(r.data.stock);
       setDraft((d) => ({ ...d, [sku]: "" }));
       toast.success(quantity === null ? "Estoque deixou de ser controlado" : "Estoque atualizado");
-    } else toast.error(`Erro: ${r.error}`);
+    } else {
+      toast.error(ERRORS[r.error] ?? `Erro: ${r.error}`);
+      if (r.error === "stock_conflict") void load();
+    }
   }
 
   if (!rows) return <Spinner />;

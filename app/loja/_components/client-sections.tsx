@@ -112,8 +112,15 @@ export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: s
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return setState("invalid");
-    if (!consent) return setState("consent");
+    // Focus the field that needs fixing, so the error isn't only announced.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+      document.getElementById(`${id}-email`)?.focus();
+      return setState("invalid");
+    }
+    if (!consent) {
+      document.getElementById(`${id}-consent`)?.focus();
+      return setState("consent");
+    }
     setState("sending");
     try {
       const res = await fetch("/api/loja/subscribe", {
@@ -159,11 +166,15 @@ export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: s
           id={`${id}-email`}
           type="email"
           autoComplete="email"
+          inputMode="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          maxLength={160}
           placeholder="Seu e-mail"
           className="lj-input"
           value={email}
           aria-invalid={state === "invalid" ? true : undefined}
-          aria-describedby={error ? `${id}-err` : undefined}
+          aria-describedby={error && state !== "consent" ? `${id}-err` : undefined}
           onChange={(e) => {
             setEmail(e.target.value);
             if (state !== "sending") setState("idle");
@@ -174,23 +185,28 @@ export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: s
           Avisar-me
         </button>
       </div>
-      <label className="lj-tiny flex items-start gap-2 text-[color:var(--lj-text)]">
+      {/* The link sits outside the <label>: Safari treats a click on a link
+          inside a label as a click on the checkbox and never navigates. */}
+      <div className="lj-tiny flex items-start gap-2 text-[color:var(--lj-text)]">
         <input
+          id={`${id}-consent`}
           type="checkbox"
-          className="mt-0.5 size-4 shrink-0 accent-[color:var(--lj-primary)]"
+          className="mt-px size-[18px] shrink-0 accent-[color:var(--lj-primary)]"
           checked={consent}
+          aria-invalid={state === "consent" ? true : undefined}
+          aria-describedby={state === "consent" ? `${id}-err` : undefined}
           onChange={(e) => {
             setConsent(e.target.checked);
             if (state === "consent") setState("idle");
           }}
         />
         <span>
-          {OPT_IN_TEXT[kind]}{" "}
+          <label htmlFor={`${id}-consent`}>{OPT_IN_TEXT[kind]}</label>{" "}
           <Link href="/loja/privacidade" className="lj-link">
             Privacidade
           </Link>
         </span>
-      </label>
+      </div>
       {error && (
         <p id={`${id}-err`} className="lj-field-error" role="alert">
           {error}

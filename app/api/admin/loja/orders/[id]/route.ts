@@ -4,7 +4,8 @@ import { requirePermission } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit } from "@/lib/audit-log";
 import { decryptCpf, transitionOrder } from "@/lib/loja-orders";
-import { clientIp } from "@/lib/rate-limit";
+import { maybeAlertSensitiveRevealBurst } from "@/lib/alerts";
+import { clientIp, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { ORDER_STATUSES } from "@/app/loja/_lib/order-status";
 
 function db() {
@@ -47,6 +48,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await readBody(request, z.object({ action: z.literal("reveal_cpf") }));
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
   const { id } = await params;
+  // Per-admin ceiling on CPF reveals (one per nota fiscal is the real use);
+  // a stolen session looping over every order is refused and alerted.
+  const budget = await consumeRateLimit(db(), "store_cpf_reveal", admin.id, 30, 3600);
+  await maybeAlertSensitiveRevealBurst(db(), { adminUsername: admin.username, ip: clientIp(request), kind: "cpf", count: budget.count, threshold: 15 });
+  if (!budget.allowed) {
+    await logAudit(db(), { actor: admin.username, action: "STORE_ORDER_CPF_REVEAL_RATE_LIMITED", resource: "loja_orders", resourceId: id.slice(0, 80), result: "failure", ip: clientIp(request), silent: true });
+    return rateLimitResponse(budget);
+  }
   const row = await db()
     .prepare("SELECT number, status, customer_cpf_encrypted AS enc FROM loja_orders WHERE id = ?")
     .bind(id)
@@ -61,5 +70,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ip: clientIp(request),
     metadata: { status: row.status },
   });
-  return Response.json({ cpf: await decryptCpf(row.enc) }, { headers: { "cache-control": "no-store" } });
+  // The CPF key is derived from LOJA_DATA_KEY (new orders, when set) or
+  // SESSION_SECRET (legacy): if the secret used for this order was rotated
+  // or removed afterwards, the ciphertext can no longer be opened.
+  // Say so plainly instead of a bare 500 (and never echo crypto errors).
+  let cpf: string;
+  try {
+    cpf = await decryptCpf(row.enc);
+  } catch {
+    return Response.json({ error: "cpf_unavailable" }, { status: 409, headers: { "cache-control": "no-store" } });
+  }
+  return Response.json({ cpf }, { headers: { "cache-control": "no-store" } });
 }

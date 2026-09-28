@@ -744,6 +744,11 @@
   color: #dbe5f3;
   font-size: 12px;
 }
+/* The brand-blue ring is ~2.8:1 on the navy bar — below the 3:1 a focus
+   indicator needs. A light ring stays visible there in both themes. */
+.lj-scope .lj-topbar :where(a, button):focus-visible {
+  outline-color: #ffffff;
+}
 .lj-header-icon {
   position: relative;
   display: inline-flex;
@@ -776,7 +781,9 @@
   padding: 0 5px;
   border-radius: var(--lj-r-pill);
   background: var(--lj-primary);
-  color: #fff;
+  /* on-primary, not white: the dark theme's light-blue primary only
+     reaches ~2.5:1 against white. */
+  color: var(--lj-on-primary);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -1209,6 +1216,23 @@
   width: 36px;
 }
 
+/* Touch screens: compact controls grow to a 44px target (WCAG 2.5.5)
+   without changing the denser mouse layout. */
+@media (pointer: coarse) {
+  .lj-btn--sm {
+    --btn-h: 44px;
+  }
+  .lj-chip {
+    min-height: 44px;
+  }
+  .lj-stepper--sm {
+    height: 44px;
+  }
+  .lj-stepper--sm button {
+    width: 44px;
+  }
+}
+
 /* ---------- breadcrumbs ---------- */
 
 .lj-breadcrumbs ol {
@@ -1244,7 +1268,11 @@
   box-shadow: var(--lj-shadow-lg);
 }
 .lj-sheet-overlay {
-  background: var(--lj-overlay) !important;
+  /* Portaled backdrops carry `lj-scope` themselves so the token resolves
+     (light and dark); the fallback keeps them dimmed even if it doesn't. */
+  background: var(--lj-overlay, rgba(11, 27, 51, 0.45)) !important;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 .lj-toast {

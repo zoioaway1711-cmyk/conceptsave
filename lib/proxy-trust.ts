@@ -12,7 +12,7 @@ import { env } from "cloudflare:workers";
  * 256 bits of CSPRNG output (brute-forcing it isn't the realistic threat
  * here; a cheap timing leak on top of that would be an unnecessary one).
  */
-function constantTimeEqual(a: string, b: string): boolean {
+export function constantTimeEqual(a: string, b: string): boolean {
   const bytesA = new TextEncoder().encode(a);
   const bytesB = new TextEncoder().encode(b);
   const length = Math.max(bytesA.length, bytesB.length, 32);

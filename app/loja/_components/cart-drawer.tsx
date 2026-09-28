@@ -18,7 +18,7 @@ export function CartDrawer({ open, onOpenChange }: { open: boolean; onOpenChange
   const close = () => onOpenChange(false);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} className="lj-scope lj-sheet w-full gap-0 p-0 sm:max-w-[420px]">
+      <SheetContent side="right" showCloseButton={false} overlayClassName="lj-scope lj-sheet-overlay" className="lj-scope lj-sheet w-full gap-0 p-0 sm:max-w-[420px]">
         <div className="flex items-center justify-between border-b border-[color:var(--lj-line)] px-5 py-4">
           <SheetTitle className="lj-display text-base font-extrabold text-[color:var(--lj-ink)]">
             Seu carrinho{count ? ` (${count})` : ""}

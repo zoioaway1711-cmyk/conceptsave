@@ -5,6 +5,24 @@ function runtime() {
 }
 
 /**
+ * Makes an untrusted value safe to interpolate into a plain-text alert.
+ * Some alert fields come straight from attackers — e.g. the username typed
+ * into a FAILED admin login lands in the audit entry's `actor`. Without
+ * this, a "username" containing line breaks could append fake lines to
+ * the message ("✅ SAVE LOGS — ADMIN_LOGIN … IP: <office IP>") and forge a
+ * convincing notification on the owner's phone; bidi-override characters
+ * could visually reorder text. Strips control, zero-width and bidi
+ * characters, collapses whitespace and caps the length.
+ */
+export function sanitizeAlertText(value: unknown, maxLength = 80): string {
+  const text = String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+/**
  * Best-effort push notification — never allowed to throw or slow down the
  * request that triggered it (same contract as lib/audit-log.ts's
  * logAudit, which is in fact one of this function's two callers). A

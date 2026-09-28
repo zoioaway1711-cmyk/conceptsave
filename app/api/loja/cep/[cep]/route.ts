@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceGlobalLimit, enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 /*
  * CEP → address lookup for the storefront (/loja), proxied server-side to
@@ -16,11 +16,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ cep:
   if (!/^\d{8}$/.test(cep)) return Response.json({ error: "invalid_cep" }, { status: 400 });
 
   const db = (env as unknown as { DB: D1Database }).DB;
-  const limit = await enforceRateLimits(db, "loja_cep", clientIp(request), [
+  const limit = await enforceRateLimits(db, "loja_cep", rateLimitKey(request), [
     { limit: 20, windowSeconds: 60 },
     { limit: 200, windowSeconds: 3600 },
   ]);
   if (!limit.allowed) return rateLimitResponse(limit);
+  // Keeps this endpoint from becoming a free ViaCEP proxy for someone else.
+  const global = await enforceGlobalLimit(db, "loja_cep", 5_000);
+  if (!global.allowed) return rateLimitResponse(global);
 
   let data: ViaCep;
   try {

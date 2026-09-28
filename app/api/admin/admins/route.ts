@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { requirePermission } from "@/lib/admin-auth";
+import { requirePermission, revokeAllAdminSessions } from "@/lib/admin-auth";
 import { hashPassword } from "@/lib/password";
 import { isPermission, PERMISSIONS } from "@/lib/permissions";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
@@ -56,6 +56,10 @@ export async function PATCH(request: Request) {
   values.push(body.id);
   const result = await db().prepare(`UPDATE admin_users SET ${updates.join(", ")} WHERE id=?`).bind(...values).run();
   if (!result.meta.changes) return Response.json({ error: "not_found" }, { status: 404 });
-  await logAudit(db(), { actor: admin.username, action: "ADMIN_PERMISSION_CHANGED", resource: "admin_users", resourceId: body.id, result: "success", ip: clientIp(request), metadata: { permissions: body.permissions, disabled: body.disabled } });
+  // Disabling must end every session for good — otherwise re-enabling the
+  // account later would resurrect all cookies issued before (see
+  // revokeAllAdminSessions).
+  const sessionsRevoked = body.disabled ? await revokeAllAdminSessions(db(), body.id) : 0;
+  await logAudit(db(), { actor: admin.username, action: "ADMIN_PERMISSION_CHANGED", resource: "admin_users", resourceId: body.id, result: "success", ip: clientIp(request), metadata: { permissions: body.permissions, disabled: body.disabled, ...(body.disabled ? { sessionsRevoked } : {}) } });
   return Response.json({ saved: true });
 }

@@ -21,8 +21,19 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
 
 const localBindingConfig = {
-  main: "vinext/server/fetch-handler",
+  // Gateway around vinext's fetch handler that serves /loja pages through
+  // Workers Caching (see worker/index.ts for why).
+  main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  // Caching is off for the gateway (it must run on every request to mint a
+  // fresh CSP nonce) and on only for the CachedPages entrypoint it calls.
+  // (Mirrors Cloudflare's documented gateway example: on at the top level,
+  // explicitly off for `default`.)
+  cache: { enabled: true },
+  exports: {
+    default: { type: "worker" as const, cache: { enabled: false } },
+    CachedPages: { type: "worker" as const, cache: { enabled: true } },
+  },
   // Cloudflare's asset server defaults to redirecting `/index.html` -> `/`
   // (its usual "canonical URL" behavior). That default is wrong here: `/`
   // is the Next.js landing page (app/page.tsx), not the static customer

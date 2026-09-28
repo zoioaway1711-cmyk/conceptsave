@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, SearchX, SlidersHorizontal, X } from "lucide-react";
@@ -195,6 +195,17 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
   const params = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visible, setVisible] = useState(PAGE_SIZE);
+  const gridRef = useRef<HTMLUListElement>(null);
+  // Index of the first card revealed by "Carregar mais": focus moves to it,
+  // so keyboard and screen-reader users continue from the new products
+  // instead of being dropped when the button disappears.
+  const focusFrom = useRef<number | null>(null);
+  useEffect(() => {
+    const from = focusFrom.current;
+    if (from === null) return;
+    focusFrom.current = null;
+    gridRef.current?.children[from]?.querySelector<HTMLElement>(".lj-pcard-link")?.focus();
+  }, [visible]);
 
   const query = mode.kind === "search" ? (params.get("q") ?? "").trim() : "";
   const search = useMemo(() => (mode.kind === "search" ? searchCatalog(query) : null), [mode.kind, query]);
@@ -367,7 +378,7 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
             </label>
             <select
               id="lj-sort"
-              className="lj-select min-h-9 w-auto py-0 pr-8 text-sm"
+              className="lj-select min-h-9 w-auto py-0 pr-8 text-sm pointer-coarse:min-h-11"
               value={sort}
               onChange={(e) => {
                 track({ name: "sort_changed", params: { list: listName, sort: e.target.value } });
@@ -414,7 +425,7 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
           </div>
         ) : (
           <>
-            <ul className="lj-grid-products">
+            <ul ref={gridRef} className="lj-grid-products">
               {filtered.slice(0, visible).map((p, i) => (
                 <li key={p.slug}>
                   <ProductCard product={p} priority={i < 2} headingLevel="h2" listName={listName} index={i} />
@@ -426,7 +437,14 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
                 <p className="lj-tiny lj-muted">
                   Mostrando {visible} de {filtered.length}
                 </p>
-                <button type="button" className="lj-btn lj-btn--secondary" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
+                <button
+                  type="button"
+                  className="lj-btn lj-btn--secondary"
+                  onClick={() => {
+                    focusFrom.current = visible;
+                    setVisible((v) => v + PAGE_SIZE);
+                  }}
+                >
                   Carregar mais produtos
                 </button>
               </div>
@@ -436,7 +454,7 @@ export function ProductListing({ mode }: { mode: ListingMode }) {
       </div>
 
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="bottom" showCloseButton={false} className="lj-scope lj-sheet max-h-[85vh] gap-0 rounded-t-[var(--lj-r-xl)] p-0">
+        <SheetContent side="bottom" showCloseButton={false} overlayClassName="lj-scope lj-sheet-overlay" className="lj-scope lj-sheet max-h-[85vh] gap-0 rounded-t-[var(--lj-r-xl)] p-0">
           <div className="flex items-center justify-between border-b border-[color:var(--lj-line)] px-4 py-3">
             <SheetTitle className="lj-display text-base font-extrabold text-[color:var(--lj-ink)]">Filtrar produtos</SheetTitle>
             <SheetClose className="lj-header-icon" aria-label="Fechar filtros">

@@ -1,11 +1,11 @@
 import { env } from "cloudflare:workers";
 import { getOrder, publicOrderView, verifyOrderAccessToken } from "@/lib/loja-orders";
-import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 /** Customer order page data. Requires the order's access token (?t=). */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const db = (env as unknown as { DB: D1Database }).DB;
-  const limit = await enforceRateLimits(db, "loja_order_read", clientIp(request), [{ limit: 60, windowSeconds: 60 }]);
+  const limit = await enforceRateLimits(db, "loja_order_read", rateLimitKey(request), [{ limit: 60, windowSeconds: 60 }]);
   if (!limit.allowed) return rateLimitResponse(limit);
   const { id } = await params;
   const token = new URL(request.url).searchParams.get("t") ?? "";

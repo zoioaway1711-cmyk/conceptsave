@@ -26,6 +26,13 @@ async function vercelProxy(request: NextRequest): Promise<Response | null> {
   headers.delete("host");
   headers.delete("content-length");
   headers.delete("connection");
+  // Never forward the visitor's own x-vf-* headers: the Worker trusts them
+  // once the proxy secret is attached below, and only the ones the proxy
+  // itself sets are real. Without this, a header Vercel didn't provide for
+  // this request (e.g. no x-vercel-ip-city) would let the visitor's own
+  // `x-vf-real-city`/`x-vf-real-region` (or a forged real-ip when
+  // x-forwarded-for is absent) ride through as "trusted" data.
+  for (const name of [...headers.keys()]) if (name.startsWith("x-vf-")) headers.delete(name);
 
   // Stamp the real visitor's IP/location/host so the Worker can tell this
   // request apart from one hitting its public workers.dev URL directly —
@@ -52,13 +59,23 @@ async function vercelProxy(request: NextRequest): Promise<Response | null> {
   }
 
   const hasBody = !["GET", "HEAD"].includes(request.method);
-  const upstream = await fetch(destination, {
-    method: request.method,
-    headers,
-    body: hasBody ? request.body : undefined,
-    redirect: "manual",
-    ...(hasBody ? { duplex: "half" } : {}),
-  } as RequestInit);
+  const send = () =>
+    fetch(destination, {
+      method: request.method,
+      headers,
+      body: hasBody ? request.body : undefined,
+      redirect: "manual",
+      ...(hasBody ? { duplex: "half" } : {}),
+    } as RequestInit);
+  let upstream = await send();
+  // The Worker can transiently answer 503 ("exceeded CPU time limit" on the
+  // Free plan, or a cold isolate). GET/HEAD are safe to repeat, so retry a
+  // couple of times before handing the visitor an error page. Requests with
+  // a body are never retried — they may have side effects (orders, logins).
+  for (let attempt = 0; !hasBody && upstream.status === 503 && attempt < 2; attempt++) {
+    await upstream.body?.cancel();
+    upstream = await send();
+  }
 
   const responseHeaders = new Headers(upstream.headers);
   responseHeaders.delete("content-encoding");
@@ -111,16 +128,24 @@ function generateNonce(): string {
  * server-renders correctly (looks right), but every click/link handler is
  * dead because no JS ever attached to the DOM.
  */
-function cspHeaderValue(nonce: string): string {
-  return `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`;
+function cspHeaderValue(nonce: string, https: boolean): string {
+  // upgrade-insecure-requests only over HTTPS: on the local http dev server
+  // it would try to upgrade the page's own subresources and break them.
+  return `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'${https ? "; upgrade-insecure-requests" : ""}`;
 }
+
+// API responses are JSON (or plain text) and never render as a document,
+// so they get the tightest possible policy: nothing may load, nothing may
+// frame them. Plus CORP so other origins can't pull them in as
+// no-cors subresources (<img>/<script> tricks, Spectre-style reads).
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 export async function proxy(request: NextRequest) {
   const proxied = await vercelProxy(request);
   if (proxied) return proxied;
-  const nonce = generateNonce();
-  const csp = cspHeaderValue(nonce);
   if (!request.nextUrl.pathname.startsWith("/api/")) {
+    const nonce = generateNonce();
+    const csp = cspHeaderValue(nonce, request.nextUrl.protocol === "https:");
     // Forward the nonce as a REQUEST header so Server Components can read
     // it via next/headers, and Next auto-applies it to its own generated
     // scripts when it sees this response header format.
@@ -128,6 +153,11 @@ export async function proxy(request: NextRequest) {
     forwarded.set("x-nonce", nonce);
     const response = NextResponse.next({ request: { headers: forwarded } });
     response.headers.set("Content-Security-Policy", csp);
+    // Isolates the browsing context: a page opened from another site (or
+    // that opened ours) gets no window.opener handle to navigate or probe
+    // it (reverse tabnabbing, XS-Leaks). The rest of the static security
+    // headers come from next.config.ts.
+    response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
     return response;
   }
   const headers = {
@@ -135,7 +165,9 @@ export async function proxy(request: NextRequest) {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Content-Security-Policy": csp,
+    "Content-Security-Policy": API_CSP,
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Cross-Origin-Opener-Policy": "same-origin",
   };
   const reject = (error: string, status: number) => NextResponse.json({ error }, { status, headers });
   if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {

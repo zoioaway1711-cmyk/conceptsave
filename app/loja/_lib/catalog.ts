@@ -284,6 +284,16 @@ export function purchasableProducts() {
   return PRODUCTS.filter((p) => p.purchasable);
 }
 
+/**
+ * True only while every product sold online ships free — the condition
+ * behind any blanket "frete grátis" claim (banner, footer, hero). Read from
+ * the live catalog, so an admin change can never leave a stale promise.
+ */
+export function freeShippingOnAllPurchasable() {
+  const sold = purchasableProducts();
+  return sold.length > 0 && sold.every((p) => p.freeShipping);
+}
+
 /** Storage instructions exactly as printed in the product's specs (e.g. "2-8°C, ao abrigo de luz"). */
 export function storageOf(product: Pick<Product, "specs">) {
   const spec = product.specs.find((s) => /^conserva[cç][aã]o:/i.test(s));

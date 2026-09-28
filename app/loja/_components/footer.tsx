@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Barcode, CreditCard, FileCheck, Mail, QrCode, ShieldCheck, Snowflake, Truck } from "lucide-react";
-import { CATEGORIES, STORE, categoryHref, purchasableOffers } from "../_lib/catalog";
+import { CATEGORIES, STORE, categoryHref, freeShippingOnAllPurchasable, purchasableOffers } from "../_lib/catalog";
 import { OptInForm } from "./client-sections";
 import { PrivacyPreferencesButton } from "./consent-banner";
 import { ThemeSwitcher } from "./theme-switcher";
@@ -27,7 +27,7 @@ export function StoreFooter() {
       </div>
       <ul className="lj-container grid grid-cols-2 gap-4 border-b border-[color:var(--lj-line)] py-6 lg:grid-cols-4" aria-label="Garantias da loja">
         {[
-          { icon: Truck, text: "Frete grátis" },
+          { icon: Truck, text: freeShippingOnAllPurchasable() ? "Frete grátis" : "Entrega com rastreio" },
           { icon: FileCheck, text: "Nota fiscal em todo pedido" },
           { icon: Snowflake, text: "Envio refrigerado" },
           { icon: ShieldCheck, text: "Autenticidade verificável" },
@@ -99,12 +99,12 @@ export function StoreFooter() {
           <p className="lj-small lj-muted py-2">Atendimento: {STORE.supportHours}</p>
           {STORE.whatsappUrl && (
             <a href={STORE.whatsappUrl} className="lj-small lj-muted py-2" target="_blank" rel="noopener noreferrer">
-              WhatsApp
+              WhatsApp<span className="lj-sr-only"> (abre em nova aba)</span>
             </a>
           )}
           {STORE.instagramUrl && (
             <a href={STORE.instagramUrl} className="lj-small lj-muted py-2" target="_blank" rel="noopener noreferrer">
-              Instagram
+              Instagram<span className="lj-sr-only"> (abre em nova aba)</span>
             </a>
           )}
         </nav>

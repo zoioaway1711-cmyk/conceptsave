@@ -1,4 +1,4 @@
-import { sendTelegramAlert } from "./telegram";
+import { sanitizeAlertText, sendTelegramAlert } from "./telegram";
 
 /** Masks a serial for logs/UI: keeps only the last 4 digits, e.g. "****1234". */
 export function maskSerial(serial: string) {
@@ -64,13 +64,17 @@ function customerIdFromEntry(entry: AuditEntry): string | null {
 }
 
 function formatAuditTelegramMessage(entry: AuditEntry): string {
-  const lines = [`${RESULT_ICON[entry.result]} SAVE LOGS — ${entry.action}`, `Por: ${entry.actor}`];
-  if (entry.resource) lines.push(`Recurso: ${entry.resource}${entry.resourceId ? ` #${entry.resourceId}` : ""}`);
+  // Every interpolated field goes through sanitizeAlertText: `actor` in
+  // particular is attacker-typed on failed admin logins, and a raw newline
+  // there could forge extra lines of this message.
+  const clean = sanitizeAlertText;
+  const lines = [`${RESULT_ICON[entry.result]} SAVE LOGS — ${clean(entry.action, 60)}`, `Por: ${clean(entry.actor, 60)}`];
+  if (entry.resource) lines.push(`Recurso: ${clean(entry.resource, 60)}${entry.resourceId ? ` #${clean(entry.resourceId, 80)}` : ""}`);
   const customerId = customerIdFromEntry(entry);
-  if (customerId) lines.push(`Cliente: ...${customerId} (use /cliente ${customerId})`);
+  if (customerId) lines.push(`Cliente: ...${clean(customerId, 40)} (use /cliente ${clean(customerId, 40)})`);
   const productName = productNameFromMetadata(entry.metadata);
-  if (productName) lines.push(`Produto: ${productName}`);
-  if (entry.ip) lines.push(`IP: ${entry.ip}`);
+  if (productName) lines.push(`Produto: ${clean(productName, 120)}`);
+  if (entry.ip) lines.push(`IP: ${clean(entry.ip, 64)}`);
   return lines.join("\n");
 }
 

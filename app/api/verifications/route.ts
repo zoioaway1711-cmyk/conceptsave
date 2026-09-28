@@ -6,7 +6,7 @@ import { getMaterial } from "@/lib/materials";
 import { notifyReturningCustomerActivation } from "@/lib/alerts";
 import { approximateLocation, describeDevice, deviceFingerprint, geoSignal, recordLiveEvent } from "@/lib/live-events";
 import { touchPresence } from "@/lib/presence";
-import { clientIp, enforceRateLimits, rateLimitResponse } from "@/lib/rate-limit";
+import { clientIp, enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
@@ -14,12 +14,24 @@ export async function POST(request: Request) {
   if (!rawId) return Response.json({ error: "unauthorized" }, { status: 401 });
   const profileId = await resolveMergedProfileId(rawId);
   const db = database();
-  const limit = await enforceRateLimits(db, "verification_submit", `${clientIp(request)}:${profileId}`, [
+  const limit = await enforceRateLimits(db, "verification_submit", `${rateLimitKey(request)}:${profileId}`, [
     { limit: 20, windowSeconds: 60 },
   ]);
   if (!limit.allowed) {
     await recordLiveEvent(db, { type: "RATE_LIMITED", severity: "warning", actorProfileId: profileId, ip: clientIp(request), reason: "verification_submit" });
     return rateLimitResponse(limit);
+  }
+  // Second budget per PROFILE alone, across every IP: the IP:profile key
+  // above resets whenever the same session hops networks, which would let
+  // one logged-in account probe serials (existence, owner, status) without
+  // bound. Real customers verify a handful of products.
+  const profileLimit = await enforceRateLimits(db, "verification_submit_profile", profileId, [
+    { limit: 60, windowSeconds: 3600 },
+    { limit: 200, windowSeconds: 86400 },
+  ]);
+  if (!profileLimit.allowed) {
+    await recordLiveEvent(db, { type: "RATE_LIMITED", severity: "warning", actorProfileId: profileId, ip: clientIp(request), reason: "verification_submit_profile" });
+    return rateLimitResponse(profileLimit);
   }
   const body = await readBody(request, licenseCheckSchema);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });

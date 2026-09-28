@@ -73,7 +73,13 @@ export function LicensesClient({ initialMaterialId, canInspectUsers, canManagePr
     const result = await apiPatch<{ serial: string }>(`/api/admin/licenses/${licenseId}`, { action: "reveal" });
     setRevealingId(null);
     if (!result.ok) {
-      toast.error("Não foi possível recuperar o serial completo", { description: result.error === "not_recoverable" ? "Esta licença foi gerada antes desse recurso existir — não há cópia recuperável." : result.error });
+      const description =
+        result.error === "not_recoverable"
+          ? "Esta licença foi gerada antes desse recurso existir — não há cópia recuperável."
+          : result.error === "rate_limited"
+            ? "Limite de revelações de serial por hora atingido. Por segurança, tente novamente mais tarde."
+            : result.error;
+      toast.error("Não foi possível recuperar o serial completo", { description });
       return;
     }
     setRevealedSerials((prev) => new Map(prev).set(licenseId, result.data.serial));

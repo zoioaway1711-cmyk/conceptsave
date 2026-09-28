@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, FileCheck, ShieldCheck, Snowflake, Truck } from "lucide-react";
 import { loadCatalog } from "@/lib/loja-catalog";
-import { PRODUCTS, STORE, getProduct, purchasableProducts } from "./_lib/catalog";
+import { PRODUCTS, STORE, freeShippingOnAllPurchasable, getProduct, purchasableProducts } from "./_lib/catalog";
 import { RecentlyViewedProducts } from "./_components/client-sections";
 import { ProductCard } from "./_components/product-card";
 import { HowItWorks } from "./_components/how-it-works";
@@ -13,6 +13,7 @@ const heroImage = { base: "/loja/frasco-assinatura", alt: "Frasco Save Concept d
 export default async function LojaHomePage() {
   await loadCatalog();
   const brandImage = (getProduct("tirzepatida-60mg") ?? PRODUCTS[0])?.image ?? heroImage;
+  const freeShipping = freeShippingOnAllPurchasable();
   return (
     <>
       <JsonLd
@@ -65,9 +66,11 @@ export default async function LojaHomePage() {
               <li className="inline-flex items-center gap-1.5">
                 <FileCheck className="size-4 text-[color:var(--lj-primary)]" aria-hidden="true" /> Nota fiscal em todo pedido
               </li>
-              <li className="inline-flex items-center gap-1.5">
-                <Truck className="size-4 text-[color:var(--lj-primary)]" aria-hidden="true" /> Frete grátis
-              </li>
+              {freeShipping && (
+                <li className="inline-flex items-center gap-1.5">
+                  <Truck className="size-4 text-[color:var(--lj-primary)]" aria-hidden="true" /> Frete grátis
+                </li>
+              )}
             </ul>
           </div>
 
@@ -129,7 +132,7 @@ export default async function LojaHomePage() {
             id="online-title"
             eyebrow="Compra online"
             title="Disponíveis para comprar agora"
-            description="Frascos e kits ficam disponíveis apenas para consulta no momento. Os acessórios abaixo podem ser comprados online, com frete grátis."
+            description={`Frascos e kits ficam disponíveis apenas para consulta no momento. Os acessórios abaixo podem ser comprados online${freeShipping ? ", com frete grátis" : ""}.`}
           />
           <ul className="lj-grid-products lj-grid-products--4">
             {purchasableProducts().map((p, index) => (

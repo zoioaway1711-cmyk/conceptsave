@@ -15,7 +15,32 @@ export function clientIp(request: Request) {
   return request.headers.get("cf-connecting-ip") || "unknown";
 }
 
-export type RateLimitResult = { allowed: boolean; retryAfterSeconds: number; count: number };
+/**
+ * Identity for rate limiting (not for logging — keep using clientIp() there).
+ * An ordinary IPv6 customer controls a whole /64 (2^64 addresses), so keying
+ * limits on the full address lets anyone rotate addresses and bypass every
+ * per-IP limit. IPv6 is collapsed to its /64; IPv4 is used as-is.
+ */
+export function rateLimitKey(request: Request) {
+  const ip = clientIp(request);
+  if (!ip.includes(":")) return ip;
+  const [head, tail = ""] = ip.toLowerCase().split("%")[0].split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right];
+  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+
+/**
+ * Store-wide ceiling for a public endpoint, on top of the per-visitor
+ * limits: even an attacker spread over many networks can't flood the table
+ * (or the team's Telegram) past this. Tuned far above real traffic.
+ */
+export function enforceGlobalLimit(db: D1Database, scope: string, perDay: number) {
+  return enforceRateLimits(db, `${scope}_global`, "all", [{ limit: perDay, windowSeconds: 86400 }]);
+}
+
+export type RateLimitResult ={ allowed: boolean; retryAfterSeconds: number; count: number };
 
 /**
  * Fixed-window counter stored in D1. Each window mints a fresh row (key
@@ -46,6 +71,25 @@ export async function consumeRateLimit(db: D1Database, scope: string, identifier
     // during that specific failure, not general security.
     console.error("rate limit check failed, allowing request", error);
     return { allowed: true, retryAfterSeconds: 0, count: 0 };
+  }
+}
+
+/**
+ * Reads the current window's count WITHOUT incrementing it — for counters
+ * that only grow on a specific outcome (e.g. failed logins per account),
+ * where the check has to happen before the attempt and the increment only
+ * after it failed. Fails open (0) like consumeRateLimit.
+ */
+export async function peekRateLimit(db: D1Database, scope: string, identifier: string, windowSeconds: number): Promise<{ count: number; retryAfterSeconds: number }> {
+  const windowMs = windowSeconds * 1000;
+  const bucket = Math.floor(Date.now() / windowMs);
+  const expiresAt = (bucket + 1) * windowMs;
+  try {
+    const row = await db.prepare("SELECT count FROM rate_limits WHERE key = ?").bind(`${scope}:${identifier}:${bucket}`).first<{ count: number }>();
+    return { count: row?.count ?? 0, retryAfterSeconds: Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)) };
+  } catch (error) {
+    console.error("rate limit peek failed, allowing request", error);
+    return { count: 0, retryAfterSeconds: 0 };
   }
 }
 

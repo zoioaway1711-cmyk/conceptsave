@@ -165,7 +165,7 @@ function QuickView({ product, listName }: { product: Product; listName?: string 
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="lj-sheet-overlay fixed inset-0 z-50" />
+        <Dialog.Overlay className="lj-scope lj-sheet-overlay fixed inset-0 z-50" />
         <Dialog.Content className="lj-scope lj-card fixed left-1/2 top-1/2 z-50 grid max-h-[90vh] w-[min(860px,94vw)] -translate-x-1/2 -translate-y-1/2 grid-cols-1 overflow-y-auto p-0 shadow-[var(--lj-shadow-lg)] md:grid-cols-2">
           <div className="lj-media aspect-square p-8">
             <ProductImage image={product.image} sizes="430px" />

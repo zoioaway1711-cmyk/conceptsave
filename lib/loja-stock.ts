@@ -32,19 +32,37 @@ export function stockSkus() {
   return PRODUCTS.map((p) => p.sku);
 }
 
-/** `quantity: null` stops controlling the SKU (row removed). */
-export async function setStock(db: D1Database, sku: string, quantity: number | null, actor: string) {
+/**
+ * `quantity: null` stops controlling the SKU (row removed).
+ *
+ * `expected` is the quantity the admin was looking at (null = not
+ * controlled). The write only happens if the stock is still that value, so
+ * an order approved in the meantime (which takes units out) can't be
+ * silently undone by an absolute overwrite — the admin gets "conflict" and
+ * reloads instead.
+ */
+export async function setStock(db: D1Database, sku: string, quantity: number | null, expected: number | null, actor: string): Promise<"ok" | "unknown_sku" | "conflict"> {
   await loadCatalog(db);
-  if (!stockSkus().includes(sku)) return false;
+  if (!stockSkus().includes(sku)) return "unknown_sku";
+  const at = new Date().toISOString();
+  let changes: number;
   if (quantity === null) {
-    await db.prepare("DELETE FROM loja_stock WHERE sku = ?").bind(sku).run();
-    return true;
+    if (expected === null) return "ok"; // already not controlled
+    changes = (await db.prepare("DELETE FROM loja_stock WHERE sku = ? AND quantity = ?").bind(sku, expected).run()).meta.changes;
+  } else if (expected === null) {
+    changes = (
+      await db
+        .prepare("INSERT INTO loja_stock (sku, quantity, updated_at, updated_by) VALUES (?, ?, ?, ?) ON CONFLICT(sku) DO NOTHING")
+        .bind(sku, quantity, at, actor)
+        .run()
+    ).meta.changes;
+  } else {
+    changes = (
+      await db
+        .prepare("UPDATE loja_stock SET quantity = ?, updated_at = ?, updated_by = ? WHERE sku = ? AND quantity = ?")
+        .bind(quantity, at, actor, sku, expected)
+        .run()
+    ).meta.changes;
   }
-  await db
-    .prepare(
-      "INSERT INTO loja_stock (sku, quantity, updated_at, updated_by) VALUES (?, ?, ?, ?) ON CONFLICT(sku) DO UPDATE SET quantity = excluded.quantity, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
-    )
-    .bind(sku, quantity, new Date().toISOString(), actor)
-    .run();
-  return true;
+  return changes > 0 ? "ok" : "conflict";
 }

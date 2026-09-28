@@ -74,6 +74,7 @@ export function CepLookup({ autoFocus, onSaved, compact }: { autoFocus?: boolean
       noValidate
       onSubmit={async (e) => {
         e.preventDefault();
+        if (loading) return;
         const result = await run(value);
         if (result.state === "valid") {
           setEditing(false);
@@ -93,8 +94,12 @@ export function CepLookup({ autoFocus, onSaved, compact }: { autoFocus?: boolean
           autoComplete="postal-code"
           placeholder="00000-000"
           autoFocus={autoFocus}
+          maxLength={9}
           value={value}
-          disabled={loading}
+          // readOnly (not disabled) while looking up: a disabled field drops
+          // keyboard focus, sending screen-reader users back to the page top.
+          readOnly={loading}
+          aria-busy={loading || undefined}
           aria-invalid={message ? true : undefined}
           aria-describedby={message ? `${id}-msg` : undefined}
           onChange={(e) => {
@@ -102,8 +107,15 @@ export function CepLookup({ autoFocus, onSaved, compact }: { autoFocus?: boolean
             if (message) reset();
           }}
         />
-        <button type="submit" className="lj-btn lj-btn--secondary w-[76px] shrink-0" disabled={loading} aria-busy={loading}>
-          {loading ? <span className="lj-spinner" aria-label="Consultando CEP" /> : "OK"}
+        <button type="submit" className="lj-btn lj-btn--secondary w-[76px] shrink-0" aria-disabled={loading || undefined} aria-busy={loading}>
+          {loading ? (
+            <>
+              <span className="lj-spinner" aria-hidden="true" />
+              <span className="lj-sr-only">Consultando CEP</span>
+            </>
+          ) : (
+            "OK"
+          )}
         </button>
       </div>
       {message ? (
@@ -117,7 +129,7 @@ export function CepLookup({ autoFocus, onSaved, compact }: { autoFocus?: boolean
           rel="noopener noreferrer"
           className="lj-link lj-hit lj-tiny self-start"
         >
-          Não sei meu CEP
+          Não sei meu CEP<span className="lj-sr-only"> (site dos Correios, abre em nova aba)</span>
         </a>
       )}
       {saved && (

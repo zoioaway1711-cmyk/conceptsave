@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { CUSTOMER_COOKIE, LEGACY_CUSTOMER_COOKIE, readCookie } from "./session-cookie";
 
 async function key() {
   const secret = (env as unknown as { SESSION_SECRET?: string }).SESSION_SECRET;
@@ -34,7 +35,7 @@ export async function customerCookie(profileId: string) {
 }
 
 export async function customerId(request: Request): Promise<string | null> {
-  const token = request.headers.get("cookie")?.match(/(?:^|;\s*)vf_customer=([^;]+)/)?.[1];
+  const token = readCookie(request.headers.get("cookie"), [CUSTOMER_COOKIE, LEGACY_CUSTOMER_COOKIE]);
   const match = token?.match(/^customer\.([A-Za-z0-9_-]{1,80})\.(\d+)\.([a-f0-9]{64})$/);
   if (!match || !Number.isSafeInteger(Number(match[2])) || Number(match[2]) <= Date.now()) return null;
   try {

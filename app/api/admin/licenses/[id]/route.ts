@@ -3,9 +3,9 @@ import { requirePermission } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit, maskSerial } from "@/lib/audit-log";
 import { getLicense, replaceLicense, resetLicense, revealLicenseSerial, revokeLicense, updateLicense } from "@/lib/licenses";
-import { maybeAlertLicenseRevokeBurst } from "@/lib/alerts";
+import { maybeAlertLicenseRevokeBurst, maybeAlertSensitiveRevealBurst } from "@/lib/alerts";
 import { recordLiveEvent } from "@/lib/live-events";
-import { clientIp, consumeRateLimit } from "@/lib/rate-limit";
+import { clientIp, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { z } from "zod";
 
 function db() {
@@ -42,6 +42,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // separate from "replace", which mints a brand-new one instead. Every
     // successful reveal is audit-logged with the actor and license id so
     // there's accountability for who looked at what and when.
+    // Per-admin ceiling: support reveals a few serials, a stolen admin
+    // session scripting this endpoint would dump the whole license base.
+    // Counted before the reveal (attempts, not successes) and alerted to
+    // Telegram once when the burst threshold is crossed.
+    const budget = await consumeRateLimit(db(), "license_serial_reveal", admin.id, 30, 3600);
+    await maybeAlertSensitiveRevealBurst(db(), { adminUsername: admin.username, ip, kind: "serial", count: budget.count, threshold: 10 });
+    if (!budget.allowed) {
+      await logAudit(db(), { actor: admin.username, action: "LICENSE_SERIAL_REVEAL_RATE_LIMITED", resource: "licenses", resourceId: String(id), result: "failure", ip, silent: true });
+      return rateLimitResponse(budget);
+    }
     const serial = await revealLicenseSerial(db(), id);
     if (!serial) return Response.json({ error: "not_recoverable" }, { status: 404 });
     await logAudit(db(), { actor: admin.username, action: "LICENSE_SERIAL_REVEALED", resource: "licenses", resourceId: String(id), result: "success", ip });

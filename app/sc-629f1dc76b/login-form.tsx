@@ -15,7 +15,17 @@ const ERROR_MESSAGES: Record<string, string> = {
   admin_environment_not_configured: "O ambiente administrativo ainda não foi configurado. Contate um operador.",
   invalid_body: "Preencha os dois campos.",
   invalid_origin: "Requisição bloqueada (origem inválida). Recarregue a página e tente novamente.",
+  ip_blocked: "Acesso bloqueado temporariamente para esta rede após muitas tentativas. Fale com o responsável pelo painel.",
 };
+
+// 429 comes from the per-network limit or from the per-account lockout
+// (several failed passwords for this user from anywhere).
+function tooManyAttemptsMessage(retryAfterSeconds: number) {
+  if (retryAfterSeconds <= 0) return "Muitas tentativas para este acesso. Aguarde e tente novamente.";
+  if (retryAfterSeconds < 60) return `Muitas tentativas para este acesso. Tente novamente em ${retryAfterSeconds}s.`;
+  const minutes = Math.ceil(retryAfterSeconds / 60);
+  return `Muitas tentativas para este acesso. Tente novamente em ${minutes} ${minutes === 1 ? "minuto" : "minutos"}.`;
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -36,8 +46,7 @@ export function LoginForm() {
         body: JSON.stringify({ user, password }),
       });
       if (response.status === 429) {
-        const retryAfter = Number(response.headers.get("retry-after") || "0");
-        setError(retryAfter > 0 ? `Muitas tentativas. Tente novamente em ${retryAfter}s.` : "Muitas tentativas. Aguarde e tente novamente.");
+        setError(tooManyAttemptsMessage(Number(response.headers.get("retry-after") || "0")));
         return;
       }
       let data: { authenticated?: boolean; error?: string } = {};

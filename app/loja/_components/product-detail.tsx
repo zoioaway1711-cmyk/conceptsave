@@ -82,7 +82,7 @@ export function ProductGallery({ product }: { product: Product }) {
       </div>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="lj-sheet-overlay fixed inset-0 z-50" />
+        <Dialog.Overlay className="lj-scope lj-sheet-overlay fixed inset-0 z-50" />
         <Dialog.Content className="lj-scope fixed inset-3 z-50 flex flex-col overflow-hidden rounded-[var(--lj-r-xl)] bg-[color:var(--lj-surface)] shadow-[var(--lj-shadow-lg)] sm:inset-8">
           <div className="flex items-center justify-between gap-3 border-b border-[color:var(--lj-line)] px-4 py-3">
             <Dialog.Title className="lj-display truncate text-base font-extrabold text-[color:var(--lj-ink)]">
@@ -313,9 +313,11 @@ export function BuyTogether({ product }: { product: Product }) {
                 type="checkbox"
                 className="size-[18px] accent-[color:var(--lj-primary)]"
                 checked={selected.includes(p.slug)}
-                onChange={() =>
-                  setSelected((s) => (s.includes(p.slug) ? s.filter((x) => x !== p.slug) : [...s, p.slug]))
-                }
+                onChange={() => {
+                  setSelected((s) => (s.includes(p.slug) ? s.filter((x) => x !== p.slug) : [...s, p.slug]));
+                  // A new selection hasn't been added yet: the button offers it again.
+                  setAdded(false);
+                }}
               />
               <span className="lj-media size-14 shrink-0 rounded-[var(--lj-r-sm)] p-1">
                 <ProductImage image={p.image} sizes="56px" decorative />

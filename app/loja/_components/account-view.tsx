@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Clock, Heart, History, MapPin, MessageCircle, Package, Search, ShieldCheck, ShoppingCart, Trash2 } from "lucide-react";
 import { STORE, formatBRL } from "../_lib/catalog";
@@ -46,6 +46,18 @@ export function AccountView() {
   const location = useDeliveryLocation();
   const { count } = useCart();
   const [confirming, setConfirming] = useState(false);
+  // The trigger and the confirmation replace each other: move focus with
+  // them, so keyboard users are never dropped at the top of the page.
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  useEffect(() => {
+    if (confirming) cancelRef.current?.focus();
+    else if (returnFocus.current) {
+      returnFocus.current = false;
+      triggerRef.current?.focus();
+    }
+  }, [confirming]);
 
   if (!hydrated) return <div className="lj-skeleton h-96 rounded-[var(--lj-r-lg)]" aria-busy="true" aria-label="Carregando" />;
 
@@ -174,10 +186,27 @@ export function AccountView() {
             Carrinho, favoritos, histórico, buscas e CEP ficam apenas neste navegador e não são enviados para nossos servidores.
           </p>
           {confirming ? (
-            <div className="lj-alert lj-alert--warning flex-col gap-3 sm:flex-row sm:items-center" role="alert">
+            <div
+              className="lj-alert lj-alert--warning flex-col gap-3 sm:flex-row sm:items-center"
+              role="alert"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  returnFocus.current = true;
+                  setConfirming(false);
+                }
+              }}
+            >
               <span className="flex-1">Apagar carrinho, favoritos, histórico, buscas e CEP deste navegador? Não dá para desfazer.</span>
               <span className="flex gap-2">
-                <button type="button" className="lj-btn lj-btn--secondary lj-btn--sm" onClick={() => setConfirming(false)}>
+                <button
+                  ref={cancelRef}
+                  type="button"
+                  className="lj-btn lj-btn--secondary lj-btn--sm"
+                  onClick={() => {
+                    returnFocus.current = true;
+                    setConfirming(false);
+                  }}
+                >
                   Cancelar
                 </button>
                 <button
@@ -185,6 +214,7 @@ export function AccountView() {
                   className="lj-btn lj-btn--primary lj-btn--sm"
                   onClick={() => {
                     clearAllLocalShoppingData();
+                    returnFocus.current = true;
                     setConfirming(false);
                     notify({ tone: "success", title: "Dados da loja apagados deste navegador" });
                   }}
@@ -194,7 +224,7 @@ export function AccountView() {
               </span>
             </div>
           ) : (
-            <button type="button" className="lj-btn lj-btn--danger-ghost" onClick={() => setConfirming(true)}>
+            <button ref={triggerRef} type="button" className="lj-btn lj-btn--danger-ghost" onClick={() => setConfirming(true)}>
               <Trash2 aria-hidden="true" /> Apagar meus dados desta loja
             </button>
           )}
@@ -203,6 +233,8 @@ export function AccountView() {
     </div>
   );
 }
+
+const itemCountLabel = (n: number) => `${n} ${n === 1 ? "item" : "itens"}`;
 
 function OrderRow({ order: ref }: { order: OrderRef }) {
   const [live, setLive] = useState<PublicOrder | null | "error">(null);
@@ -219,7 +251,7 @@ function OrderRow({ order: ref }: { order: OrderRef }) {
       <div className="min-w-0 flex-1">
         <p className="font-bold text-[color:var(--lj-ink)]">{ref.number}</p>
         <p className="lj-tiny lj-muted">
-          {formatDate(ref.createdAt)} · {order ? `${order.items.reduce((s, i) => s + i.qty, 0)} itens · ` : ""}
+          {formatDate(ref.createdAt)} · {order ? `${itemCountLabel(order.items.reduce((s, i) => s + i.qty, 0))} · ` : ""}
           {formatBRL(order?.totals.total ?? ref.total)}
         </p>
       </div>

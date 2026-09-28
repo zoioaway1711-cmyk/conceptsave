@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
 import { FileCheck, Pause, Play, ShieldCheck, Snowflake, Truck } from "lucide-react";
-import { STORE } from "../_lib/catalog";
+import { STORE, freeShippingOnAllPurchasable } from "../_lib/catalog";
 
 /*
  * Rotating announcement bar — facts only, no promos/urgency. WCAG 2.2.2:
@@ -12,9 +12,16 @@ import { STORE } from "../_lib/catalog";
  * starts for people who prefer reduced motion. Not a live region (screen
  * readers aren't interrupted every few seconds).
  */
-// Built per render: the delivery window comes from the live settings.
+// Built per render: the delivery window and shipping terms come from the
+// live catalog/settings — "frete grátis" only while it's true for
+// everything sold online.
 const messages = () => [
-  { icon: Truck, text: `Frete grátis em todos os produtos · prazo médio de ${STORE.delivery.window}` },
+  {
+    icon: Truck,
+    text: freeShippingOnAllPurchasable()
+      ? `Frete grátis nos produtos à venda online · prazo médio de ${STORE.delivery.window}`
+      : `Prazo médio de entrega de ${STORE.delivery.window}`,
+  },
   { icon: FileCheck, text: "Nota fiscal em todo pedido, na caixa e por e-mail" },
   { icon: Snowflake, text: "Itens refrigerados seguem em caixa térmica com gelo reciclável" },
   { icon: ShieldCheck, text: "Cada unidade com serial e QR Code de autenticidade", href: "/loja/autenticidade" },

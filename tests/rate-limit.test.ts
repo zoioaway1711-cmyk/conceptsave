@@ -4,7 +4,7 @@ import { applyMigrations } from "./helpers/apply-migrations";
 
 vi.mock("cloudflare:workers", () => ({ env: {} }));
 
-const { consumeRateLimit, enforceRateLimits, clientIp } = await import("../lib/rate-limit");
+const { consumeRateLimit, enforceRateLimits, enforceGlobalLimit, clientIp, rateLimitKey } = await import("../lib/rate-limit");
 
 function freshDb() {
   const db = createFakeD1();
@@ -67,5 +67,34 @@ describe("enforceRateLimits", () => {
       { limit: 100, windowSeconds: 3600 },
     ]);
     expect(third.allowed).toBe(false);
+  });
+});
+
+describe("rateLimitKey", () => {
+  const req = (ip: string) => new Request("https://loja.test/", { headers: { "cf-connecting-ip": ip } });
+
+  it("keeps IPv4 as-is", () => {
+    expect(rateLimitKey(req("203.0.113.7"))).toBe("203.0.113.7");
+  });
+
+  it("collapses every address of one IPv6 /64 onto the same key, so rotating addresses doesn't reset the limit", () => {
+    const a = rateLimitKey(req("2804:10:8036:1a2b:1111:2222:3333:4444"));
+    const b = rateLimitKey(req("2804:0010:8036:1a2b::9"));
+    expect(a).toBe("2804:10:8036:1a2b::/64");
+    expect(b).toBe(a);
+  });
+
+  it("expands :: correctly and keeps different /64s apart", () => {
+    expect(rateLimitKey(req("2001:db8::1"))).toBe("2001:db8:0:0::/64");
+    expect(rateLimitKey(req("2001:db8:0:1::1"))).not.toBe(rateLimitKey(req("2001:db8:0:2::1")));
+  });
+});
+
+describe("enforceGlobalLimit", () => {
+  it("caps the whole store regardless of who is calling", async () => {
+    const db = freshDb();
+    expect((await enforceGlobalLimit(db as never, "test", 2)).allowed).toBe(true);
+    expect((await enforceGlobalLimit(db as never, "test", 2)).allowed).toBe(true);
+    expect((await enforceGlobalLimit(db as never, "test", 2)).allowed).toBe(false);
   });
 });
