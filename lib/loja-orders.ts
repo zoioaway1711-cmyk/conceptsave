@@ -4,7 +4,9 @@ import { STORE, getProduct, type Product } from "@/app/loja/_lib/catalog";
 import { digits, fieldError, type CheckoutForm } from "@/app/loja/_lib/checkout";
 import { ALLOWED_TRANSITIONS, type OrderStatus } from "@/app/loja/_lib/order-status";
 import { computeTotals, type OrderTotals } from "@/app/loja/_lib/pricing";
-import { loadCatalog } from "./loja-catalog";
+import { antiBotShape } from "./loja-antibot";
+import { REGULATED_CATEGORIES, loadCatalog } from "./loja-catalog";
+import { cleanLine, isStrictEmail } from "./text-sanitize";
 
 /*
  * Storefront orders (loja_orders). The server is the only authority on
@@ -110,30 +112,48 @@ export async function verifyOrderAccessToken(orderId: string, token: string) {
 
 /* ---------- create ---------- */
 
+// Nested objects are .strict(): the checkout sends exactly these keys, so
+// anything else is a hand-made request and is refused instead of silently
+// ignored. The top level stays lenient only for forward compatibility of
+// the anti-bot fields (hp / elapsedMs, see lib/loja-antibot.ts).
 export const orderCreateSchema = z.object({
-  customer: z.object({
-    name: z.string().max(120),
-    email: z.string().max(160),
-    cpf: z.string().max(20),
-    phone: z.string().max(20),
-  }),
-  address: z.object({
-    cep: z.string().max(10),
-    street: z.string().max(160),
-    number: z.string().max(10),
-    complement: z.string().max(80).default(""),
-    district: z.string().max(80),
-    city: z.string().max(80),
-    uf: z.string().max(2),
-  }),
-  payment: z.object({
-    method: z.enum(["pix", "cartao", "boleto"]),
-    // Upper bound is checked in createOrder against the LIVE setting — a
-    // schema-level .max(STORE.maxInstallments) would freeze at module load.
-    installments: z.number().int().min(1).max(12).default(1),
-  }),
-  items: z.array(z.object({ slug: z.string().max(80), qty: z.number().int().min(1).max(99) })).min(1).max(30),
-  expectedTotal: z.number().nonnegative(),
+  customer: z
+    .object({
+      name: z.string().max(120),
+      email: z.string().max(160),
+      cpf: z.string().max(20),
+      phone: z.string().max(20),
+    })
+    .strict(),
+  address: z
+    .object({
+      cep: z.string().max(10),
+      street: z.string().max(160),
+      number: z.string().max(10),
+      complement: z.string().max(80).default(""),
+      district: z.string().max(80),
+      city: z.string().max(80),
+      uf: z.string().max(2),
+    })
+    .strict(),
+  payment: z
+    .object({
+      method: z.enum(["pix", "cartao", "boleto"]),
+      // Upper bound is checked in createOrder against the LIVE setting — a
+      // schema-level .max(STORE.maxInstallments) would freeze at module load.
+      installments: z.number().int().min(1).max(12).default(1),
+    })
+    .strict(),
+  // Slugs are catalog identifiers (lowercase, digits, hyphen). Restricting
+  // the charset also means an error that names a rejected slug can never
+  // echo arbitrary attacker text back.
+  items: z
+    .array(z.object({ slug: z.string().regex(/^[a-z0-9-]{1,80}$/), qty: z.number().int().min(1).max(99) }).strict())
+    .min(1)
+    .max(30),
+  // JSON.parse("1e999") is Infinity, which z.number() accepts: bound it.
+  expectedTotal: z.number().nonnegative().finite().max(10_000_000),
+  ...antiBotShape,
 });
 export type OrderCreateInput = z.infer<typeof orderCreateSchema>;
 
@@ -157,7 +177,7 @@ export type CreateOrderError =
   | { code: "out_of_stock"; skus: string[] }
   | { code: "price_changed"; totals: OrderTotals };
 
-function validateFields(input: OrderCreateInput) {
+function validateFields(input: Pick<OrderCreateInput, "customer" | "address" | "payment">) {
   const form: CheckoutForm = {
     ...input.customer,
     ...input.address,
@@ -180,10 +200,101 @@ function orderNumber(now: Date) {
   return `SC${ymd}-${[...rand].map((b) => NUMBER_ALPHABET[b % NUMBER_ALPHABET.length]).join("")}`;
 }
 
-export async function createOrder(db: D1Database, rawInput: OrderCreateInput): Promise<{ ok: true; id: string; number: string; totals: OrderTotals; items: OrderItem[] } | { ok: false; error: CreateOrderError }> {
+/**
+ * Server-side normalization before validation: invisible/bidi/control
+ * characters removed from every free-text field (see lib/text-sanitize.ts),
+ * e-mail lowercased, UF uppercased. The anti-bot fields (hp / elapsedMs)
+ * are dropped here, so they can never be persisted.
+ */
+function normalizeInput(raw: OrderCreateInput) {
+  const c = raw.customer;
+  const a = raw.address;
+  return {
+    customer: { name: cleanLine(c.name), email: cleanLine(c.email).toLowerCase(), cpf: cleanLine(c.cpf), phone: cleanLine(c.phone) },
+    address: {
+      cep: cleanLine(a.cep),
+      street: cleanLine(a.street),
+      number: cleanLine(a.number),
+      complement: cleanLine(a.complement ?? ""),
+      district: cleanLine(a.district),
+      city: cleanLine(a.city),
+      uf: cleanLine(a.uf).toUpperCase(),
+    },
+    payment: { method: raw.payment.method, installments: raw.payment.installments },
+    items: raw.items.map((i) => ({ slug: i.slug, qty: i.qty })),
+    expectedTotal: raw.expectedTotal,
+  } satisfies Omit<OrderCreateInput, "hp" | "elapsedMs">;
+}
+
+// Only digits plus the punctuation a person (or the input mask) types.
+const MASKED_DIGITS = /^[\d\s.()\-/+]*$/;
+
+/**
+ * Checks the shared checkout rules (app/loja/_lib/checkout.ts) cannot make
+ * on their own because they read only the digits: "abc529.982.247-25xyz"
+ * or a 20-digit "phone" would otherwise pass and be stored.
+ */
+function strictFormatErrors(input: ReturnType<typeof normalizeInput>) {
+  const fields: Partial<Record<keyof CheckoutForm, string>> = {};
+  if (input.customer.email && !isStrictEmail(input.customer.email)) fields.email = "E-mail com caracteres inválidos. Use o formato nome@provedor.com.";
+  if (!MASKED_DIGITS.test(input.customer.cpf)) fields.cpf = "Use apenas os números do CPF.";
+  if (!MASKED_DIGITS.test(input.customer.phone)) fields.phone = "Use apenas os números do celular, com DDD.";
+  else if (digits(input.customer.phone).length > 11) fields.phone = "Número com dígitos demais. Informe só DDD + número.";
+  if (!MASKED_DIGITS.test(input.address.cep)) fields.cep = "Digite os 8 números do CEP.";
+  return fields;
+}
+
+/**
+ * Categories never sold online (vials, vial kits) — a regulatory decision,
+ * enforced here even if the product row says `purchasable` (e.g. flipped
+ * by a mistaken or compromised admin session, or a direct DB edit).
+ */
+function isRegulated(product: Product) {
+  return REGULATED_CATEGORIES.has(product.category);
+}
+
+/** Same shopper re-submitting the same order (double click, retry after a timeout) within this window gets the existing order back. */
+const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
+
+type CreateOrderResult =
+  | { ok: true; id: string; number: string; totals: OrderTotals; items: OrderItem[]; duplicate?: boolean }
+  | { ok: false; error: CreateOrderError };
+
+/**
+ * An identical order (same e-mail, name, phone, CPF, address, items,
+ * payment and total) created in the last few minutes and still unpaid.
+ * Comparing EVERYTHING — including the full CPF, decrypted — is what makes
+ * returning that order's access token safe: whoever can reproduce all of
+ * it already knows every detail the order page would show them.
+ */
+async function findDuplicateOrder(
+  db: D1Database,
+  q: { email: string; name: string; phone: string; cpf: string; addressJson: string; itemsJson: string; method: string; installments: number; total: number },
+) {
+  const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
+  const { results } = await db
+    .prepare(
+      "SELECT id, number, customer_name AS name, customer_phone AS phone, customer_cpf_encrypted AS enc, address_json AS addressJson, items_json AS itemsJson, payment_method AS method, installments FROM loja_orders WHERE created_at >= ? AND customer_email = ? AND status = 'received' AND total = ? ORDER BY created_at DESC LIMIT 3",
+    )
+    .bind(since, q.email, q.total)
+    .all<{ id: string; number: string; name: string; phone: string; enc: string; addressJson: string; itemsJson: string; method: string; installments: number }>();
+  for (const row of results) {
+    if (row.name !== q.name || row.phone !== q.phone || row.addressJson !== q.addressJson || row.itemsJson !== q.itemsJson) continue;
+    if (row.method !== q.method || row.installments !== q.installments) continue;
+    try {
+      if ((await decryptCpf(row.enc)) === q.cpf) return row;
+    } catch {
+      // unreadable ciphertext (rotated key) → not provably the same order
+    }
+  }
+  return null;
+}
+
+export async function createOrder(db: D1Database, rawInput: OrderCreateInput): Promise<CreateOrderResult> {
   await loadCatalog(db);
-  const input: OrderCreateInput = { ...rawInput, address: { ...rawInput.address, uf: rawInput.address.uf.trim().toUpperCase() } };
-  const fields = validateFields(input);
+  const input = normalizeInput(rawInput);
+  // The shared rules' message wins when both flag a field (it says exactly what to fix).
+  const fields = { ...strictFormatErrors(input), ...validateFields(input) };
   if (input.payment.method === "cartao" && input.payment.installments > STORE.maxInstallments) {
     fields.installments = `Parcelamento disponível em até ${STORE.maxInstallments}x.`;
   }
@@ -196,7 +307,7 @@ export async function createOrder(db: D1Database, rawInput: OrderCreateInput): P
   const blocked: string[] = [];
   for (const [slug, qty] of merged) {
     const product = getProduct(slug);
-    if (!product || !product.available || !product.purchasable) blocked.push(product?.sku ?? slug);
+    if (!product || !product.available || !product.purchasable || isRegulated(product)) blocked.push(product?.sku ?? slug);
     else lines.push({ product, qty });
   }
   if (blocked.length) return { ok: false, error: { code: "not_purchasable", skus: blocked } };
@@ -218,14 +329,31 @@ export async function createOrder(db: D1Database, rawInput: OrderCreateInput): P
   const at = now.toISOString();
   const id = `ord_${crypto.randomUUID()}`;
   const cpfDigits = digits(input.customer.cpf);
-  const cpfEncrypted = await encryptCpf(cpfDigits);
   const history: OrderHistoryEntry[] = [{ status: "received", at }];
-  const address: OrderAddress = { ...input.address, cep: digits(input.address.cep), uf: input.address.uf.toUpperCase() };
+  const address: OrderAddress = { ...input.address, cep: digits(input.address.cep) };
+  const installments = input.payment.method === "cartao" ? input.payment.installments : 1;
+  const phone = digits(input.customer.phone);
+  const addressJson = JSON.stringify(address);
+  const itemsJson = JSON.stringify(items);
+
+  const duplicate = await findDuplicateOrder(db, {
+    email: input.customer.email,
+    name: input.customer.name,
+    phone,
+    cpf: cpfDigits,
+    addressJson,
+    itemsJson,
+    method: input.payment.method,
+    installments,
+    total: totals.total,
+  });
+  if (duplicate) return { ok: true, id: duplicate.id, number: duplicate.number, totals, items, duplicate: true };
 
   // Availability check only (no reservation — see header comment).
   const short = await shortSkus(db, items);
   if (short.length) return { ok: false, error: { code: "out_of_stock", skus: short } };
 
+  const cpfEncrypted = await encryptCpf(cpfDigits);
   for (let attempt = 0; attempt < 3; attempt++) {
     const number = orderNumber(now);
     try {
@@ -237,17 +365,17 @@ export async function createOrder(db: D1Database, rawInput: OrderCreateInput): P
         .bind(
           id,
           number,
-          input.customer.name.trim(),
-          input.customer.email.trim().toLowerCase(),
-          digits(input.customer.phone),
+          input.customer.name,
+          input.customer.email,
+          phone,
           cpfEncrypted,
           cpfDigits.slice(-2),
-          JSON.stringify(address),
-          JSON.stringify(items),
+          addressJson,
+          itemsJson,
           JSON.stringify(totals),
           totals.total,
           input.payment.method,
-          input.payment.method === "cartao" ? input.payment.installments : 1,
+          installments,
           JSON.stringify(history),
           at,
           at,
@@ -379,6 +507,17 @@ export async function listOrders(
 }
 
 /* ---------- admin transitions ---------- */
+
+/** Tracking code as shown to the customer, or null when it doesn't look like one (see the admin PATCH route). */
+export function normalizeTrackingCode(value: string): string | null {
+  const cleaned = cleanLine(value).toUpperCase();
+  if (!/^[A-Z0-9]+(?:[ -][A-Z0-9]+)*$/.test(cleaned)) return null;
+  const compact = cleaned.replace(/[ -]/g, "");
+  if (compact.length < 8 || compact.length > 30) return null;
+  const digitCount = compact.replace(/\D/g, "").length;
+  return digitCount * 2 >= compact.length ? compact : null;
+}
+
 
 export type TransitionError = "not_found" | "invalid_transition" | "tracking_required" | "out_of_stock";
 

@@ -132,6 +132,32 @@ export function currentCatalogVersion() {
   return catalogVersion;
 }
 
+/*
+ * Admin-editable links end up in href / mailto. The admin form already
+ * validates them (lib/loja-catalog.ts), but a row written any other way (D1
+ * console, an old admin build, a restore) must still never become a
+ * `javascript:`/`data:` link, a look-alike domain or a mailto with extra
+ * headers (`?bcc=`). Same allowlist as the admin schema; anything else is
+ * dropped and the UI simply hides that link.
+ */
+const WHATSAPP_URL_RE = /^https:\/\/(wa\.me|api\.whatsapp\.com)\/[^\s"'<>\\]*$/;
+const INSTAGRAM_URL_RE = /^https:\/\/(www\.)?instagram\.com\/[^\s"'<>\\]*$/;
+const EMAIL_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+
+export function safeExternalUrl(value: unknown, pattern: RegExp) {
+  if (typeof value !== "string" || value.length > 300 || !pattern.test(value.trim())) return "";
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" && !url.username && !url.password ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+export function safeEmail(value: unknown) {
+  return typeof value === "string" && value.length <= 120 && EMAIL_RE.test(value.trim()) ? value.trim() : "";
+}
+
 export function applyCatalog(snapshot: CatalogSnapshot) {
   if (snapshot.version === appliedVersion) return;
   appliedVersion = snapshot.version;
@@ -140,10 +166,10 @@ export function applyCatalog(snapshot: CatalogSnapshot) {
   const s = snapshot.settings;
   Object.assign(STORE, {
     supportHours: s.supportHours,
-    whatsappUrl: s.whatsappUrl,
-    instagramUrl: s.instagramUrl,
-    supportEmail: s.supportEmail,
-    privacyEmail: s.privacyEmail,
+    whatsappUrl: safeExternalUrl(s.whatsappUrl, WHATSAPP_URL_RE),
+    instagramUrl: safeExternalUrl(s.instagramUrl, INSTAGRAM_URL_RE),
+    supportEmail: safeEmail(s.supportEmail),
+    privacyEmail: safeEmail(s.privacyEmail),
     maxInstallments: s.maxInstallments,
     delivery: { window: s.deliveryWindow, detail: s.deliveryDetail },
     payment: [

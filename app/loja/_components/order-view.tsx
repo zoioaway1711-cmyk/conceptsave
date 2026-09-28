@@ -8,7 +8,8 @@ import { STORE, formatBRL, getProduct } from "../_lib/catalog";
 import { notify } from "../_lib/feedback";
 import { ORDER_FLOW, ORDER_STATUS_HINT, ORDER_STATUS_LABEL, type OrderStatus } from "../_lib/order-status";
 import type { OrderTotals } from "../_lib/pricing";
-import { OrderSummary } from "./cart-view";
+import { ORDER_TOKEN_RE, orderAccessToken, orderShareUrl, rememberOrderAccess, useOrderRefs } from "../_lib/store";
+import { OrderSummary, useHydrated } from "./cart-view";
 import { HowItWorks } from "./how-it-works";
 import { Breadcrumbs, ProductImage } from "./ui";
 
@@ -99,16 +100,44 @@ function Timeline({ order }: { order: PublicOrder }) {
   );
 }
 
+/*
+ * The access token (`?t=`) is a capability: anyone holding the URL sees the
+ * order (name, masked contact, address). It is read ONCE from the URL,
+ * kept for this tab (store.ts → rememberOrderAccess) and then removed from
+ * the address bar with history.replaceState, so it doesn't linger in the
+ * history, in screenshots/screen shares, in printed pages' URL footer or in
+ * a Referer. Orders placed in this browser need no token in the URL at all
+ * ("Meus pedidos" keeps it). The page also sets `referrer: no-referrer`.
+ */
 export function OrderView({ id }: { id: string }) {
   const params = useSearchParams();
-  const token = params.get("t") ?? "";
-  const isNew = params.get("novo") === "1";
+  const hydrated = useHydrated();
+  const refs = useOrderRefs();
+  // Captured once per mount: stripping the URL below re-renders with empty
+  // search params, and these must survive that.
+  const [fromUrl] = useState(() => {
+    const t = params.get("t") ?? "";
+    return { token: ORDER_TOKEN_RE.test(t) ? t : "", isNew: params.get("novo") === "1" };
+  });
+  const isNew = fromUrl.isNew;
+  const token = hydrated ? fromUrl.token || orderAccessToken(id, refs) : "";
   const [result, setResult] = useState<Awaited<ReturnType<typeof fetchOrder>> | null>(null);
   // Bumped by "Tentar de novo": refetches in place (skeleton, then result)
   // instead of reloading the whole store.
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (!hydrated) return;
+    if (fromUrl.token) rememberOrderAccess(id, fromUrl.token);
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("t") && !url.searchParams.has("novo")) return;
+    url.searchParams.delete("t");
+    url.searchParams.delete("novo");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [hydrated, id, fromUrl.token]);
+
+  useEffect(() => {
+    if (!token) return;
     let alive = true;
     void fetchOrder(id, token).then((r) => alive && setResult(r));
     return () => {
@@ -116,40 +145,46 @@ export function OrderView({ id }: { id: string }) {
     };
   }, [id, token, attempt]);
 
-  if (!result) return <div className="lj-skeleton h-96 rounded-[var(--lj-r-lg)]" aria-busy="true" aria-label="Carregando pedido" />;
+  // No token anywhere (link without `?t=`, other browser): same answer the
+  // API would give, without a request.
+  const view = hydrated && !token ? ({ state: "not_found" } as const) : result;
 
-  if (result.state !== "ok") {
-    return (
-      <div className="lj-card lj-card--pad flex flex-col items-center gap-3 py-12 text-center" role="alert">
-        <AlertCircle className="size-9 text-[color:var(--lj-muted)]" aria-hidden="true" />
-        <h1 className="lj-h3">{result.state === "not_found" ? "Pedido não encontrado" : "Não foi possível carregar o pedido"}</h1>
-        <p className="lj-small lj-muted max-w-md">
-          {result.state === "not_found"
-            ? "O link pode estar incompleto. Use o link do pedido salvo em “Minha conta” neste navegador."
-            : "Verifique sua conexão e tente novamente em instantes."}
-        </p>
-        <div className="flex flex-wrap justify-center gap-2">
-          <Link href="/loja/conta#pedidos" className="lj-btn lj-btn--primary">
-            Meus pedidos
-          </Link>
-          {result.state === "error" && (
-            <button
-              type="button"
-              className="lj-btn lj-btn--secondary"
-              onClick={() => {
-                setResult(null);
-                setAttempt((n) => n + 1);
-              }}
-            >
-              Tentar de novo
-            </button>
-          )}
-        </div>
-      </div>
-    );
+  if (!view) return <div className="lj-skeleton h-96 rounded-[var(--lj-r-lg)]" aria-busy="true" aria-label="Carregando pedido" />;
+  if (view.state !== "ok") {
+    const retry = () => {
+      setResult(null);
+      setAttempt((n) => n + 1);
+    };
+    return <OrderUnavailable state={view.state} onRetry={retry} />;
   }
+  return <OrderDetails order={view.order} isNew={isNew} token={token} />;
+}
 
-  const order = result.order;
+function OrderUnavailable({ state, onRetry }: { state: "not_found" | "error"; onRetry: () => void }) {
+  return (
+    <div className="lj-card lj-card--pad flex flex-col items-center gap-3 py-12 text-center" role="alert">
+      <AlertCircle className="size-9 text-[color:var(--lj-muted)]" aria-hidden="true" />
+      <h1 className="lj-h3">{state === "not_found" ? "Pedido não encontrado" : "Não foi possível carregar o pedido"}</h1>
+      <p className="lj-small lj-muted max-w-md">
+        {state === "not_found"
+          ? "O link pode estar incompleto. Use o link do pedido salvo em “Minha conta” neste navegador."
+          : "Verifique sua conexão e tente novamente em instantes."}
+      </p>
+      <div className="flex flex-wrap justify-center gap-2">
+        <Link href="/loja/conta#pedidos" className="lj-btn lj-btn--primary">
+          Meus pedidos
+        </Link>
+        {state === "error" && (
+          <button type="button" className="lj-btn lj-btn--secondary" onClick={onRetry}>
+            Tentar de novo
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OrderDetails({ order, isNew, token }: { order: PublicOrder; isNew: boolean; token: string }) {
   const payment = STORE.payment.find((p) => p.id === order.payment.method)?.label ?? order.payment.method;
 
   return (
@@ -185,8 +220,13 @@ export function OrderView({ id }: { id: string }) {
             className="lj-btn lj-btn--ghost lj-btn--sm lj-no-print"
             onClick={async () => {
               try {
-                await navigator.clipboard.writeText(window.location.href.replace("&novo=1", ""));
-                notify({ tone: "success", title: "Link do pedido copiado" });
+                // Built explicitly (the address bar no longer carries the token).
+                await navigator.clipboard.writeText(orderShareUrl(order.id, token));
+                notify({
+                  tone: "success",
+                  title: "Link do pedido copiado",
+                  description: "Quem tiver este link vê os dados do pedido. Compartilhe só com quem precisa.",
+                });
               } catch {
                 notify({ tone: "error", title: "Não foi possível copiar o link" });
               }

@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { applyCatalog, type CatalogSnapshot, type Product, type StoreSettings } from "@/app/loja/_lib/catalog";
 import { SEED_SETTINGS } from "./loja-catalog-seed";
+import { cleanLine, cleanMultiline } from "./text-sanitize";
 
 /*
  * Server-side catalog access (loja_products / loja_settings).
@@ -80,18 +81,36 @@ function toProduct(r: ProductRow): Product {
   };
 }
 
+/*
+ * Admin-edited text is published on every (edge-cached) store page, so it
+ * gets the same invisible/bidi/control-character cleanup as customer input
+ * (lib/text-sanitize.ts). Length limits run BEFORE the cleanup, so the
+ * work per request stays bounded.
+ */
+const line = (min: number, max: number) => z.string().max(max).transform(cleanLine).pipe(z.string().min(min));
+const multiline = (min: number, max: number) => z.string().max(max).transform(cleanMultiline).pipe(z.string().min(min));
+
 export const settingsSchema = z.object({
-  supportHours: z.string().trim().min(3).max(80),
+  supportHours: line(3, 80),
   whatsappUrl: z.union([z.literal(""), z.string().trim().url().regex(/^https:\/\/(wa\.me|api\.whatsapp\.com)\//, "use um link wa.me")]),
   instagramUrl: z.union([z.literal(""), z.string().trim().url().regex(/^https:\/\/(www\.)?instagram\.com\//, "use um link instagram.com")]),
   supportEmail: z.union([z.literal(""), z.string().trim().email()]),
   privacyEmail: z.union([z.literal(""), z.string().trim().email()]),
   maxInstallments: z.number().int().min(1).max(12),
-  deliveryWindow: z.string().trim().min(3).max(60),
-  deliveryDetail: z.string().trim().min(3).max(300),
-  paymentNote: z.string().trim().min(3).max(300),
-  returns: z.string().trim().min(3).max(400),
+  deliveryWindow: line(3, 60),
+  deliveryDetail: multiline(3, 300),
+  paymentNote: multiline(3, 300),
+  returns: multiline(3, 400),
 });
+
+/**
+ * Categories that may never be sold online (vials and vial kits) — a
+ * regulatory decision (docs/loja-revisao-regulatoria.md), not a catalog
+ * setting. The admin API refuses to mark them purchasable and
+ * createOrder refuses them even if a row says otherwise. Lifting this is
+ * a deliberate code change, never a click in the admin.
+ */
+export const REGULATED_CATEGORIES: ReadonlySet<Product["category"]> = new Set(["frascos", "kits"]);
 
 export async function readCatalog(database: D1Database = db()): Promise<CatalogSnapshot> {
   const [products, settings] = await Promise.all([
@@ -147,24 +166,28 @@ export function invalidateCatalog() {
 
 export const productUpdateSchema = z
   .object({
-    name: z.string().trim().min(2).max(120),
-    presentation: z.string().trim().min(2).max(120),
-    summary: z.string().trim().min(3).max(300),
-    description: z.string().trim().min(3).max(2000),
-    price: z.number().positive().max(1_000_000),
-    oldPrice: z.number().positive().max(1_000_000).nullable(),
-    badge: z.string().trim().max(40).nullable(),
-    specs: z.array(z.string().trim().min(1).max(200)).min(1).max(20),
+    name: line(2, 120),
+    presentation: line(2, 120),
+    summary: line(3, 300),
+    description: multiline(3, 2000),
+    price: z.number().positive().finite().max(1_000_000),
+    oldPrice: z.number().positive().finite().max(1_000_000).nullable(),
+    badge: z.string().max(40).transform(cleanLine).nullable(),
+    specs: z.array(line(1, 200)).min(1).max(20),
     freeShipping: z.boolean(),
     available: z.boolean(),
     purchasable: z.boolean(),
     coldChain: z.boolean(),
   })
+  .strict()
   .refine((v) => v.oldPrice === null || v.oldPrice > v.price, { message: "O preço anterior precisa ser maior que o atual", path: ["oldPrice"] });
+
+export const REGULATED_PURCHASABLE_MESSAGE = "Frascos e kits com frasco não podem ser vendidos online (restrição regulatória).";
 
 export async function updateProduct(database: D1Database, slug: string, input: z.infer<typeof productUpdateSchema>, actor: string) {
   const before = await database.prepare(`${SELECT_PRODUCTS.replace(" ORDER BY sort_order, slug", "")} WHERE slug = ?`).bind(slug).first<ProductRow>();
   if (!before) return null;
+  if (input.purchasable && REGULATED_CATEGORIES.has(before.category)) return { error: "regulated" as const };
   await database
     .prepare(
       `UPDATE loja_products SET name = ?, presentation = ?, summary = ?, description = ?, price = ?, old_price = ?, badge = ?, specs_json = ?, free_shipping = ?, available = ?, purchasable = ?, cold_chain = ?, updated_at = ?, updated_by = ? WHERE slug = ?`,

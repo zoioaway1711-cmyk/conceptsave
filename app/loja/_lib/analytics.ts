@@ -76,7 +76,10 @@ export function setConsent(value: "granted" | "denied") {
   } catch {
     // storage blocked: the choice holds for this page view only
   }
-  if (value === "denied") queue.length = 0;
+  // Opting out stops everything at once: queued events are dropped (never
+  // sent later on pagehide) and the per-tab session id is forgotten, so a
+  // later opt-in starts a new, unlinked session.
+  if (value === "denied") resetAnalyticsSession();
   consentListeners.forEach((l) => l());
 }
 
@@ -94,13 +97,46 @@ export function useConsent() {
 type Queued = { name: AnalyticsEvent["name"]; params: AnalyticsEvent["params"]; path: string };
 const queue: Queued[] = [];
 let timer: number | undefined;
+const SESSION_KEY = "sc-loja-sid";
+
+/** Drops pending events and the session id (opt-out, "apagar meus dados"). */
+export function resetAnalyticsSession() {
+  queue.length = 0;
+  if (typeof window === "undefined") return;
+  window.clearTimeout(timer);
+  timer = undefined;
+  try {
+    window.sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // nothing stored
+  }
+}
+
+/*
+ * Client-side minimization — personal data must not even LEAVE the browser
+ * (the server redacts again before storing, see lib/loja-events.ts):
+ *  - a search box receives free text, and people do paste an e-mail, CPF,
+ *    phone or CEP into it;
+ *  - the order page path carries the order id, which would tie an
+ *    "anonymous" session to a named order.
+ */
+export function redactSearchTerm(term: string) {
+  return term
+    .replace(/[^\s@]+@[^\s@]+/g, "[e-mail]")
+    .replace(/\(?\d[\d.\-\s/()]{3,}\d/g, "[número]")
+    .slice(0, 40);
+}
+
+export function analyticsPath(pathname: string) {
+  return pathname.replace(/^\/loja\/pedido\/[^/]+/, "/loja/pedido/[id]").slice(0, 120);
+}
 
 function sessionId() {
   try {
-    let id = window.sessionStorage.getItem("sc-loja-sid");
-    if (!id) {
+    let id = window.sessionStorage.getItem(SESSION_KEY);
+    if (!id || !/^[a-z0-9]{8,64}$/.test(id)) {
       id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join("");
-      window.sessionStorage.setItem("sc-loja-sid", id);
+      window.sessionStorage.setItem(SESSION_KEY, id);
     }
     return id;
   } catch {
@@ -135,7 +171,9 @@ if (typeof window !== "undefined") {
 function deliver(event: AnalyticsEvent) {
   if (process.env.NODE_ENV !== "production") console.debug("[loja analytics]", event.name, event.params);
   if (readConsent() !== "granted") return;
-  queue.push({ name: event.name, params: event.params, path: window.location.pathname });
+  const params =
+    event.name === "search" ? { ...event.params, search_term: redactSearchTerm(event.params.search_term) } : event.params;
+  queue.push({ name: event.name, params, path: analyticsPath(window.location.pathname) });
   if (queue.length >= 20) flush();
   else if (!timer) timer = window.setTimeout(flush, 4000);
 }

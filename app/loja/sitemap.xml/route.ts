@@ -12,6 +12,11 @@ import { CATEGORIES, PRODUCTS, categoryHref, productHref } from "../_lib/catalog
 // prerendered at build time (the Vercel build has no D1 and would fail).
 export const dynamic = "force-dynamic";
 
+/** XML text escaping for <loc>: slugs come from the DB-backed catalog, so never trust them to be markup-free. */
+function xmlEscape(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+
 export async function GET(request: Request) {
   await loadCatalog();
   const origin = publicOrigin(request);
@@ -27,8 +32,10 @@ export async function GET(request: Request) {
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${paths.map((p) => `  <url><loc>${origin}${p}</loc></url>`).join("\n")}
+${paths.map((p) => `  <url><loc>${xmlEscape(origin + p)}</loc></url>`).join("\n")}
 </urlset>
 `;
-  return new Response(xml, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } });
+  // private: the body embeds this request's public host, so a shared (edge)
+  // cache must never hand one domain's copy to another.
+  return new Response(xml, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "private, max-age=3600" } });
 }

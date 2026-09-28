@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 }
 
 const putSchema = z.object({
-  sku: z.string().max(80),
+  sku: z.string().regex(/^[a-z0-9-]{1,80}$/),
   quantity: z.number().int().min(0).max(100000).nullable(),
   // The quantity the admin saw (null = not controlled); see setStock().
   expected: z.number().int().min(0).max(100000).nullable(),
@@ -27,7 +27,7 @@ export async function PUT(request: Request) {
   const admin = await requirePermission(request, "admin.store.orders");
   if (admin instanceof Response) return admin;
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
-  const body = await readBody(request, putSchema);
+  const body = await readBody(request, putSchema, 1000);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
   // setStock loads the catalog itself and rejects unknown SKUs.
   const outcome = await setStock(db(), body.sku, body.quantity, body.expected, admin.username);
@@ -40,7 +40,8 @@ export async function PUT(request: Request) {
     resourceId: body.sku,
     result: "success",
     ip: clientIp(request),
-    metadata: { quantity: body.quantity },
+    // Before AND after: the trail must show what was overwritten, not just the new value.
+    metadata: { from: body.expected, quantity: body.quantity },
   });
   return Response.json({ stock: await listStock(db()) });
 }

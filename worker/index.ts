@@ -30,6 +30,15 @@ type Env = Record<string, unknown>;
 // searchParams (checked when this was added) — if one ever starts to, it
 // must be removed from here or it would leak one visitor's page to another.
 const CACHEABLE_PATH = /^\/loja(?:\/[^?#]*)?$/;
+// File-like routes (/loja/sitemap.xml …) are left out: they build absolute
+// URLs from the public host, which only the per-visitor x-vf-* proxy
+// headers carry, and those are stripped before the cached render.
+const FILE_LIKE_PATH = /\/[^/]*\.[a-z0-9]+$/i;
+// Query parameters that must never become part of a cache key: the order
+// page's access token (?t=) and its one-shot "just ordered" flag. The page
+// HTML doesn't depend on them (the browser reads them), so dropping them
+// also keeps every order link on one shared cache entry.
+const PRIVATE_QUERY_PARAMS = ["t", "novo"];
 
 // Edge freshness: catalog/settings edits in the admin show up within
 // FRESH_SECONDS; after that visitors keep getting the previous copy while a
@@ -45,7 +54,7 @@ const NONCE_HEADER = "x-vf-cache-nonce";
 function isCacheablePageRequest(request: Request, url: URL): boolean {
   if (request.method !== "GET") return false;
   if (request.headers.get("upgrade")) return false;
-  return CACHEABLE_PATH.test(url.pathname);
+  return CACHEABLE_PATH.test(url.pathname) && !FILE_LIKE_PATH.test(url.pathname);
 }
 
 // Router state headers the RSC response varies on (RSC, Next-Router-*,
@@ -58,7 +67,9 @@ function isRouterHeader(name: string): boolean {
 async function cacheKey(request: Request, url: URL): Promise<string> {
   const parts: string[] = [];
   for (const [name, value] of request.headers) if (isRouterHeader(name)) parts.push(`${name}:${value}`);
-  const base = url.pathname + url.search;
+  const keyUrl = new URL(url);
+  for (const name of PRIVATE_QUERY_PARAMS) keyUrl.searchParams.delete(name);
+  const base = keyUrl.pathname + keyUrl.search;
   if (parts.length === 0) return base;
   parts.sort();
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(parts.join("\n")));

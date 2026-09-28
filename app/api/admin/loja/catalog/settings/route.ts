@@ -11,7 +11,10 @@ export async function PUT(request: Request) {
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
   let json: unknown;
   try {
-    json = JSON.parse(await request.text());
+    const raw = await request.text();
+    // Every setting together is < 2 KB; refuse anything far past that before parsing.
+    if (raw.length > 8_000) return Response.json({ error: "invalid_body" }, { status: 400 });
+    json = JSON.parse(raw);
   } catch {
     return Response.json({ error: "invalid_body" }, { status: 400 });
   }

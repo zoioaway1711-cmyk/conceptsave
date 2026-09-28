@@ -7,6 +7,7 @@ import { OPT_IN_TEXT, type OptInKind } from "../_lib/consent-texts";
 import { ecommerce, toItem, track } from "../_lib/analytics";
 import { getProduct, productsBySlugs, type Product } from "../_lib/catalog";
 import { clearRecentlyViewed, markViewed, useRecentlyViewed } from "../_lib/store";
+import { HoneypotField, MIN_FILL_MS, useAntiBot } from "./anti-bot";
 import { ProductCard } from "./product-card";
 import { SectionHeading } from "./ui";
 
@@ -109,6 +110,7 @@ export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: s
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
   const [state, setState] = useState<"idle" | "sending" | "done" | "invalid" | "consent" | "limited" | "error">("idle");
+  const { trapRef, antiBotFields } = useAntiBot(MIN_FILL_MS.subscribe);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -123,10 +125,11 @@ export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: s
     }
     setState("sending");
     try {
+      const { hp, elapsedMs } = await antiBotFields();
       const res = await fetch("/api/loja/subscribe", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), kind, ...(sku ? { sku } : {}), consent: true }),
+        body: JSON.stringify({ email: email.trim(), kind, ...(sku ? { sku } : {}), consent: true, hp, elapsedMs }),
       });
       setState(res.status === 204 ? "done" : res.status === 429 ? "limited" : res.status === 400 ? "invalid" : "error");
     } catch {
@@ -158,6 +161,7 @@ export function OptInForm({ kind, sku, productName }: { kind: OptInKind; sku?: s
 
   return (
     <form className="flex w-full flex-col gap-2" onSubmit={submit} noValidate>
+      <HoneypotField inputRef={trapRef} />
       <div className="flex w-full gap-2">
         <label htmlFor={`${id}-email`} className="lj-sr-only">
           Seu e-mail

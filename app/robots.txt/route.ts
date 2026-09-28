@@ -19,5 +19,7 @@ export function GET(request: Request) {
     `Sitemap: ${origin}/loja/sitemap.xml`,
     "",
   ].join("\n");
-  return new Response(body, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
+  // private: the body embeds this request's public host, so a shared (edge)
+  // cache must never hand one domain's copy to another.
+  return new Response(body, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "private, max-age=3600" } });
 }

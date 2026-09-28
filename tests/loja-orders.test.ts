@@ -96,7 +96,8 @@ describe("order transitions", () => {
   it("reserves stock on payment approval, refuses to oversell, and cancel returns exactly what was reserved", async () => {
     await setStock(db as never, kit.sku, 3, null, "test");
     const a = await createOrder(db as never, input());
-    const b = await createOrder(db as never, input());
+    // A different shopper (an identical re-submission would be deduplicated into order `a`).
+    const b = await createOrder(db as never, input({ customer: { ...input().customer, email: "outra@example.com" } }));
     if (!a.ok || !b.ok) throw new Error("setup");
     expect((await transitionOrder(db as never, a.id, "payment_approved")).ok).toBe(true);
     expect(db.raw.prepare("SELECT quantity FROM loja_stock WHERE sku = ?").get(kit.sku)).toEqual({ quantity: 1 });

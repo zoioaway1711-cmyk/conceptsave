@@ -1533,6 +1533,18 @@
   transition: transform 0.2s ease;
 }
 
+/* Anti-bot honeypot (anti-bot.tsx): off-screen, NOT display:none. */
+.lj-hp {
+  position: absolute !important;
+  left: -10000px !important;
+  top: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .lj-sr-only {
   position: absolute;
   width: 1px;

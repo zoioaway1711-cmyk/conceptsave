@@ -174,3 +174,64 @@ export const FIELD_LABELS: Record<keyof CheckoutForm, string> = {
   payment: "Forma de pagamento",
   installments: "Parcelas",
 };
+
+/* ---------- client-side hardening (pure, unit-tested) ---------- */
+
+export const ORDER_ID_RE = /^ord_[0-9a-f-]{36}$/;
+export const ORDER_TOKEN_RE = /^[0-9a-f]{32}$/;
+export const ORDER_NUMBER_RE = /^[A-Z0-9-]{4,32}$/;
+
+/** Idle time after which the checkout draft (name, e-mail, phone, address) is discarded. */
+export const DRAFT_TTL_MS = 30 * 60 * 1000;
+
+/** True when the shopper typed anything worth keeping (payment defaults don't count; CPF is never kept). */
+export const hasPersonalData = (f: CheckoutForm) =>
+  (Object.keys(f) as (keyof CheckoutForm)[]).some((k) => k !== "payment" && k !== "installments" && k !== "cpf" && f[k]);
+
+/**
+ * Validates a stored checkout draft. Returns null when missing, corrupted,
+ * tampered or older than DRAFT_TTL_MS (drafts without `savedAt` predate
+ * the expiry and count as expired). The CPF is always blank.
+ */
+export function parseDraft(raw: unknown, now: number): CheckoutForm | null {
+  const r = raw as { form?: Record<string, unknown>; savedAt?: unknown } | null;
+  if (!r || typeof r !== "object" || typeof r.savedAt !== "number") return null;
+  const age = now - r.savedAt;
+  if (!(age >= 0 && age < DRAFT_TTL_MS)) return null;
+  const form = { ...EMPTY_CHECKOUT };
+  for (const key of Object.keys(EMPTY_CHECKOUT) as (keyof CheckoutForm)[]) {
+    const v = r.form?.[key];
+    if (typeof v === "string" && v.length <= 160) (form[key] as string) = v;
+  }
+  if (!["pix", "cartao", "boleto"].includes(form.payment)) form.payment = "pix";
+  if (form.uf && !UFS.includes(form.uf)) form.uf = "";
+  if (!/^\d{1,2}$/.test(form.installments)) form.installments = "1";
+  form.cpf = "";
+  return form;
+}
+
+/** Server-reported field errors: known fields only, bounded text, never objects or unknown keys. */
+export function sanitizeFieldErrors(raw: unknown, form: CheckoutForm): CheckoutErrors {
+  const out: CheckoutErrors = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Object.prototype.hasOwnProperty.call(FIELD_LABELS, key)) continue;
+    const field = key as keyof CheckoutForm;
+    out[field] =
+      fieldError(field, form) ??
+      (typeof value === "string" && value.length > 0 && value.length <= 200 ? value : `Confira o campo ${FIELD_LABELS[field]}.`);
+  }
+  return out;
+}
+
+export type CreatedOrder = { id: string; number: string; token: string; total: number };
+
+/** A 201 is only trusted when it has the exact shape we navigate to and store. */
+export function parseCreatedOrder(data: unknown): CreatedOrder | null {
+  const d = data as { id?: unknown; number?: unknown; token?: unknown; totals?: { total?: unknown } } | null;
+  if (typeof d?.id !== "string" || !ORDER_ID_RE.test(d.id)) return null;
+  if (typeof d.token !== "string" || !ORDER_TOKEN_RE.test(d.token)) return null;
+  if (typeof d.number !== "string" || !ORDER_NUMBER_RE.test(d.number)) return null;
+  const total = d.totals?.total;
+  return { id: d.id, number: d.number, token: d.token, total: typeof total === "number" && Number.isFinite(total) && total >= 0 ? total : 0 };
+}

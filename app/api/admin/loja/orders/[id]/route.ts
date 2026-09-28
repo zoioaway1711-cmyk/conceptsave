@@ -3,30 +3,51 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/admin-auth";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { logAudit } from "@/lib/audit-log";
-import { decryptCpf, transitionOrder } from "@/lib/loja-orders";
+import { decryptCpf, normalizeTrackingCode, transitionOrder } from "@/lib/loja-orders";
 import { maybeAlertSensitiveRevealBurst } from "@/lib/alerts";
 import { clientIp, consumeRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { cleanMultiline } from "@/lib/text-sanitize";
 import { ORDER_STATUSES } from "@/app/loja/_lib/order-status";
 
 function db() {
   return (env as unknown as { DB: D1Database }).DB;
 }
 
-const patchSchema = z.object({
-  status: z.enum(ORDER_STATUSES),
-  trackingCode: z.string().trim().max(40).optional(),
-  note: z.string().max(200).optional(),
-});
+/*
+ * The tracking code is shown on the CUSTOMER's order page, so it is held to
+ * the shape of a real tracking code — never free text such as "pague via
+ * Pix para a chave X", which a stolen or careless session could otherwise
+ * plant on customers' pages. Accepted: letter/digit groups separated by
+ * single spaces or hyphens (as people type them), 8–30 characters once
+ * compacted, at least half of them digits (Correios AA123456789BR, Jadlog
+ * and similar numeric codes) — see normalizeTrackingCode in lib/loja-orders.ts.
+ * The note is internal; invisible/bidi characters out.
+ */
+const patchSchema = z
+  .object({
+    status: z.enum(ORDER_STATUSES),
+    trackingCode: z.string().max(60).optional(),
+    note: z.string().max(200).transform(cleanMultiline).optional(),
+  })
+  .strict();
+
+const ORDER_ID = /^ord_[0-9a-f-]{36}$/;
 
 /** Advance an order's status (validated transition, audit-logged). */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requirePermission(request, "admin.store.orders");
   if (admin instanceof Response) return admin;
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
-  const body = await readBody(request, patchSchema);
+  const body = await readBody(request, patchSchema, 4000);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
   const { id } = await params;
-  const result = await transitionOrder(db(), id, body.status, body);
+  if (!ORDER_ID.test(id)) return Response.json({ error: "not_found" }, { status: 404 });
+  let trackingCode: string | undefined;
+  if (body.trackingCode !== undefined && body.trackingCode.trim()) {
+    trackingCode = normalizeTrackingCode(body.trackingCode) ?? undefined;
+    if (!trackingCode) return Response.json({ error: "invalid_tracking_code" }, { status: 400 });
+  }
+  const result = await transitionOrder(db(), id, body.status, { trackingCode, note: body.note });
   if (!result.ok) return Response.json({ error: result.error, skus: result.skus }, { status: result.error === "not_found" ? 404 : 409 });
   await logAudit(db(), {
     actor: admin.username,
@@ -35,7 +56,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     resourceId: result.order.number,
     result: "success",
     ip: clientIp(request),
-    metadata: { from: result.from, to: body.status, ...(body.trackingCode ? { trackingCode: body.trackingCode } : {}) },
+    metadata: { from: result.from, to: body.status, ...(trackingCode ? { trackingCode } : {}) },
   });
   return Response.json({ order: result.order });
 }
@@ -45,9 +66,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const admin = await requirePermission(request, "admin.store.orders");
   if (admin instanceof Response) return admin;
   if (!isSameOrigin(request)) return Response.json({ error: "invalid_origin" }, { status: 403 });
-  const body = await readBody(request, z.object({ action: z.literal("reveal_cpf") }));
+  const body = await readBody(request, z.object({ action: z.literal("reveal_cpf") }).strict(), 200);
   if (!body) return Response.json({ error: "invalid_body" }, { status: 400 });
   const { id } = await params;
+  if (!ORDER_ID.test(id)) return Response.json({ error: "not_found" }, { status: 404 });
   // Per-admin ceiling on CPF reveals (one per nota fiscal is the real use);
   // a stolen session looping over every order is refused and alerted.
   const budget = await consumeRateLimit(db(), "store_cpf_reveal", admin.id, 30, 3600);

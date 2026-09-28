@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
-import { ecommerce, toItem, track } from "./analytics";
+import { ecommerce, resetAnalyticsSession, toItem, track } from "./analytics";
 import { getProduct, type Product } from "./catalog";
+import { ORDER_ID_RE, ORDER_NUMBER_RE, ORDER_TOKEN_RE } from "./checkout";
 import { computeTotals } from "./pricing";
 import { availabilityOf, useStock } from "./stock";
 
@@ -102,13 +103,29 @@ const isName = (v: unknown): v is string => typeof v === "string" && v.length > 
  */
 export type CartEntry = { slug: string; qty: number; price: number; name: string };
 const EMPTY_CART: CartEntry[] = [];
+/** Same bound as the order API (`items.max(30)`): a bigger cart could never be ordered. */
+export const MAX_CART_LINES = 30;
+/** Catalog slugs are lowercase kebab-case; an unknown one in any other shape was hand-edited. */
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
 
-const cartStore = createPersistedStore<CartEntry[]>("sc-loja-cart", EMPTY_CART, (raw) => {
+const cartStore = createPersistedStore<CartEntry[]>("sc-loja-cart", EMPTY_CART, (raw) => parseCartEntries(raw));
+
+/** Validator for the stored cart (exported for tests). */
+export function parseCartEntries(raw: unknown): CartEntry[] {
   if (!Array.isArray(raw)) return EMPTY_CART;
   const out: CartEntry[] = [];
-  for (const e of raw) {
-    if (typeof e?.slug !== "string" || !Number.isFinite(e?.qty) || e.qty <= 0) continue;
+  // Tampered/corrupted storage can hold thousands of entries or the same
+  // slug twice (which would double the quantity past the 1–99 bound and
+  // duplicate React keys): only the first entry per slug is kept, and the
+  // cart is capped at what one order can carry.
+  for (const e of raw.slice(0, 200)) {
+    if (out.length >= MAX_CART_LINES) break;
+    if (typeof e?.slug !== "string" || out.some((o) => o.slug === e.slug)) continue;
+    if (!Number.isFinite(e?.qty) || e.qty <= 0) continue;
     const product = getProduct(e.slug);
+    // Live catalog slugs always pass; a slug the catalog doesn't know must
+    // at least look like one (it's shown as "produto retirado").
+    if (!product && !SLUG_RE.test(e.slug)) continue;
     // Entries saved before snapshots existed adopt the current values (no
     // change to report). Unknown slugs are kept only when we still know
     // their name, so the shopper can be told the product was withdrawn.
@@ -118,7 +135,7 @@ const cartStore = createPersistedStore<CartEntry[]>("sc-loja-cart", EMPTY_CART, 
     out.push({ slug: e.slug, qty: clampQty(e.qty), price, name });
   }
   return out;
-});
+}
 
 export type CartLine = { product: Product; qty: number };
 export type CartChange =
@@ -175,6 +192,7 @@ export function clearCart() {
 export function addToCart(slug: string, qty = 1, { notify = true, listName }: { notify?: boolean; listName?: string } = {}) {
   const product = getProduct(slug);
   if (!product || !product.available || !product.purchasable) return;
+  if (!cartStore.get().some((e) => e.slug === slug) && cartStore.get().length >= MAX_CART_LINES) return;
   cartStore.set((current) => {
     const existing = current.find((e) => e.slug === slug);
     if (existing) return current.map((e) => (e.slug === slug ? { ...e, qty: clampQty(e.qty + qty) } : e));
@@ -359,31 +377,94 @@ export function formatCep(digits: string) {
  */
 export type OrderRef = { id: string; number: string; token: string; createdAt: string; total: number };
 const EMPTY_ORDERS: OrderRef[] = [];
+export { ORDER_ID_RE, ORDER_TOKEN_RE };
+
+/**
+ * Every field is checked, not just its type: `createdAt` goes straight into
+ * Intl.DateTimeFormat#format, which THROWS on an invalid date — one
+ * corrupted entry used to crash the whole "Minha conta" page.
+ */
+export function isOrderRef(o: unknown): o is OrderRef {
+  const r = o as Partial<OrderRef> | null;
+  return (
+    typeof r?.id === "string" &&
+    ORDER_ID_RE.test(r.id) &&
+    typeof r.token === "string" &&
+    ORDER_TOKEN_RE.test(r.token) &&
+    typeof r.number === "string" &&
+    ORDER_NUMBER_RE.test(r.number) &&
+    typeof r.createdAt === "string" &&
+    r.createdAt.length <= 40 &&
+    Number.isFinite(Date.parse(r.createdAt)) &&
+    isPrice(r.total) &&
+    r.total < 10_000_000
+  );
+}
+
 const ordersStore = createPersistedStore<OrderRef[]>("sc-loja-orders", EMPTY_ORDERS, (raw) =>
-  Array.isArray(raw)
-    ? raw
-        .filter(
-          (o): o is OrderRef =>
-            typeof o?.id === "string" &&
-            /^ord_[0-9a-f-]{36}$/.test(o.id) &&
-            typeof o?.token === "string" &&
-            /^[0-9a-f]{32}$/.test(o.token) &&
-            typeof o?.number === "string" &&
-            typeof o?.createdAt === "string" &&
-            isPrice(o?.total),
-        )
-        .slice(0, 20)
-    : EMPTY_ORDERS,
+  Array.isArray(raw) ? raw.slice(0, 50).filter(isOrderRef).slice(0, 20) : EMPTY_ORDERS,
 );
 
 export const useOrderRefs = ordersStore.useValue;
 export function rememberOrder(ref: OrderRef) {
+  if (!isOrderRef(ref)) return;
   ordersStore.set((current) => [ref, ...current.filter((o) => o.id !== ref.id)].slice(0, 20));
+}
+
+/*
+ * Order access tokens for the order page. The token is a capability (whoever
+ * has it sees the order), so it is kept OUT of the address bar: the order
+ * page reads `?t=` once, stores it here and strips it from the URL. Orders
+ * placed in this browser don't even need it in the URL — their token is in
+ * "Meus pedidos" (`sc-loja-orders`). This per-tab map (memory + session
+ * storage, so a reload still works) covers links opened from elsewhere.
+ */
+const ACCESS_KEY = "sc-loja-order-access";
+const accessMemory = new Map<string, string>();
+
+function readAccessMap(): Record<string, string> {
+  try {
+    const raw: unknown = JSON.parse(window.sessionStorage.getItem(ACCESS_KEY) ?? "{}");
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    const out: Record<string, string> = {};
+    for (const [id, token] of Object.entries(raw).slice(0, 10)) {
+      if (ORDER_ID_RE.test(id) && typeof token === "string" && ORDER_TOKEN_RE.test(token)) out[id] = token;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function rememberOrderAccess(id: string, token: string) {
+  if (!ORDER_ID_RE.test(id) || !ORDER_TOKEN_RE.test(token)) return;
+  accessMemory.set(id, token);
+  try {
+    // Newest first, capped: the map never grows without bound.
+    const older = Object.entries(readAccessMap()).filter(([k]) => k !== id);
+    window.sessionStorage.setItem(ACCESS_KEY, JSON.stringify(Object.fromEntries([[id, token], ...older].slice(0, 10))));
+  } catch {
+    // storage blocked: the in-memory copy still serves this page view
+  }
+}
+
+/** Token for an order: this tab's access map first, then "Meus pedidos". */
+export function orderAccessToken(id: string, refs: OrderRef[] = ordersStore.get()) {
+  if (typeof window === "undefined" || !ORDER_ID_RE.test(id)) return "";
+  return accessMemory.get(id) ?? readAccessMap()[id] ?? refs.find((o) => o.id === id)?.token ?? "";
+}
+
+/** Shareable order link (the one place the token is put back into a URL). */
+export function orderShareUrl(id: string, token: string) {
+  return `${window.location.origin}/loja/pedido/${encodeURIComponent(id)}?t=${encodeURIComponent(token)}`;
 }
 
 /* ---------- privacy ---------- */
 
-/** Everything the store keeps in this browser, for the account page. */
+/**
+ * Everything the store keeps in this browser, for the account page —
+ * including the per-tab order access map and the analytics session id.
+ */
 export function clearAllLocalShoppingData() {
   cartStore.set([]);
   favoritesStore.set([]);
@@ -391,8 +472,11 @@ export function clearAllLocalShoppingData() {
   searchesStore.set([]);
   locationStore.set(null);
   ordersStore.set([]);
+  accessMemory.clear();
+  resetAnalyticsSession();
   try {
     window.sessionStorage.removeItem("sc-loja-checkout-draft");
+    window.sessionStorage.removeItem(ACCESS_KEY);
   } catch {
     // nothing stored
   }

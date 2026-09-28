@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { PRODUCTS } from "@/app/loja/_lib/catalog";
 import { OPT_IN_TEXT } from "@/app/loja/_lib/consent-texts";
+import { antiBotShape } from "./loja-antibot";
 import { loadCatalog } from "./loja-catalog";
+import { cleanLine, isStrictEmail } from "./text-sanitize";
 
 /*
  * Storefront e-mail opt-ins (loja_subscribers). The store has no e-mail
@@ -12,10 +14,17 @@ import { loadCatalog } from "./loja-catalog";
 
 export const subscribeSchema = z
   .object({
-    email: z.string().trim().toLowerCase().max(160).regex(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/),
+    // Normalized (invisible characters out, lowercase) BEFORE the unique
+    // index sees it, so "ana@x.com" and "ana\u200b@x.com" can't both be stored.
+    email: z
+      .string()
+      .max(160)
+      .transform((v) => cleanLine(v).toLowerCase())
+      .refine(isStrictEmail),
     kind: z.enum(["news", "restock"]),
-    sku: z.string().max(80).optional(),
+    sku: z.string().regex(/^[a-z0-9-]{1,80}$/).optional(),
     consent: z.literal(true),
+    ...antiBotShape,
   })
   .refine((v) => (v.kind === "restock" ? Boolean(v.sku) : !v.sku), { message: "invalid_sku" });
 

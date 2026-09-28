@@ -12,15 +12,28 @@ import {
   FIELD_LABELS,
   UFS,
   fieldError,
+  hasPersonalData,
   maskCpf,
   maskPhone,
+  parseCreatedOrder,
+  parseDraft,
+  sanitizeFieldErrors,
   suggestEmail,
   validateStep,
   type CheckoutErrors,
   type CheckoutForm,
 } from "../_lib/checkout";
 import { refreshStock } from "../_lib/stock";
-import { clearCart, formatCep, rememberOrder, saveDeliveryLocation, useCart, useDeliveryLocation } from "../_lib/store";
+import {
+  clearCart,
+  formatCep,
+  rememberOrder,
+  rememberOrderAccess,
+  saveDeliveryLocation,
+  useCart,
+  useDeliveryLocation,
+} from "../_lib/store";
+import { HoneypotField, MIN_FILL_MS, useAntiBot } from "./anti-bot";
 import { CartChanges, OrderSummary, useHydrated } from "./cart-view";
 import { FulfillmentOption } from "./delivery";
 import { HowItWorks } from "./how-it-works";
@@ -35,7 +48,11 @@ import { ProductImage } from "./ui";
  * belongs to the payment provider's hosted form once one is integrated.
  *
  * Progress survives a reload: the draft lives in sessionStorage (this tab
- * only, gone when it closes) and deliberately never includes the CPF.
+ * only, gone when it closes) and deliberately never includes the CPF. It
+ * also expires after DRAFT_TTL_MS idle (_lib/checkout.ts): a tab left open
+ * on a shared computer — or restored with "reopen closed tab", which
+ * restores sessionStorage too — must not keep someone's name, e-mail,
+ * phone and address around.
  * The order is created by POST /api/loja/orders, which re-validates every
  * field, price and stock server-side. There's no payment gateway: the
  * order is registered as "Pedido recebido" and the team collects payment.
@@ -46,22 +63,29 @@ const DRAFT_KEY = "sc-loja-checkout-draft";
 
 type Draft = { form: CheckoutForm; step: number };
 
+function dropDraft() {
+  try {
+    window.sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // nothing to clear
+  }
+}
+
 function readDraft(): Draft | null {
   if (typeof window === "undefined") return null;
+  let raw: unknown;
   try {
-    const raw = JSON.parse(window.sessionStorage.getItem(DRAFT_KEY) ?? "null");
-    if (!raw || typeof raw !== "object") return null;
-    const form = { ...EMPTY_CHECKOUT };
-    for (const key of Object.keys(EMPTY_CHECKOUT) as (keyof CheckoutForm)[]) {
-      if (typeof raw.form?.[key] === "string" && raw.form[key].length <= 160) (form[key] as string) = raw.form[key];
-    }
-    if (!["pix", "cartao", "boleto"].includes(form.payment)) form.payment = "pix";
-    form.cpf = "";
-    // Never resume past identification without the CPF re-entered.
-    return { form, step: 0 };
+    raw = JSON.parse(window.sessionStorage.getItem(DRAFT_KEY) ?? "null");
   } catch {
+    raw = undefined; // corrupted: dropped below
+  }
+  const form = parseDraft(raw, Date.now());
+  if (!form) {
+    if (raw !== null) dropDraft();
     return null;
   }
+  // Never resume past identification without the CPF re-entered.
+  return { form, step: 0 };
 }
 
 function Field({
@@ -136,6 +160,9 @@ export function CheckoutView() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [needsReload, setNeedsReload] = useState(false);
+  // A 201 we couldn't read: the order may exist, so no blind resubmit.
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const { trapRef, antiBotFields } = useAntiBot(MIN_FILL_MS.order);
 
   // Move focus to the new step's heading so screen readers announce it.
   useEffect(() => {
@@ -146,10 +173,15 @@ export function CheckoutView() {
     headingRef.current?.focus();
   }, [step]);
 
-  // Keep the draft (minus CPF) so a reload or accidental back doesn't wipe it.
+  // Keep the draft (minus CPF) so a reload or accidental back doesn't wipe
+  // it — only once something was typed, stamped for the expiry.
   useEffect(() => {
+    if (!hasPersonalData(form)) {
+      dropDraft();
+      return;
+    }
     try {
-      window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ form: { ...form, cpf: "" }, step }));
+      window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ form: { ...form, cpf: "" }, step, savedAt: Date.now() }));
     } catch {
       // storage unavailable: progress just isn't kept across reloads
     }
@@ -267,6 +299,7 @@ export function CheckoutView() {
     setSubmitError(null);
     let res: Response;
     try {
+      const { hp, elapsedMs } = await antiBotFields();
       res = await fetch("/api/loja/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -284,6 +317,8 @@ export function CheckoutView() {
           payment: { method: effective.payment, installments: effective.payment === "cartao" ? installments : 1 },
           items: lines.map((l) => ({ slug: l.product.slug, qty: l.qty })),
           expectedTotal: totals.total,
+          hp,
+          elapsedMs,
         }),
       });
     } catch {
@@ -291,34 +326,42 @@ export function CheckoutView() {
       setSubmitError("Não conseguimos enviar o pedido. Verifique sua conexão e tente de novo — seus dados continuam aqui.");
       return;
     }
-    type OrderResponse = {
-      id: string;
-      number: string;
-      token: string;
-      totals: { total: number };
-      error?: string;
-      detail?: { fields?: CheckoutErrors; totals?: { total: number }; skus?: string[] };
-    };
-    const data = (await res.json().catch(() => ({}))) as Partial<OrderResponse>;
+    type OrderError = { error?: unknown; detail?: { fields?: unknown; totals?: { total?: unknown }; skus?: unknown } };
+    const data = (await res.json().catch(() => ({}))) as unknown;
     if (res.status === 201) {
-      const ok = data as OrderResponse;
-      track({ name: "purchase", params: { ...ecommerce(items()), transaction_id: ok.number } });
-      rememberOrder({ id: ok.id, number: ok.number, token: ok.token, createdAt: new Date().toISOString(), total: ok.totals.total });
-      clearCart();
-      try {
-        window.sessionStorage.removeItem(DRAFT_KEY);
-      } catch {
-        // nothing to clear
+      const ok = parseCreatedOrder(data);
+      if (!ok) {
+        // The order probably exists but the answer is unusable: never crash
+        // with the button stuck on "Registrando…", and don't invite a
+        // blind retry that could duplicate it.
+        setSubmitting(false);
+        setUnconfirmed(true);
+        setSubmitError(
+          `Recebemos uma resposta inesperada e não conseguimos confirmar o pedido. Antes de tentar de novo, fale com o atendimento (${STORE.supportHours.toLowerCase()}) para conferir se ele foi registrado.`,
+        );
+        return;
       }
-      router.push(`/loja/pedido/${ok.id}?t=${ok.token}&novo=1`);
+      track({ name: "purchase", params: { ...ecommerce(items()), transaction_id: ok.number } });
+      rememberOrder({ id: ok.id, number: ok.number, token: ok.token, createdAt: new Date().toISOString(), total: ok.total });
+      rememberOrderAccess(ok.id, ok.token);
+      clearCart();
+      dropDraft();
+      // The access token stays out of the URL (history, screenshots, prints,
+      // Referer): the order page finds it in "Meus pedidos" / this tab.
+      router.push(`/loja/pedido/${ok.id}?novo=1`);
       return;
     }
     setSubmitting(false);
-    const code = data.error;
+    const err = (data && typeof data === "object" ? data : {}) as OrderError;
+    const code = typeof err.error === "string" ? err.error : undefined;
     if (code === "invalid_fields") {
-      const fields = data.detail?.fields ?? {};
-      setErrors(fields);
+      const fields = sanitizeFieldErrors(err.detail?.fields, effective);
       const invalid = Object.keys(fields) as (keyof CheckoutForm)[];
+      if (!invalid.length) {
+        setSubmitError("Alguns dados não foram aceitos. Revise as etapas anteriores e tente de novo.");
+        return;
+      }
+      setErrors(fields);
       setSummary(invalid);
       setStep(invalid.some((k) => ["name", "email", "cpf", "phone"].includes(k)) ? 0 : invalid.includes("installments") ? 2 : 1);
       return;
@@ -328,14 +371,15 @@ export function CheckoutView() {
       // would fail again. Reloading fetches current prices; the draft
       // (minus CPF) is kept in sessionStorage.
       setSubmitError(
-        `Os preços da loja foram atualizados enquanto você comprava (novo total: ${formatBRL(data.detail?.totals?.total ?? 0)}). Recarregue a página para ver os valores atuais — seus dados continuam preenchidos.`,
+        `Os preços da loja foram atualizados enquanto você comprava${typeof err.detail?.totals?.total === "number" && Number.isFinite(err.detail.totals.total) ? ` (novo total: ${formatBRL(err.detail.totals.total)})` : ""}. Recarregue a página para ver os valores atuais — seus dados continuam preenchidos.`,
       );
       setNeedsReload(true);
       return;
     }
     if (code === "out_of_stock" || code === "not_purchasable") {
       await refreshStock();
-      const names = (data.detail?.skus ?? [])
+      const skus = Array.isArray(err.detail?.skus) ? (err.detail.skus as unknown[]).slice(0, 30) : [];
+      const names = skus
         .map((sku) => lines.find((l) => l.product.sku === sku)?.product.name)
         .filter(Boolean)
         .join(", ");
@@ -397,6 +441,7 @@ export function CheckoutView() {
           <h2 ref={headingRef} tabIndex={-1} className="lj-h3 outline-none">
             {step + 1}. {STEPS[step]}
           </h2>
+          <HoneypotField inputRef={trapRef} />
 
           {summary.length > 0 && (
             <div className="lj-alert lj-alert--error" role="alert">
@@ -737,7 +782,7 @@ export function CheckoutView() {
               <button
                 type="button"
                 className="lj-btn lj-btn--primary lj-btn--lg"
-                disabled={submitting || needsReload || changes.length > 0}
+                disabled={submitting || needsReload || unconfirmed || changes.length > 0}
                 aria-busy={submitting}
                 onClick={placeOrder}
               >

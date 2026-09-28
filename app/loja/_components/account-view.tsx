@@ -183,7 +183,7 @@ export function AccountView() {
             Privacidade
           </h2>
           <p className="lj-small lj-muted mb-4">
-            Carrinho, favoritos, histórico, buscas e CEP ficam apenas neste navegador e não são enviados para nossos servidores.
+            Carrinho, favoritos, histórico, buscas, CEP e os links dos seus pedidos ficam apenas neste navegador e não são enviados para nossos servidores.
           </p>
           {confirming ? (
             <div
@@ -196,7 +196,7 @@ export function AccountView() {
                 }
               }}
             >
-              <span className="flex-1">Apagar carrinho, favoritos, histórico, buscas e CEP deste navegador? Não dá para desfazer.</span>
+              <span className="flex-1">Apagar carrinho, favoritos, histórico, buscas, CEP e a lista de pedidos deste navegador? Os pedidos continuam registrados com a gente; só o acesso rápido por aqui é removido. Não dá para desfazer.</span>
               <span className="flex gap-2">
                 <button
                   ref={cancelRef}
@@ -262,7 +262,8 @@ function OrderRow({ order: ref }: { order: OrderRef }) {
       ) : (
         <span className="lj-skeleton h-5 w-28 rounded-full" aria-label="Carregando status" />
       )}
-      <Link href={`/loja/pedido/${ref.id}?t=${ref.token}`} className="lj-btn lj-btn--secondary lj-btn--sm">
+      {/* No token in the URL: the order page reads it from "Meus pedidos". */}
+      <Link href={`/loja/pedido/${ref.id}`} className="lj-btn lj-btn--secondary lj-btn--sm">
         Ver detalhes
       </Link>
     </li>

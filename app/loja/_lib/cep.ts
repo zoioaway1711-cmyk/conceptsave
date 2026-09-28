@@ -20,6 +20,7 @@ export type CepStatus =
   | { state: "error" }; // lookup service unavailable
 
 const cache = new Map<string, DeliveryLocation | "not_found">();
+const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
 
 export async function lookupCep(digits: string): Promise<Exclude<CepStatus, { state: "idle" | "loading" }>> {
   if (!/^\d{8}$/.test(digits)) return { state: "invalid" };
@@ -35,13 +36,16 @@ export async function lookupCep(digits: string): Promise<Exclude<CepStatus, { st
     }
     if (res.status === 400) return { state: "invalid" };
     if (!res.ok) throw new Error(String(res.status));
-    const data = (await res.json()) as Required<DeliveryLocation>;
+    const data = (await res.json()) as Record<string, unknown>;
+    // Only bounded strings are kept: this object is persisted to
+    // localStorage and pre-fills the checkout form (same limits as the
+    // order API and the storage validator in store.ts).
     const location: DeliveryLocation = {
       cep: digits,
-      city: data.city || undefined,
-      uf: data.uf || undefined,
-      street: data.street || undefined,
-      district: data.district || undefined,
+      city: text(data?.city, 80),
+      uf: typeof data?.uf === "string" && /^[A-Z]{2}$/.test(data.uf) ? data.uf : undefined,
+      street: text(data?.street, 160),
+      district: text(data?.district, 80),
     };
     cache.set(digits, location);
     track({ name: "delivery_lookup", params: { result: "valid" } });

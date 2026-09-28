@@ -40,6 +40,7 @@ const ERRORS: Record<string, string> = {
   forbidden: "Sem permissão.",
   network_error: "Falha de rede.",
   rate_limited: "Limite de revelações de CPF por hora atingido. Por segurança, tente novamente mais tarde.",
+  invalid_tracking_code: "Código de rastreio inválido. Use só letras e números (ex.: AB123456789BR).",
   cpf_unavailable: "Não foi possível abrir o CPF deste pedido (a chave do servidor mudou depois da compra). Peça o CPF ao cliente.",
   stock_conflict: "O estoque deste produto mudou enquanto você editava (por exemplo, um pedido aprovado). Recarregue e ajuste de novo.",
 };
@@ -557,7 +558,7 @@ function SubscribersTab() {
   const load = useCallback(async () => {
     const r = await apiFetch<{ subscribers: Subscriber[] }>("/api/admin/loja/subscribers");
     if (r.ok) setRows(r.data.subscribers);
-    else toast.error(`Erro: ${r.error}`);
+    else toast.error(r.error === "rate_limited" ? "Muitas consultas à lista de inscritos nesta hora. Tente mais tarde." : `Erro: ${r.error}`);
   }, []);
   useEffect(() => {
     const t = window.setTimeout(() => void load(), 0);

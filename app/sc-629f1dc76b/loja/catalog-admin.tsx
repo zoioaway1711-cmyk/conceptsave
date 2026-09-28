@@ -23,6 +23,8 @@ import { formatBRL, type CatalogSnapshot, type Product, type StoreSettings } fro
 
 type FieldErrors = Record<string, string>;
 
+const REGULATED_CATEGORIES: ReadonlySet<string> = new Set(["frascos", "kits"]);
+
 async function putWithErrors(url: string, body: unknown): Promise<{ ok: true; changed: string[] } | { ok: false; fields: FieldErrors; error: string }> {
   const res = await fetch(url, { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const data = (await res.json().catch(() => ({}))) as { changed?: string[]; fields?: FieldErrors; error?: string };
@@ -92,22 +94,28 @@ function ProductEditor({ product, onSaved, onClose }: { product: Product; onSave
       <FieldError msg={errors[k]} />
     </div>
   );
-  const toggle = (k: "available" | "purchasable" | "freeShipping" | "coldChain", label: string, hint: string) => (
-    <label className="flex items-start justify-between gap-3 rounded-md border p-3">
-      <span>
-        <span className="block text-sm font-medium">{label}</span>
-        <span className="block text-xs text-muted-foreground">{hint}</span>
-      </span>
-      <Switch checked={form[k]} onCheckedChange={(v) => set(k, v)} />
-    </label>
+  const toggle = (k: "available" | "purchasable" | "freeShipping" | "coldChain", label: string, hint: string, disabled = false) => (
+    <div className="flex flex-col gap-1">
+      <label className="flex items-start justify-between gap-3 rounded-md border p-3">
+        <span>
+          <span className="block text-sm font-medium">{label}</span>
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        </span>
+        <Switch checked={form[k]} onCheckedChange={(v) => set(k, v)} disabled={disabled} />
+      </label>
+      <FieldError msg={errors[k]} />
+    </div>
   );
+  // Mirrors REGULATED_CATEGORIES in lib/loja-catalog.ts (server-only module):
+  // the server refuses online sale for these no matter what is sent.
+  const regulated = REGULATED_CATEGORIES.has(product.category);
 
   return (
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle>Editar {product.name}</DialogTitle>
         <DialogDescription>
-          SKU {product.sku} · categoria {product.category}. As alterações aparecem na loja em até ~15 segundos.
+          SKU {product.sku} · categoria {product.category}. As alterações aparecem na loja em até ~1 minuto.
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -140,7 +148,9 @@ function ProductEditor({ product, onSaved, onClose }: { product: Product; onSave
           <FieldError msg={errors.specs} />
         </div>
         {toggle("available", "Disponível", "Desligado = aparece como indisponível.")}
-        {toggle("purchasable", "Venda online", "Desligado = só para consulta; o servidor recusa pedidos. Veja a revisão regulatória.")}
+        {regulated
+          ? toggle("purchasable", "Venda online", "Bloqueado: esta categoria não pode ser vendida online (sem registro na ANVISA). Veja a revisão regulatória.", !form.purchasable)
+          : toggle("purchasable", "Venda online", "Desligado = só para consulta; o servidor recusa pedidos. Veja a revisão regulatória.")}
         {toggle("freeShipping", "Frete grátis", "Afeta o resumo do pedido.")}
         {toggle("coldChain", "Envio refrigerado", "Mostra os avisos de cadeia fria.")}
       </div>
