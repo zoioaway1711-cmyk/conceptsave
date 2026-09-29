@@ -41,12 +41,13 @@ Modo teste: pedidos com o e-mail de `LOJA_TEST_BUYER_EMAIL` são cobrados R$ 20,
 
 ## Produtos de teste (migração 0017)
 
-Cinco acessórios com preço baixo de propósito, para testar pagamentos reais:
+Seis acessórios com preço baixo de propósito, para testar pagamentos reais:
 
 | Produto | Preço | Pix | Cripto |
 | --- | --- | --- | --- |
 | Lenços com Álcool 70% (10 sachês) | R$ 5,00 | ✅ | — |
-| Coletor de Perfurocortantes 1,5 L | R$ 10,00 | ✅ | — |
+| Coletor de Perfurocortantes 1 L | R$ 20,00 | ✅ | ✅ |
+| Coletor de Perfurocortantes 3 L | R$ 20,00 | ✅ | ✅ |
 | Seringas 1ml 31G (10 un.) | R$ 20,00 | ✅ | ✅ |
 | Bolsa Térmica com Gel | R$ 30,00 | ✅ | ✅ |
 | Agulhas para Caneta 32G (100 un.) | R$ 50,00 | ✅ | ✅ |

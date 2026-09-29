@@ -55,7 +55,8 @@ describe("catalog in D1", () => {
       "seringas-1ml-31g",
       "agulhas-caneta-32g-4mm",
       "lencos-alcool-70",
-      "coletor-perfurocortantes-1-5l",
+      "coletor-perfurocortantes-1l",
+      "coletor-perfurocortantes-3l",
       "bolsa-termica-gel",
     ]);
     const { existsSync } = await import("node:fs");
