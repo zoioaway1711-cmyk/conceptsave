@@ -5,6 +5,7 @@ import { deleteTelegramMessages } from "./telegram";
 import { effectiveStatus, getLicense } from "./licenses";
 import { getMaterial, listMaterials } from "./materials";
 import { getProfile } from "./customer-profile";
+import { recentPaymentsCommand, storeSummaryCommand } from "./loja-telegram";
 
 export type TelegramCommandContext = { chatId: string; messageId: number };
 
@@ -27,6 +28,8 @@ const HELP_TEXT = [
   "/bloquear <ip> — bloqueia um IP manualmente",
   "/desbloquear <ip> — remove um bloqueio de IP",
   "/resumo — números gerais do painel",
+  "/loja [ontem] — pedidos e pagamentos da loja de hoje (ou de ontem)",
+  "/pagamentos [quantidade] — últimos pagamentos Pix/Cripto (padrão 10, máx 30)",
   "/limpar [quantidade] — apaga as últimas mensagens deste chat (padrão 50, máx 200)",
   "/produto <nome ou prefixo> — dados de um produto e contagem de licenças",
   "/licenca <id> — status de uma licença (use o número que aparece nos logs)",
@@ -326,6 +329,12 @@ export async function handleTelegramCommand(db: D1Database, text: string, ctx?: 
     case "/resumo":
     case "/status":
       return formatSummary(db);
+    case "/loja":
+    case "/store":
+      return storeSummaryCommand(db, args[0]);
+    case "/pagamentos":
+    case "/payments":
+      return recentPaymentsCommand(db, args[0]);
     case "/limpar":
     case "/clear":
       return handleClear(ctx, args[0]);

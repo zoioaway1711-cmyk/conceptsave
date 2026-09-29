@@ -26,6 +26,7 @@ import {
   type CryptoWebhook,
 } from "./loja-crypto";
 import { constantTimeEqual } from "./proxy-trust";
+import { consumeRateLimit } from "./rate-limit";
 import { sanitizeAlertText, sendTelegramAlert } from "./telegram";
 
 /*
@@ -520,6 +521,7 @@ export async function applyProviderUpdate(db: D1Database, u: ProviderUpdate): Pr
 
     if (next === "paid" && row.status !== "paid") await settleOrder(db, { ...row, status: next, paidAt, receiptUrl });
     if (next === "review" && row.status !== "review") await flagForReview(db, row, reviewReason ?? `status ${u.providerStatus}`);
+    if (next === "expired" && row.status !== "expired") await alertExpired(db, row);
     return next === row.status ? "unchanged" : "updated";
   }
   throw new Error("payment update kept racing");
@@ -529,6 +531,23 @@ async function flagForReview(db: D1Database, row: PaymentRow, reason: string) {
   const order = await getOrder(db, row.orderId);
   await alert(
     `⚠️ ${PROVIDER_LABEL[row.provider]} em análise no pedido ${order?.number ?? row.orderId} (${sanitizeAlertText(reason, 120)}). O pedido NÃO foi liberado — resolva no painel → Loja.`,
+  );
+}
+
+/** Expiry pings per hour, store-wide: abandoned checkouts must not flood the chat. */
+const EXPIRED_ALERTS_PER_HOUR = 20;
+
+/** A code/quote lapsed unpaid — only if the order is still waiting (not after a new code was paid). */
+async function alertExpired(db: D1Database, row: PaymentRow) {
+  const order = await getOrder(db, row.orderId);
+  if (!order || order.status !== "received") return;
+  const budget = await consumeRateLimit(db, "loja_payment_expired_alert", "all", EXPIRED_ALERTS_PER_HOUR, 3600);
+  if (!budget.allowed) return;
+  const amount = formatBRL(row.amountCents / 100);
+  await alert(
+    row.provider === "pix"
+      ? `⌛ Pix expirou sem pagamento: pedido ${order.number} · ${amount}. Se o cliente pagar atrasado (até 24 h), a confirmação ainda chega; ele também pode gerar um novo código na página do pedido.`
+      : `⌛ Cotação USDT expirou sem pagamento: pedido ${order.number} · ${amount}. Transferências até 30 min depois ainda são confirmadas; o cliente pode gerar uma nova cotação na página do pedido.`,
   );
 }
 

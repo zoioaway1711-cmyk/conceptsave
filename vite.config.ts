@@ -42,6 +42,8 @@ const localBindingConfig = {
   // the actual verification/login screen. "none" serves each static file
   // at its literal path, no redirect.
   assets: { html_handling: "none" as const },
+  // Daily store summary to Telegram (worker/index.ts `scheduled`): 11:00 UTC = 08:00 in São Paulo.
+  triggers: { crons: ["0 11 * * *"] },
   d1_databases: d1
     ? [
         {

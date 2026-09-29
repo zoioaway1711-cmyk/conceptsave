@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import app from "vinext/server/fetch-handler";
+import { sendDailyStoreSummary } from "../lib/loja-telegram";
 
 /*
  * Worker entry: a thin gateway in front of the vinext app.
@@ -147,6 +148,12 @@ async function serveCachedPage(request: Request, url: URL, ctx: ExecutionContext
 }
 
 export default {
+  /** Daily store summary to the owner's Telegram (cron in vite.config.ts: 11:00 UTC = 08:00 in São Paulo). */
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      sendDailyStoreSummary(env.DB as D1Database).catch((error) => console.error("[loja] resumo diário falhou", error)),
+    );
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (isCacheablePageRequest(request, url)) {

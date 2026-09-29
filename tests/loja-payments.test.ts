@@ -456,3 +456,48 @@ describe("test mode (LOJA_TEST_BUYER_EMAIL → fixed R$ 20,00 charge)", () => {
     expect((await getOrder(db as never, id))?.status).toBe("payment_approved");
   });
 });
+
+describe("Telegram: store alerts and reports", () => {
+  const telegramTexts = () =>
+    fetchMock.mock.calls
+      .filter(([u]) => String(u).includes("api.telegram.org"))
+      .map(([, init]) => (JSON.parse(String((init as RequestInit).body)) as { text: string }).text);
+
+  beforeEach(() => {
+    env.TELEGRAM_BOT_TOKEN = "123:abc";
+    env.TELEGRAM_CHAT_ID = "999";
+  });
+  afterEach(() => {
+    delete env.TELEGRAM_BOT_TOKEN;
+    delete env.TELEGRAM_CHAT_ID;
+  });
+
+  it("alerts when a Pix code expires unpaid, and confirms payments", async () => {
+    const { id, token } = await newOrder("pix");
+    await startCharge(id, token);
+    await webhook.POST(signed(paidEvent(id, Math.round(kit.price * 100), "order.expired")));
+    expect(telegramTexts().some((t) => t.startsWith("⌛ Pix expirou sem pagamento"))).toBe(true);
+    await webhook.POST(signed(paidEvent(id)));
+    expect(telegramTexts().some((t) => t.startsWith("✅ Pix confirmado"))).toBe(true);
+  });
+
+  it("/loja and /pagamentos report today's orders and charges without customer data", async () => {
+    const { handleTelegramCommand } = await import("../lib/telegram-commands");
+    const { id, token } = await newOrder("pix");
+    await startCharge(id, token);
+    await webhook.POST(signed(paidEvent(id)));
+    const summary = await handleTelegramCommand(db as never, "/loja");
+    expect(summary).toContain("Pedidos novos: 1");
+    expect(summary).toContain("Recebido online");
+    expect(summary).not.toContain("Maria");
+    const payments = await handleTelegramCommand(db as never, "/pagamentos 5");
+    expect(payments).toMatch(/Pix .*pago/);
+    expect(payments).not.toContain("maria@");
+  });
+
+  it("the daily summary goes to the bot", async () => {
+    const { sendDailyStoreSummary } = await import("../lib/loja-telegram");
+    await sendDailyStoreSummary(db as never);
+    expect(telegramTexts().some((t) => t.startsWith("📅 Bom dia! Resumo da loja de ontem"))).toBe(true);
+  });
+});
