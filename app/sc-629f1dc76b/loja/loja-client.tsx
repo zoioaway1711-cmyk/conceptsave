@@ -24,14 +24,105 @@ type AdminOrder = {
   address: { cep: string; street: string; number: string; complement: string; district: string; city: string; uf: string };
   items: { sku: string; name: string; qty: number; unitPrice: number; reserved?: boolean }[];
   total: number;
-  payment: { method: "pix" | "cartao" | "boleto"; installments: number };
+  payment: { method: "pix" | "cartao" | "boleto" | "crypto"; installments: number };
   trackingCode: string | null;
   history: { status: OrderStatus; at: string; note?: string }[];
   createdAt: string;
+  payments?: AdminPayment[];
 };
 
+type AdminPayment = {
+  id: string;
+  provider: "pix" | "crypto";
+  providerRef: string | null;
+  status: "creating" | "pending" | "paid" | "expired" | "review" | "failed";
+  providerStatus: string | null;
+  amountCents: number;
+  receiptUrl: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  data: Record<string, unknown>;
+  test?: boolean;
+};
+
+const PAYMENT_STATUS: Record<AdminPayment["status"], { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  creating: { label: "Gerando cobrança", variant: "outline" },
+  pending: { label: "Aguardando pagamento", variant: "outline" },
+  paid: { label: "Pago", variant: "default" },
+  expired: { label: "Expirado", variant: "secondary" },
+  review: { label: "Em análise — ação manual", variant: "destructive" },
+  failed: { label: "Falhou", variant: "secondary" },
+};
+
+/** Only the providers' own https links (and Tronscan) become clickable. */
+function safeLink(url: unknown, hosts: (h: string) => boolean) {
+  if (typeof url !== "string") return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && hosts(u.hostname) ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+const safeReceiptUrl = (url: string | null) => safeLink(url, (h) => h.endsWith(".sidebridgeswap.com"));
+const safeExplorer = (url: unknown) => safeLink(url, (h) => h === "tronscan.org" || h === "nile.tronscan.org");
+
+function PaymentsBlock({ payments }: { payments: AdminPayment[] }) {
+  if (!payments.length) return null;
+  return (
+    <div className="space-y-2 md:col-span-3">
+      <p className="font-medium">Pagamento online</p>
+      {payments.slice(0, 5).map((p) => {
+        const s = PAYMENT_STATUS[p.status];
+        const receipt = safeReceiptUrl(p.receiptUrl);
+        const e2e = typeof p.data.endToEndId === "string" ? p.data.endToEndId : null;
+        const fee = typeof p.data.feeCents === "number" ? p.data.feeCents : null;
+        const net = typeof p.data.netCents === "number" ? p.data.netCents : null;
+        const reason = typeof p.data.reviewReason === "string" ? p.data.reviewReason : null;
+        const txid = typeof p.data.txid === "string" ? p.data.txid : null;
+        const explorer = safeExplorer(p.data.explorerUrl);
+        const usdtPaid = typeof p.data.amountUsdtPaid === "number" ? p.data.amountUsdtPaid : null;
+        const usdtExpected = typeof p.data.amountUsdtExpected === "number" ? p.data.amountUsdtExpected : null;
+        return (
+          <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border p-2 text-muted-foreground">
+            <Badge variant={s.variant}>{s.label}</Badge>
+            {p.test && <Badge variant="secondary">TESTE (R$ 20,00 fixo)</Badge>}
+            <span>
+              {paymentLabel(p.provider)} · {formatBRL(p.amountCents / 100)} · {fmt.format(new Date(p.createdAt))}
+            </span>
+            {p.providerRef && <span className="font-mono text-xs">{p.providerRef}</span>}
+            {e2e && <span className="font-mono text-xs">E2E {e2e}</span>}
+            {fee !== null && <span>taxa {formatBRL(fee / 100)}</span>}
+            {net !== null && <span>líquido {formatBRL(net / 100)}</span>}
+            {usdtPaid !== null && (
+              <span>
+                recebido {usdtPaid} USDT{usdtExpected !== null ? ` de ${usdtExpected}` : ""}
+              </span>
+            )}
+            {txid &&
+              (explorer ? (
+                <a href={explorer} target="_blank" rel="noopener noreferrer" className="font-mono text-xs underline">
+                  tx {txid.slice(0, 12)}…
+                </a>
+              ) : (
+                <span className="font-mono text-xs">tx {txid.slice(0, 12)}…</span>
+              ))}
+            {p.provider === "crypto" && p.providerStatus && p.status === "review" && <span>status do provedor: {p.providerStatus}</span>}
+            {reason && <span className="text-destructive">{reason}</span>}
+            {receipt && (
+              <a href={receipt} target="_blank" rel="noopener noreferrer" className="underline">
+                Comprovante
+              </a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const fmt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
-const PAYMENT_LABELS: Record<string, string> = { pix: "Pix", cartao: "Cartão de crédito", boleto: "Boleto" };
+const PAYMENT_LABELS: Record<string, string> = { pix: "Pix", cartao: "Cartão de crédito", boleto: "Boleto", crypto: "Cripto (USDT)" };
 const paymentLabel = (m: string) => PAYMENT_LABELS[m] ?? m;
 const ERRORS: Record<string, string> = {
   invalid_transition: "Essa mudança de status não é permitida (ou o pedido foi alterado por outra pessoa). Recarregue.",
@@ -145,6 +236,7 @@ function OrderCard({ order, onChanged }: { order: AdminOrder; onChanged: (o: Adm
           )}
           {order.trackingCode && <p className="text-muted-foreground">Rastreio: {order.trackingCode}</p>}
         </div>
+        <PaymentsBlock payments={order.payments ?? []} />
       </CardContent>
     </Card>
   );

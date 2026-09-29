@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Info, Lock, Pencil, ShoppingCart } from "lucide-react";
 import { ecommerce, toItem, track } from "../_lib/analytics";
 import { lookupCep, maskCep, type CepStatus } from "../_lib/cep";
-import { STORE, formatBRL } from "../_lib/catalog";
+import { STORE, formatBRL, offeredPayments } from "../_lib/catalog";
 import {
   EMPTY_CHECKOUT,
+  CRYPTO_MIN_BRL,
   FIELD_LABELS,
   UFS,
   fieldError,
@@ -224,7 +225,14 @@ export function CheckoutView() {
     city: f.city || saved?.city || "",
     uf: f.uf || saved?.uf || "",
   });
-  const effective = materialized ? form : withSaved(form);
+  const chosen = materialized ? form : withSaved(form);
+  // A remembered choice that isn't offered any more (crypto gateway turned
+  // off since the draft was saved) falls back to Pix instead of a dead end.
+  // Crypto has a minimum order (network fees): below it the option shows but can't be picked.
+  const cryptoBelowMin = totals.total < CRYPTO_MIN_BRL;
+  const selectable = (id: string) => id !== "crypto" || !cryptoBelowMin;
+  const effective =
+    offeredPayments().some((p) => p.id === chosen.payment) && selectable(chosen.payment) ? chosen : { ...chosen, payment: "pix" as const };
 
   const items = () => lines.map((l) => toItem(l.product, { quantity: l.qty }));
 
@@ -659,20 +667,29 @@ export function CheckoutView() {
               <legend className="lj-label">Como você prefere pagar?</legend>
               <p className="lj-alert lj-alert--info">
                 <Info aria-hidden="true" />
-                <span>{STORE.paymentNote}</span>
+                <span>
+                  {effective.payment === "pix" && STORE.gateways.pix
+                    ? "Pix direto no site: ao finalizar, você recebe o QR Code e o código copia e cola, e a confirmação do pagamento é automática."
+                    : effective.payment === "crypto"
+                      ? "Cripto direto no site: ao finalizar, você recebe o valor exato em USDT e o endereço na rede Tron (TRC20). A cotação fica travada por 10 minutos e a confirmação é automática."
+                      : STORE.paymentNote}
+                </span>
               </p>
-              {STORE.payment.map((p) => (
-                <label key={p.id} className="lj-option">
+              {offeredPayments().map((p) => (
+                <label key={p.id} className={`lj-option${selectable(p.id) ? "" : " cursor-not-allowed opacity-60"}`}>
                   <input
                     type="radio"
                     name="payment"
                     value={p.id}
                     checked={effective.payment === p.id}
+                    disabled={!selectable(p.id)}
                     onChange={() => update("payment", p.id)}
                   />
                   <span className="flex flex-1 flex-col gap-1">
                     <span className="font-bold text-[color:var(--lj-ink)]">{p.label}</span>
-                    <span className="lj-small lj-muted">{p.detail}</span>
+                    <span className="lj-small lj-muted">
+                      {selectable(p.id) ? p.detail : `Disponível para pedidos a partir de ${formatBRL(CRYPTO_MIN_BRL)}.`}
+                    </span>
                     {p.id === "cartao" && effective.payment === "cartao" && (
                       <span className="mt-2 flex flex-col gap-1.5">
                         <span className="lj-label">Parcelas</span>
@@ -734,7 +751,7 @@ export function CheckoutView() {
               </ul>
               <div className="lj-panel p-4">
                 <p className="lj-label mb-3">O que acontece depois de confirmar</p>
-                <HowItWorks compact />
+                <HowItWorks compact method={effective.payment} />
               </div>
               {submitError && (
                 <p className="lj-alert lj-alert--error" role="alert">

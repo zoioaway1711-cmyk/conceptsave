@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { applyCatalog, type CatalogSnapshot, type Product, type StoreSettings } from "@/app/loja/_lib/catalog";
 import { SEED_SETTINGS } from "./loja-catalog-seed";
+import { cryptoConfigured } from "./loja-crypto";
+import { pixConfigured } from "./loja-pix";
 import { cleanLine, cleanMultiline } from "./text-sanitize";
 
 /*
@@ -137,7 +139,15 @@ export async function readCatalog(database: D1Database = db()): Promise<CatalogS
   const parsed = { data: merged as StoreSettings };
   // Version = latest change across both tables, so clients re-apply only when something changed.
   const version = [...products.results.map((p) => p.updatedAt), ...settings.results.map((s) => s.updatedAt)].sort().at(-1) ?? "empty";
-  return { version: `${version}#${products.results.length}`, products: products.results.map(toProduct), settings: parsed.data };
+  // Gateways come from Worker secrets, not the DB; part of the version so a
+  // browser that saw them off re-applies when they turn on (new deploy).
+  const gateways = { pix: pixConfigured(), crypto: cryptoConfigured() };
+  return {
+    version: `${version}#${products.results.length}#${gateways.pix ? "p" : "-"}${gateways.crypto ? "c" : "-"}`,
+    products: products.results.map(toProduct),
+    settings: parsed.data,
+    gateways,
+  };
 }
 
 export async function loadCatalog(database?: D1Database): Promise<CatalogSnapshot> {

@@ -43,8 +43,29 @@ const edit = (slug: string, patch: Record<string, unknown> = {}) => {
 describe("catalog in D1", () => {
   it("migration 0015 seeded exactly the catalog that used to be hardcoded", async () => {
     const snap = await readCatalog(db as never);
-    expect(snap.products).toEqual(SEED_PRODUCTS);
+    // 0017 appends accessories after them (higher sort_order); the seed itself is untouched.
+    expect(snap.products.slice(0, SEED_PRODUCTS.length)).toEqual(SEED_PRODUCTS);
     expect(snap.settings).toEqual(SEED_SETTINGS);
+  });
+
+  it("migration 0017 adds only accessories, with no invented reviews and an image that exists", async () => {
+    const snap = await readCatalog(db as never);
+    const added = snap.products.slice(SEED_PRODUCTS.length);
+    expect(added.map((p) => p.slug)).toEqual([
+      "seringas-1ml-31g",
+      "agulhas-caneta-32g-4mm",
+      "lencos-alcool-70",
+      "coletor-perfurocortantes-1-5l",
+      "bolsa-termica-gel",
+    ]);
+    const { existsSync } = await import("node:fs");
+    for (const p of added) {
+      expect(p.category).toBe("acessorios");
+      expect(p.reviewCount).toBe(0);
+      expect(p.rating).toBe(0);
+      expect(existsSync(`public${p.image.base}-960.webp`) && existsSync(`public${p.image.base}-480.webp`)).toBe(true);
+      for (const slug of [...p.related, ...p.boughtTogether]) expect(snap.products.some((q) => q.slug === slug)).toBe(true);
+    }
   });
 
   it("loadCatalog fills the registry (products + derived store settings)", async () => {

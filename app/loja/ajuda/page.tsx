@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CreditCard, MessageCircle, Package, RotateCcw, ShieldCheck, Truck } from "lucide-react";
-import { STORE, faq } from "../_lib/catalog";
+import { STORE, faq, offeredPayments } from "../_lib/catalog";
 import { loadCatalog } from "@/lib/loja-catalog";
 import { FaqList } from "../_components/sections";
 import { Breadcrumbs, JsonLd } from "../_components/ui";
@@ -81,7 +81,7 @@ export default async function AjudaPage() {
         <Topic id="pagamento" title="Pagamento">
           <p>{STORE.paymentNote}</p>
           <ul className="list-disc pl-5">
-            {STORE.payment.map((p) => (
+            {offeredPayments().map((p) => (
               <li key={p.id}>
                 <strong>{p.label}:</strong> {p.detail}
               </li>

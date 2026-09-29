@@ -47,3 +47,6 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+
+# PDFs de integração de pagamento (podem conter dados sensíveis)
+docs-privados/

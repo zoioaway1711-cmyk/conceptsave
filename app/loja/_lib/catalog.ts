@@ -78,7 +78,10 @@ export type StoreSettings = {
   returns: string;
 };
 
-export type CatalogSnapshot = { version: string; products: Product[]; settings: StoreSettings };
+/** Which payment methods are collected automatically on the site (server secrets configured). */
+export type PaymentGateways = { pix: boolean; crypto: boolean };
+
+export type CatalogSnapshot = { version: string; products: Product[]; settings: StoreSettings; gateways?: PaymentGateways };
 
 /*
  * LIVE CATALOG REGISTRY.
@@ -119,10 +122,17 @@ export const STORE = {
   privacyEmail: "",
   maxInstallments: 1,
   delivery: { window: "", detail: "" },
-  payment: [] as { id: "pix" | "cartao" | "boleto"; label: string; detail: string }[],
+  payment: [] as { id: "pix" | "cartao" | "boleto" | "crypto"; label: string; detail: string }[],
   paymentNote: "",
+  /** Pix charged on the site (QR code + automatic confirmation) instead of arranged by the team. */
+  gateways: { pix: false, crypto: false } as PaymentGateways,
   returns: "",
 };
+
+/** The payment methods to OFFER (lists, checkout): crypto only while its gateway is on. `STORE.payment` keeps all of them for labels. */
+export function offeredPayments() {
+  return STORE.payment.filter((p) => p.id !== "crypto" || STORE.gateways.crypto);
+}
 
 let appliedVersion = "";
 let catalogVersion = 0;
@@ -173,12 +183,16 @@ export function applyCatalog(snapshot: CatalogSnapshot) {
     maxInstallments: s.maxInstallments,
     delivery: { window: s.deliveryWindow, detail: s.deliveryDetail },
     payment: [
-      { id: "pix", label: "Pix", detail: "À vista." },
+      { id: "pix", label: "Pix", detail: snapshot.gateways?.pix ? "À vista. QR Code gerado na hora e confirmação automática." : "À vista." },
       { id: "cartao", label: "Cartão de crédito", detail: s.maxInstallments > 1 ? `Em até ${s.maxInstallments}x sem juros.` : "À vista." },
       { id: "boleto", label: "Boleto", detail: "Envio após a compensação (até 2 dias úteis)." },
+      // Always listed so labels resolve on existing orders; the checkout
+      // only offers it while the gateway is on (STORE.gateways.crypto).
+      { id: "crypto", label: "Cripto (USDT)", detail: "USDT na rede Tron (TRC20). Cotação travada por 10 minutos e confirmação automática." },
     ],
     paymentNote: s.paymentNote,
     returns: s.returns,
+    gateways: { pix: Boolean(snapshot.gateways?.pix), crypto: Boolean(snapshot.gateways?.crypto) },
   });
 }
 
@@ -271,7 +285,7 @@ export function faq() {
   {
     question: "Quais formas de pagamento vocês aceitam?",
     answer:
-      `Pix, cartão de crédito${STORE.maxInstallments > 1 ? ` (em até ${STORE.maxInstallments}x sem juros)` : ""} e boleto. No boleto, o envio começa depois da compensação, que leva até 2 dias úteis. ${STORE.paymentNote}`,
+      `Pix, cartão de crédito${STORE.maxInstallments > 1 ? ` (em até ${STORE.maxInstallments}x sem juros)` : ""} e boleto${STORE.gateways.crypto ? ", além de cripto (USDT na rede Tron)" : ""}. No boleto, o envio começa depois da compensação, que leva até 2 dias úteis. ${STORE.paymentNote}`,
   },
   {
     question: "Posso trocar ou devolver um pedido?",

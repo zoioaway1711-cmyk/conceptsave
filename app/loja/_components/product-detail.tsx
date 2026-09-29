@@ -11,6 +11,7 @@ import {
   storageOf,
   imageSrc,
   productsBySlugs,
+  offeredPayments,
   type Product,
 } from "../_lib/catalog";
 import { useAvailability } from "../_lib/stock";
@@ -238,7 +239,7 @@ export function BuyBox({ product }: { product: Product }) {
         </h2>
         <p className="lj-tiny lj-muted -mt-1">{STORE.paymentNote}</p>
         <ul className="flex flex-col gap-2">
-          {STORE.payment.map((p) => (
+          {offeredPayments().map((p) => (
             <li key={p.id} className="lj-small flex justify-between gap-3">
               <span className="font-semibold text-[color:var(--lj-ink)]">{p.label}</span>
               <span className="lj-muted text-right">{p.detail}</span>

@@ -17,9 +17,16 @@ export type CheckoutForm = {
   district: string;
   city: string;
   uf: string;
-  payment: "pix" | "cartao" | "boleto";
+  payment: PaymentMethod;
   installments: string;
 };
+
+/** Every payment method an order can carry. `crypto` is only offered when its gateway is on. */
+export const PAYMENT_METHODS = ["pix", "cartao", "boleto", "crypto"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/** Smallest order total (R$) the crypto gateway accepts — below this the network fee outweighs the order. */
+export const CRYPTO_MIN_BRL = 20;
 
 export type CheckoutErrors = Partial<Record<keyof CheckoutForm, string>>;
 
@@ -203,7 +210,7 @@ export function parseDraft(raw: unknown, now: number): CheckoutForm | null {
     const v = r.form?.[key];
     if (typeof v === "string" && v.length <= 160) (form[key] as string) = v;
   }
-  if (!["pix", "cartao", "boleto"].includes(form.payment)) form.payment = "pix";
+  if (!(PAYMENT_METHODS as readonly string[]).includes(form.payment)) form.payment = "pix";
   if (form.uf && !UFS.includes(form.uf)) form.uf = "";
   if (!/^\d{1,2}$/.test(form.installments)) form.installments = "1";
   form.cpf = "";

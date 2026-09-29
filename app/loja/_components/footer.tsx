@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Barcode, CreditCard, FileCheck, Mail, QrCode, ShieldCheck, Snowflake, Truck } from "lucide-react";
-import { CATEGORIES, STORE, categoryHref, freeShippingOnAllPurchasable, purchasableOffers } from "../_lib/catalog";
+import { Barcode, Coins, CreditCard, FileCheck, Mail, QrCode, ShieldCheck, Snowflake, Truck } from "lucide-react";
+import { CATEGORIES, STORE, categoryHref, freeShippingOnAllPurchasable, offeredPayments, purchasableOffers } from "../_lib/catalog";
 import { OptInForm } from "./client-sections";
 import { PrivacyPreferencesButton } from "./consent-banner";
 import { ThemeSwitcher } from "./theme-switcher";
 
-const PAYMENT_ICONS = { pix: QrCode, cartao: CreditCard, boleto: Barcode } as const;
+const PAYMENT_ICONS = { pix: QrCode, cartao: CreditCard, boleto: Barcode, crypto: Coins } as const;
 
 export function StoreFooter() {
   return (
@@ -112,7 +112,7 @@ export function StoreFooter() {
         <div className="col-span-2 flex flex-col gap-3 lg:col-span-1">
           <p className="lj-tiny font-bold uppercase tracking-[0.08em] text-[color:var(--lj-ink)]">Formas de pagamento</p>
           <ul className="flex flex-wrap gap-2">
-            {STORE.payment.map((p) => {
+            {offeredPayments().map((p) => {
               const Icon = PAYMENT_ICONS[p.id];
               return (
                 <li key={p.id} className="lj-badge lj-badge--neutral h-8 px-3 text-xs">

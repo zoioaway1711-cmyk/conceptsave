@@ -54,6 +54,8 @@ export function ProductImage({
 }
 
 export function StarRating({ rating, count, compact }: { rating: number; count?: number; compact?: boolean }) {
+  // A product nobody reviewed yet shows that plainly — never five empty stars and "0.0".
+  if (count === 0 || rating <= 0) return <span className="lj-tiny lj-muted">Sem avaliações ainda</span>;
   const rounded = Math.round(rating);
   return (
     <span className="inline-flex items-center gap-1.5">

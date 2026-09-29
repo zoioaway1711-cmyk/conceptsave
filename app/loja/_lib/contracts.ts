@@ -53,7 +53,7 @@ export type Order = {
   history: { status: OrderStatus; at: string }[];
   lines: OrderLine[];
   fulfillment: Fulfillment;
-  payment: { method: "pix" | "cartao" | "boleto"; installments?: number; status: "pending" | "approved" | "refused" | "refunded" };
+  payment: { method: "pix" | "cartao" | "boleto" | "crypto"; installments?: number; status: "pending" | "approved" | "refused" | "refunded" };
   totals: OrderQuote;
 };
 

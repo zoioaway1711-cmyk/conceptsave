@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { getOrder, publicOrderView, verifyOrderAccessToken } from "@/lib/loja-orders";
+import { orderPaymentState } from "@/lib/loja-payments";
 import { enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 /*
@@ -34,7 +35,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Same answer for "doesn't exist" and "wrong token": no enumeration.
     return notFound();
   }
-  const order = await getOrder(db, id);
+  let order = await getOrder(db, id);
   if (!order) return notFound();
-  return Response.json({ order: publicOrderView(order) }, { headers: PRIVATE_HEADERS });
+  // `sync`: while the customer watches a pending Pix, this is also the
+  // (throttled) fallback that asks the provider in case a webhook is late.
+  let payment: Awaited<ReturnType<typeof orderPaymentState>>;
+  try {
+    payment = await orderPaymentState(db, order, { sync: true });
+  } catch (error) {
+    console.error("[loja] orderPaymentState failed", error);
+    payment = { mode: "manual" };
+  }
+  // A payment confirmed just now moved the order forward: show that.
+  if (payment.mode === "auto" && payment.current?.status === "paid" && order.status === "received") order = (await getOrder(db, id)) ?? order;
+  return Response.json({ order: publicOrderView(order), payment }, { headers: PRIVATE_HEADERS });
 }

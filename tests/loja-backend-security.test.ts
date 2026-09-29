@@ -143,7 +143,9 @@ describe("order body schema", () => {
     const inf = JSON.stringify(orderBody()).replace(/"expectedTotal":[0-9.]+/, '"expectedTotal":1e999');
     expect((await placeOrder(inf)).status).toBe(400);
     expect((await placeOrder(orderBody({ items: [{ slug: kit.slug, qty: 1.5 }] }))).status).toBe(400);
-    expect((await placeOrder(orderBody({ payment: { method: "crypto", installments: 1 } }))).status).toBe(400);
+    expect((await placeOrder(orderBody({ payment: { method: "paypal", installments: 1 } }))).status).toBe(400);
+    // "crypto" is a real method, but only while its gateway is configured.
+    expect((await placeOrder(orderBody({ payment: { method: "crypto", installments: 1 } }))).status).toBe(422);
     expect(count("loja_orders")).toBe(0);
   });
 });

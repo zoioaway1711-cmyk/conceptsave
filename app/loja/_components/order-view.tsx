@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, CheckCircle2, Circle, Copy, Home, MessageCircle, Package, Printer, Truck, XCircle } from "lucide-react";
@@ -11,6 +11,7 @@ import type { OrderTotals } from "../_lib/pricing";
 import { ORDER_TOKEN_RE, orderAccessToken, orderShareUrl, rememberOrderAccess, useOrderRefs } from "../_lib/store";
 import { OrderSummary, useHydrated } from "./cart-view";
 import { HowItWorks } from "./how-it-works";
+import { OnlinePayment, PaymentReceipt, type PaymentState } from "./online-payment";
 import { Breadcrumbs, ProductImage } from "./ui";
 
 export type PublicOrder = {
@@ -21,7 +22,7 @@ export type PublicOrder = {
   address: { cep: string; street: string; number: string; complement: string; district: string; city: string; uf: string };
   items: { sku: string; slug: string; name: string; presentation: string; qty: number; unitPrice: number; listUnitPrice: number }[];
   totals: OrderTotals;
-  payment: { method: "pix" | "cartao" | "boleto"; installments: number };
+  payment: { method: "pix" | "cartao" | "boleto" | "crypto"; installments: number };
   trackingCode: string | null;
   history: { status: OrderStatus; at: string; note?: string }[];
   createdAt: string;
@@ -30,12 +31,16 @@ export type PublicOrder = {
 const dateFmt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 export const formatDate = (iso: string) => dateFmt.format(new Date(iso));
 
-export async function fetchOrder(id: string, token: string): Promise<{ state: "ok"; order: PublicOrder } | { state: "not_found" | "error" }> {
+export async function fetchOrder(
+  id: string,
+  token: string,
+): Promise<{ state: "ok"; order: PublicOrder; payment: PaymentState } | { state: "not_found" | "error" }> {
   try {
     const res = await fetch(`/api/loja/orders/${encodeURIComponent(id)}?t=${encodeURIComponent(token)}`, { cache: "no-store" });
     if (res.status === 404) return { state: "not_found" };
     if (!res.ok) return { state: "error" };
-    return { state: "ok", order: ((await res.json()) as { order: PublicOrder }).order };
+    const data = (await res.json()) as { order: PublicOrder; payment?: PaymentState };
+    return { state: "ok", order: data.order, payment: data.payment ?? { mode: "manual" } };
   } catch {
     return { state: "error" };
   }
@@ -47,7 +52,7 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
 }
 
 /** Only recorded steps get a date; the rest of the happy path is shown as "próximas etapas". */
-function Timeline({ order }: { order: PublicOrder }) {
+function Timeline({ order, autoPayment }: { order: PublicOrder; autoPayment: boolean }) {
   const reached = new Map(order.history.map((h) => [h.status, h]));
   if (order.status === "cancelled") {
     return (
@@ -90,7 +95,17 @@ function Timeline({ order }: { order: PublicOrder }) {
               <strong className={entry ? "text-[color:var(--lj-ink)]" : "lj-muted font-semibold"}>{ORDER_STATUS_LABEL[status]}</strong>
               <span className="lj-muted block">
                 {entry ? formatDate(entry.at) : "Próxima etapa"}
-                {current && <> · {ORDER_STATUS_HINT[status]}</>}
+                {current && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    {status === "received" && autoPayment
+                      ? "Aguardando o pagamento, que é confirmado automaticamente nesta página."
+                      : status === "payment_approved" && autoPayment
+                        ? "Pagamento confirmado automaticamente. O pedido segue para separação."
+                        : ORDER_STATUS_HINT[status]}
+                  </>
+                )}
               </span>
             </span>
           </li>
@@ -145,6 +160,23 @@ export function OrderView({ id }: { id: string }) {
     };
   }, [id, token, attempt]);
 
+  // Silent refresh for the Pix panel: never swaps the page for a skeleton,
+  // and a failed poll keeps what's on screen. A state handed over directly
+  // (the answer to "generate code") is applied without a request.
+  const refresh = useCallback(
+    (payment?: PaymentState) => {
+      if (payment) {
+        setResult((cur) => (cur?.state === "ok" ? { ...cur, payment } : cur));
+        return;
+      }
+      if (!token) return;
+      void fetchOrder(id, token).then((r) => {
+        if (r.state === "ok") setResult(r);
+      });
+    },
+    [id, token],
+  );
+
   // No token anywhere (link without `?t=`, other browser): same answer the
   // API would give, without a request.
   const view = hydrated && !token ? ({ state: "not_found" } as const) : result;
@@ -157,7 +189,7 @@ export function OrderView({ id }: { id: string }) {
     };
     return <OrderUnavailable state={view.state} onRetry={retry} />;
   }
-  return <OrderDetails order={view.order} isNew={isNew} token={token} />;
+  return <OrderDetails order={view.order} payment={view.payment} isNew={isNew} token={token} onRefresh={refresh} />;
 }
 
 function OrderUnavailable({ state, onRetry }: { state: "not_found" | "error"; onRetry: () => void }) {
@@ -184,8 +216,30 @@ function OrderUnavailable({ state, onRetry }: { state: "not_found" | "error"; on
   );
 }
 
-function OrderDetails({ order, isNew, token }: { order: PublicOrder; isNew: boolean; token: string }) {
+function OrderDetails({
+  order,
+  payment: paymentState,
+  isNew,
+  token,
+  onRefresh,
+}: {
+  order: PublicOrder;
+  payment: PaymentState;
+  isNew: boolean;
+  token: string;
+  onRefresh: (next?: PaymentState) => void;
+}) {
   const payment = STORE.payment.find((p) => p.id === order.payment.method)?.label ?? order.payment.method;
+  const auto = paymentState.mode === "auto" ? paymentState : null;
+  const paidOnline = auto?.current?.status === "paid" ? auto.current : null;
+  // The payment panel shows while there is something to pay (or a payment
+  // to explain); once the order moved on, the "Pagamento" card has the receipt.
+  // Stays up right after an automatic confirmation (order just moved to
+  // payment_approved) so the customer sees "Pagamento confirmado!" and the
+  // receipt where they were looking; later statuses show it in "Pagamento".
+  const justPaid = order.status === "payment_approved" && auto?.current?.status === "paid";
+  const showOnline = Boolean(auto && (order.status === "received" || auto.current?.status === "review" || justPaid));
+  const onlineLabel = auto?.provider === "crypto" ? "USDT" : "Pix";
 
   return (
     <div className="flex flex-col gap-6">
@@ -196,10 +250,17 @@ function OrderDetails({ order, isNew, token }: { order: PublicOrder; isNew: bool
           <CheckCircle2 className="size-8 shrink-0 text-[color:var(--lj-success)]" aria-hidden="true" />
           <div className="flex flex-col gap-1">
             <h1 className="lj-h2 text-[22px]">Pedido registrado, {order.customer.name}!</h1>
-            <p className="lj-small text-[color:var(--lj-text)]">
-              Número <strong>{order.number}</strong>. <strong>O pagamento ainda não foi feito:</strong> nossa equipe vai entrar em contato
-              pelo e-mail {order.customer.email} ou pelo celular {order.customer.phone} para combinar o pagamento via {payment.toLowerCase()}.
-            </p>
+            {auto ? (
+              <p className="lj-small text-[color:var(--lj-text)]">
+                Número <strong>{order.number}</strong>. Agora é só pagar {auto.provider === "crypto" ? "em USDT" : "com Pix"} aqui embaixo: a
+                confirmação é automática e esta página se atualiza sozinha.
+              </p>
+            ) : (
+              <p className="lj-small text-[color:var(--lj-text)]">
+                Número <strong>{order.number}</strong>. <strong>O pagamento ainda não foi feito:</strong> nossa equipe vai entrar em contato
+                pelo e-mail {order.customer.email} ou pelo celular {order.customer.phone} para combinar o pagamento via {payment.toLowerCase()}.
+              </p>
+            )}
             <p className="lj-tiny lj-muted">Este link fica salvo em “Minha conta” neste navegador para você acompanhar o pedido.</p>
           </div>
         </div>
@@ -239,11 +300,13 @@ function OrderDetails({ order, isNew, token }: { order: PublicOrder; isNew: bool
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8">
         <div className="flex min-w-0 flex-col gap-6">
+          {showOnline && auto && <OnlinePayment orderId={order.id} token={token} state={auto} onRefresh={onRefresh} />}
+
           <section className="lj-card lj-card--pad" aria-labelledby="acompanhamento">
             <h2 id="acompanhamento" className="lj-h3 mb-4">
               Acompanhamento
             </h2>
-            <Timeline order={order} />
+            <Timeline order={order} autoPayment={Boolean(auto)} />
             {order.trackingCode && (
               <div className="lj-panel mt-5 flex flex-wrap items-center justify-between gap-3 p-4">
                 <span className="inline-flex items-center gap-2 text-sm">
@@ -273,7 +336,7 @@ function OrderDetails({ order, isNew, token }: { order: PublicOrder; isNew: bool
               <h2 id="proximos" className="lj-h3 mb-4">
                 Próximos passos
               </h2>
-              <HowItWorks compact />
+              <HowItWorks compact method={order.payment.method} />
             </section>
           )}
 
@@ -327,11 +390,20 @@ function OrderDetails({ order, isNew, token }: { order: PublicOrder; isNew: bool
               </p>
               <p className="lj-tiny lj-muted mt-2">
                 {order.status === "received"
-                  ? "Aguardando pagamento — nossa equipe entra em contato para combinar."
+                  ? auto
+                    ? `Aguardando o pagamento em ${onlineLabel} — pague por esta página.`
+                    : "Aguardando pagamento — nossa equipe entra em contato para combinar."
                   : order.status === "cancelled"
                     ? "Pedido cancelado."
-                    : "Pagamento confirmado pela equipe."}
+                    : paidOnline
+                      ? `${onlineLabel} confirmado automaticamente.`
+                      : "Pagamento confirmado pela equipe."}
               </p>
+              {paidOnline && order.status !== "received" && !showOnline && (
+                <span className="mt-2 block">
+                  <PaymentReceipt payment={paidOnline} orderId={order.id} token={token} compact />
+                </span>
+              )}
             </section>
           </div>
         </div>

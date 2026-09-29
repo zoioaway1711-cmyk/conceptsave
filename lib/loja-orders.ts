@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { STORE, getProduct, type Product } from "@/app/loja/_lib/catalog";
-import { digits, fieldError, type CheckoutForm } from "@/app/loja/_lib/checkout";
+import { PAYMENT_METHODS, digits, fieldError, type CheckoutForm, type PaymentMethod } from "@/app/loja/_lib/checkout";
 import { ALLOWED_TRANSITIONS, type OrderStatus } from "@/app/loja/_lib/order-status";
 import { computeTotals, type OrderTotals } from "@/app/loja/_lib/pricing";
 import { antiBotShape } from "./loja-antibot";
 import { REGULATED_CATEGORIES, loadCatalog } from "./loja-catalog";
+import { CRYPTO_LIMITS, cryptoConfigured } from "./loja-crypto";
 import { cleanLine, isStrictEmail } from "./text-sanitize";
 
 /*
@@ -138,7 +139,7 @@ export const orderCreateSchema = z.object({
     .strict(),
   payment: z
     .object({
-      method: z.enum(["pix", "cartao", "boleto"]),
+      method: z.enum(PAYMENT_METHODS),
       // Upper bound is checked in createOrder against the LIVE setting — a
       // schema-level .max(STORE.maxInstallments) would freeze at module load.
       installments: z.number().int().min(1).max(12).default(1),
@@ -298,6 +299,9 @@ export async function createOrder(db: D1Database, rawInput: OrderCreateInput): P
   if (input.payment.method === "cartao" && input.payment.installments > STORE.maxInstallments) {
     fields.installments = `Parcelamento disponível em até ${STORE.maxInstallments}x.`;
   }
+  // Crypto exists only as an automatic gateway: never accepted as a
+  // "we'll contact you" order when the gateway is off.
+  if (input.payment.method === "crypto" && !cryptoConfigured()) fields.payment = "Pagamento em cripto indisponível no momento. Escolha outra forma de pagamento.";
   if (Object.keys(fields).length) return { ok: false, error: { code: "invalid_fields", fields } };
 
   // Merge duplicate lines, then resolve each against the live catalog.
@@ -314,6 +318,10 @@ export async function createOrder(db: D1Database, rawInput: OrderCreateInput): P
 
   const totals = computeTotals(lines);
   if (Math.abs(totals.total - input.expectedTotal) > 0.005) return { ok: false, error: { code: "price_changed", totals } };
+  const cents = Math.round(totals.total * 100);
+  if (input.payment.method === "crypto" && (cents < CRYPTO_LIMITS.minCents || cents > CRYPTO_LIMITS.maxCents)) {
+    return { ok: false, error: { code: "invalid_fields", fields: { payment: "Pagamento em cripto disponível para pedidos a partir de R$ 20,00. Escolha outra forma de pagamento." } } };
+  }
 
   const items: OrderItem[] = lines.map(({ product, qty }) => ({
     sku: product.sku,
@@ -415,7 +423,7 @@ type OrderRow = {
   itemsJson: string;
   totalsJson: string;
   total: number;
-  paymentMethod: "pix" | "cartao" | "boleto";
+  paymentMethod: PaymentMethod;
   installments: number;
   trackingCode: string | null;
   historyJson: string;

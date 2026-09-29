@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { isSameOrigin, readBody } from "@/lib/api-validation";
 import { MIN_FILL_MS, botRejectionReason, rejectBot, withoutAntiBotFields } from "@/lib/loja-antibot";
 import { createOrder, orderAccessToken, orderCreateSchema } from "@/lib/loja-orders";
+import { isTestBuyerEmail } from "@/lib/loja-payments";
+import { pixConfigured } from "@/lib/loja-pix";
 import { consumeRateLimit, enforceGlobalLimit, enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 import { sendTelegramAlert } from "@/lib/telegram";
 import { formatBRL } from "@/app/loja/_lib/catalog";
@@ -79,7 +81,13 @@ export async function POST(request: Request) {
     const units = result.items.reduce((s, i) => s + i.qty, 0);
     // No customer data in the alert — just enough for the team to go look.
     await alertNewOrder(
-      `🛒 Novo pedido na loja: ${result.number}\n${units} ${units === 1 ? "item" : "itens"} · ${formatBRL(result.totals.total)} · pagamento: ${body.payment.method}\nAbra o painel → Loja para combinar o pagamento.`,
+      `${isTestBuyerEmail(body.customer.email) ? "🧪 TESTE — " : ""}🛒 Novo pedido na loja: ${result.number}\n${units} ${units === 1 ? "item" : "itens"} · ${formatBRL(result.totals.total)} · pagamento: ${body.payment.method}\n${
+        body.payment.method === "pix" && pixConfigured()
+          ? "Aguardando o Pix no site — a confirmação é automática (você recebe outro aviso)."
+          : body.payment.method === "crypto"
+            ? "Aguardando USDT (Tron) no site — a confirmação é automática (você recebe outro aviso)."
+            : "Abra o painel → Loja para combinar o pagamento."
+      }`,
     );
   }
 

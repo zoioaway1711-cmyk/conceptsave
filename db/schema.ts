@@ -317,9 +317,11 @@ export const blockedIps = sqliteTable("blocked_ips", {
 // Storefront (/loja)
 // ---------------------------------------------------------------------------
 
-// A storefront order. There is no payment gateway yet: an order is created
-// as `received` and the team collects payment offline, moving it forward
-// from the admin (sc-629f1dc76b/loja). `historyJson` is the append-only
+// A storefront order. It is created as `received`. Pix (and crypto) orders
+// are moved to `payment_approved` automatically by the payment provider's
+// signed webhook (lib/loja-payments.ts, loja_payments below); every other
+// method is collected offline and moved forward from the admin
+// (sc-629f1dc76b/loja). `historyJson` is the append-only
 // status timeline shown to the customer — only transitions an admin (or
 // the order creation itself) actually made. The CPF is stored AES-GCM
 // encrypted with its own HKDF-derived key (lib/loja-orders.ts encryptCpf —
@@ -349,7 +351,60 @@ export const lojaOrders = sqliteTable("loja_orders", {
   numberUnique: uniqueIndex("idx_loja_orders_number").on(table.number),
   createdIdx: index("idx_loja_orders_created").on(table.createdAt),
   statusCheck: check("loja_orders_status_check", sql`${table.status} IN ('received','payment_approved','preparing','shipped','delivered','cancelled')`),
-  paymentCheck: check("loja_orders_payment_check", sql`${table.paymentMethod} IN ('pix','cartao','boleto')`),
+  paymentCheck: check("loja_orders_payment_check", sql`${table.paymentMethod} IN ('pix','cartao','boleto','crypto')`),
+}));
+
+// One charge at a payment provider (pix-checkout / crypto-checkout) for a
+// storefront order. An order can accumulate several (an expired Pix code is
+// replaced by a new one), but at most ONE may be live (`creating`/`pending`)
+// at a time — the partial unique index is what stops a double click or two
+// tabs from opening two charges. `status` is our normalized view:
+//   creating → the provider call is in flight (provider_ref still null)
+//   pending  → code/address shown to the customer, awaiting payment
+//   paid     → confirmed by the provider (terminal)
+//   expired  → lapsed unpaid; can still turn `paid` (late payment)
+//   review   → money arrived but needs a human (Pix `held`, crypto
+//              `underpaid`/`mismatch`, or an amount that doesn't match)
+//   failed   → the charge was never created
+// `providerStatus` keeps the provider's own word. `detailsJson` is what the
+// customer's order page may show (copy-and-paste code, address, expiry);
+// `providerDataJson` is back-office only (end-to-end id, fees, txid…).
+export const lojaPayments = sqliteTable("loja_payments", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  provider: text("provider").notNull(),
+  providerRef: text("provider_ref"),
+  status: text("status").notNull(),
+  providerStatus: text("provider_status"),
+  amountCents: integer("amount_cents").notNull(),
+  detailsJson: text("details_json").notNull().default("{}"),
+  providerDataJson: text("provider_data_json").notNull().default("{}"),
+  receiptUrl: text("receipt_url"),
+  paidAt: text("paid_at"),
+  checkedAt: text("checked_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => ({
+  providerRefUnique: uniqueIndex("idx_loja_payments_provider_ref").on(table.provider, table.providerRef),
+  orderIdx: index("idx_loja_payments_order").on(table.orderId, table.createdAt),
+  liveUnique: uniqueIndex("idx_loja_payments_live").on(table.orderId).where(sql`${table.status} IN ('creating','pending')`),
+  providerCheck: check("loja_payments_provider_check", sql`${table.provider} IN ('pix','crypto')`),
+  statusCheck: check("loja_payments_status_check", sql`${table.status} IN ('creating','pending','paid','expired','review','failed')`),
+  amountCheck: check("loja_payments_amount_check", sql`${table.amountCents} > 0`),
+}));
+
+// Every signed webhook delivery that passed verification, for audit and
+// idempotency: providers retry and may send the same event more than once,
+// so (provider, provider_ref, event) is unique and a repeat is a no-op.
+export const lojaPaymentEvents = sqliteTable("loja_payment_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  provider: text("provider").notNull(),
+  providerRef: text("provider_ref").notNull(),
+  event: text("event").notNull(),
+  payloadJson: text("payload_json").notNull(),
+  receivedAt: text("received_at").notNull(),
+}, (table) => ({
+  eventUnique: uniqueIndex("idx_loja_payment_events_unique").on(table.provider, table.providerRef, table.event),
 }));
 
 // Controlled stock per catalog SKU. A SKU with no row is "not controlled"
