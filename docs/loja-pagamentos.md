@@ -41,10 +41,17 @@ Modo teste: pedidos com o e-mail de `LOJA_TEST_BUYER_EMAIL` são cobrados R$ 20,
 
 ## Produtos de teste (migração 0017)
 
-Cinco acessórios; três com preço baixo de propósito, para testar pagamentos reais:
-Lenços com Álcool 70% **R$ 5,00** (Pix), Coletor 1,5 L **R$ 10,00** (Pix) e
-Seringas 1ml 31G **R$ 20,00** (Pix ou Cripto — o Cripto só aceita pedidos a partir de R$ 20,00;
-abaixo disso a opção aparece desabilitada no checkout). Ao terminar os testes, ajuste os
+Cinco acessórios com preço baixo de propósito, para testar pagamentos reais:
+
+| Produto | Preço | Pix | Cripto |
+| --- | --- | --- | --- |
+| Lenços com Álcool 70% (10 sachês) | R$ 5,00 | ✅ | — |
+| Coletor de Perfurocortantes 1,5 L | R$ 10,00 | ✅ | — |
+| Seringas 1ml 31G (10 un.) | R$ 20,00 | ✅ | ✅ |
+| Bolsa Térmica com Gel | R$ 30,00 | ✅ | ✅ |
+| Agulhas para Caneta 32G (100 un.) | R$ 50,00 | ✅ | ✅ |
+
+O Cripto só aceita pedidos a partir de R$ 20,00; abaixo disso a opção aparece desabilitada no checkout. Ao terminar os testes, ajuste os
 preços em Painel → Loja → Catálogo. Antes de vender seringas/agulhas, confirme a
 regularização ANVISA do fabricante e troque as ilustrações por fotos reais.
 
