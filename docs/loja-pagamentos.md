@@ -45,16 +45,18 @@ Seis acessórios com preço baixo de propósito, para testar pagamentos reais:
 
 | Produto | Preço | Pix | Cripto |
 | --- | --- | --- | --- |
-| Lenços com Álcool 70% (10 sachês) | R$ 5,00 | ✅ | — |
+| Lenços com Álcool 70% (100 sachês) | R$ 5,00 | ✅ | — |
 | Coletor de Perfurocortantes 1 L | R$ 20,00 | ✅ | ✅ |
 | Coletor de Perfurocortantes 3 L | R$ 20,00 | ✅ | ✅ |
-| Seringas 1ml 31G (10 un.) | R$ 20,00 | ✅ | ✅ |
+| Seringas 1ml 31G (100 un.) | R$ 20,00 | ✅ | ✅ |
 | Bolsa Térmica com Gel | R$ 30,00 | ✅ | ✅ |
 | Agulhas para Caneta 32G (100 un.) | R$ 50,00 | ✅ | ✅ |
 
 O Cripto só aceita pedidos a partir de R$ 20,00; abaixo disso a opção aparece desabilitada no checkout. Ao terminar os testes, ajuste os
 preços em Painel → Loja → Catálogo. Antes de vender seringas/agulhas, confirme a
-regularização ANVISA do fabricante e troque as ilustrações por fotos reais.
+regularização ANVISA do fabricante. As fotos (em `~/Documents/fotos-loja`) trazem alegações que
+precisam ser verdadeiras antes de publicar: "Produto registrado e conforme ANVISA" (coletor 1 L),
+"Elimina até 99,9% de bactérias e vírus" (lenços) e "Ideal para peptídeos" (seringas).
 
 ## Depois do teste
 

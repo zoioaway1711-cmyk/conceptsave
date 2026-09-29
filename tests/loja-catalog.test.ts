@@ -53,7 +53,7 @@ describe("catalog in D1", () => {
     const added = snap.products.slice(SEED_PRODUCTS.length);
     expect(added.map((p) => p.slug)).toEqual([
       "seringas-1ml-31g",
-      "agulhas-caneta-32g-4mm",
+      "agulhas-caneta-32g",
       "lencos-alcool-70",
       "coletor-perfurocortantes-1l",
       "coletor-perfurocortantes-3l",
