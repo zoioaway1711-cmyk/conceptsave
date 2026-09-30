@@ -94,6 +94,11 @@ describe("catalog in D1", () => {
       expect(p.rating).toBe(0);
       expect(p.boughtTogether).toEqual([]);
       expect(p.specs.join(" ")).not.toMatch(/subcut|dose|aplica/i);
+      // Only BPC-157 and TB-500 have a research-use label on the real vial;
+      // the others' labels say otherwise, so the store must not claim it.
+      const researchLabel = ["bpc-157-5mg", "tb-500-5mg"].includes(p.slug);
+      expect(/pesquisa laboratorial/.test(`${p.description} ${p.specs.join(" ")}`)).toBe(researchLabel);
+      expect(p.description).toMatch(/não é medicamento registrado na ANVISA/);
       expect(existsSync(`public${p.image.base}-960.webp`) && existsSync(`public${p.image.base}-480.webp`)).toBe(true);
       for (const slug of p.related) expect(snap.products.some((q) => q.slug === slug)).toBe(true);
     }

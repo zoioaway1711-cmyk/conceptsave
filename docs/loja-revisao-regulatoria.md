@@ -21,6 +21,12 @@ consumidor e o rótulo diz "USO EM PESQUISA LABORATORIAL APENAS"):
   no mesmo regime (Epitalon 50mg, Semax 10mg, Selank 10mg, KPV 10mg, MOTS-c 10mg, DSIP 5mg). Ficaram
   de fora os ligados a GH/IGF/hormônios, os que existem como medicamento de prescrição
   (semaglutida, tesamorelina, bremelanotida/PT-141, elamipretida/SS-31) e o Melanotan.
+- **Correção (30/09/2026, migração `0021`):** as fotos do responsável mostraram que o rótulo real de
+  GHK-Cu, DSIP, Epitalon, KPV, Selank e Semax diz **"uso subcutâneo"**, e não "uso em pesquisa
+  laboratorial" como a loja dizia (do MOTS-c não há foto). A loja deixou de afirmar esse rótulo para
+  esses sete: o texto diz só que não têm registro na ANVISA e não são vendidos pelo site, e as
+  ilustrações não trazem mais a frase. BPC-157 e TB-500 mantêm a frase, porque o rótulo real diz isso.
+  Os banners enviados (com promessas de efeito e "uso subcutâneo") **não** foram publicados.
 - Somente **Kit de Aplicação Premium** e **Diluente Bacteriostático** podem ser pedidos online.
 - A chave de controle é o campo `purchasable` em `app/loja/_lib/catalog.ts`.
 
