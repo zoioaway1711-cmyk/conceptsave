@@ -219,7 +219,7 @@ export const CATEGORIES: Category[] = [
     slug: "frascos",
     name: "Frascos injetáveis",
     shortName: "Frascos",
-    description: "Frascos multidose de 60mg, com lote numerado e testado antes do envio.",
+    description: "Frascos da linha Save Concept e peptídeos da vitrine de estudo, com lote numerado. Apenas para consulta.",
     image: IMG_TIRZEPATIDA,
   },
   {

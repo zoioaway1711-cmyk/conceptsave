@@ -13,6 +13,11 @@ consumidor e o rótulo diz "USO EM PESQUISA LABORATORIAL APENAS"):
   consulta: sem botão de compra, sem "Compre junto", sem dados de oferta no Google (JSON-LD sem
   `Offer`), e **o servidor recusa** pedidos com esses itens (`POST /api/loja/orders` →
   `not_purchasable`), não só a interface.
+- Em 30/09/2026 entraram três peptídeos como **vitrine de estudo** (BPC-157 5mg, TB-500 5mg,
+  GHK-Cu 50mg — migração `0018_loja_peptides.sql`), na categoria `frascos`: mesmo bloqueio acima,
+  sem avaliações, sem "Compre junto", sem posologia/via de aplicação e com imagem marcada como
+  "IMAGEM ILUSTRATIVA". Eles também não têm registro na ANVISA, então entram na mesma validação
+  jurídica dos frascos.
 - Somente **Kit de Aplicação Premium** e **Diluente Bacteriostático** podem ser pedidos online.
 - A chave de controle é o campo `purchasable` em `app/loja/_lib/catalog.ts`.
 

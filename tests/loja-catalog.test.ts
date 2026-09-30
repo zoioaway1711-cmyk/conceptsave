@@ -50,7 +50,7 @@ describe("catalog in D1", () => {
 
   it("migration 0017 adds only accessories, with no invented reviews and an image that exists", async () => {
     const snap = await readCatalog(db as never);
-    const added = snap.products.slice(SEED_PRODUCTS.length);
+    const added = snap.products.slice(SEED_PRODUCTS.length).filter((p) => p.category === "acessorios");
     expect(added.map((p) => p.slug)).toEqual([
       "seringas-1ml-31g",
       "agulhas-caneta-32g",
@@ -67,6 +67,42 @@ describe("catalog in D1", () => {
       expect(existsSync(`public${p.image.base}-960.webp`) && existsSync(`public${p.image.base}-480.webp`)).toBe(true);
       for (const slug of [...p.related, ...p.boughtTogether]) expect(snap.products.some((q) => q.slug === slug)).toBe(true);
     }
+  });
+
+  it("migration 0018 adds display-only peptides that can never be sold", async () => {
+    const snap = await readCatalog(db as never);
+    const seed = new Set(SEED_PRODUCTS.map((p) => p.slug));
+    const added = snap.products.filter((p) => !seed.has(p.slug) && p.category !== "acessorios");
+    expect(added.map((p) => p.slug)).toEqual(["bpc-157-5mg", "tb-500-5mg", "ghk-cu-50mg"]);
+    const { existsSync } = await import("node:fs");
+    for (const p of added) {
+      expect(p.category).toBe("frascos");
+      expect(p.purchasable).toBe(false);
+      expect(p.healthNotice).toBe(true);
+      expect(p.reviewCount).toBe(0);
+      expect(p.rating).toBe(0);
+      expect(p.boughtTogether).toEqual([]);
+      expect(p.specs.join(" ")).not.toMatch(/subcut|dose|aplica/i);
+      expect(existsSync(`public${p.image.base}-960.webp`) && existsSync(`public${p.image.base}-480.webp`)).toBe(true);
+      for (const slug of p.related) expect(snap.products.some((q) => q.slug === slug)).toBe(true);
+    }
+    // The admin cannot flip them to purchasable, and orders refuse them.
+    await loadCatalog(db as never);
+    const bpc = added[0];
+    const res = await updateProduct(db as never, bpc.slug, { ...edit("tirzepatida-60mg"), name: bpc.name, purchasable: true }, "t");
+    expect(res).toEqual({ error: "regulated" });
+    for (const p of added) {
+      const order = await createOrder(db as never, {
+        customer: { name: "Maria Teste Silva", email: "m@example.com", cpf: "52998224725", phone: "11987654321" },
+        address: { cep: "01310100", street: "Av", number: "1", complement: "", district: "B", city: "São Paulo", uf: "SP" },
+        payment: { method: "pix", installments: 1 },
+        items: [{ slug: p.slug, qty: 1 }],
+        expectedTotal: p.price,
+      });
+      expect(order.ok).toBe(false);
+      if (!order.ok) expect(order.error.code).toBe("not_purchasable");
+    }
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM loja_orders").get()).toEqual({ n: 0 });
   });
 
   it("loadCatalog fills the registry (products + derived store settings)", async () => {

@@ -127,6 +127,13 @@
       "when": 1790709279529,
       "tag": "0017_loja_accessories",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1790782000000,
+      "tag": "0018_loja_peptides",
+      "breakpoints": true
     }
   ]
 }

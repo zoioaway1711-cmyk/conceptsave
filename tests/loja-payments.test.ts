@@ -170,7 +170,8 @@ function paidEvent(merchantRef: string, amountCents = Math.round(kit.price * 100
     merchant_ref: merchantRef,
     status: event === "order.paid" ? "paid" : event === "order.held" ? "held" : "expired",
     amount_cents: amountCents,
-    paid_at: "2026-09-29T13:32:50.312Z",
+    // "now", not a fixed date: the "vendas do dia" dashboard counts payments by day.
+    paid_at: new Date().toISOString(),
     confirmed_at: 1790170397,
     end_to_end_id: "E18236120202609231333s001572ff3c",
     fee_cents: 1195,
