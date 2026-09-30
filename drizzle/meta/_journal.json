@@ -141,6 +141,13 @@
       "when": 1790790000000,
       "tag": "0019_loja_peptides_more",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1790800000000,
+      "tag": "0020_loja_peptide_photos",
+      "breakpoints": true
     }
   ]
 }
