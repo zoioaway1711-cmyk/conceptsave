@@ -129,9 +129,21 @@ export const STORE = {
   returns: "",
 };
 
-/** The payment methods to OFFER (lists, checkout): crypto only while its gateway is on. `STORE.payment` keeps all of them for labels. */
+/**
+ * The payment methods to OFFER (lists, checkout): only the linked APIs, Pix
+ * (pix-checkout) and crypto (crypto-checkout, while its gateway is on).
+ * Pix stays offered even without its keys (then arranged by the team), so
+ * checkout never ends up with no method. `STORE.payment` keeps every
+ * method, card and boleto included, only for the labels of older orders.
+ */
 export function offeredPayments() {
-  return STORE.payment.filter((p) => p.id !== "crypto" || STORE.gateways.crypto);
+  return STORE.payment.filter((p) => p.id === "pix" || (p.id === "crypto" && STORE.gateways.crypto));
+}
+
+/** The payment line shown to shoppers. The admin "Aviso de pagamento" is only for when Pix is not automatic. */
+export function paymentNotice() {
+  if (!STORE.gateways.pix) return STORE.paymentNote;
+  return `Pagamento por Pix${STORE.gateways.crypto ? " ou cripto (USDT)" : ""} direto no site, com confirmação automática.`;
 }
 
 let appliedVersion = "";
@@ -180,14 +192,17 @@ export function applyCatalog(snapshot: CatalogSnapshot) {
     instagramUrl: safeExternalUrl(s.instagramUrl, INSTAGRAM_URL_RE),
     supportEmail: safeEmail(s.supportEmail),
     privacyEmail: safeEmail(s.privacyEmail),
-    maxInstallments: s.maxInstallments,
+    // Card is no longer offered (only the linked Pix/crypto APIs), so no
+    // installments anywhere; the admin setting is kept for if card returns.
+    maxInstallments: 1,
     delivery: { window: s.deliveryWindow, detail: s.deliveryDetail },
     payment: [
       { id: "pix", label: "Pix", detail: snapshot.gateways?.pix ? "À vista. QR Code gerado na hora e confirmação automática." : "À vista." },
-      { id: "cartao", label: "Cartão de crédito", detail: s.maxInstallments > 1 ? `Em até ${s.maxInstallments}x sem juros.` : "À vista." },
-      { id: "boleto", label: "Boleto", detail: "Envio após a compensação (até 2 dias úteis)." },
-      // Always listed so labels resolve on existing orders; the checkout
-      // only offers it while the gateway is on (STORE.gateways.crypto).
+      // Card and boleto are no longer offered; they stay listed only so older
+      // orders keep their labels. Crypto is always listed for the same reason;
+      // the checkout only offers it while the gateway is on (STORE.gateways.crypto).
+      { id: "cartao", label: "Cartão de crédito", detail: "Não aceito em pedidos novos." },
+      { id: "boleto", label: "Boleto", detail: "Não aceito em pedidos novos." },
       { id: "crypto", label: "Cripto (USDT)", detail: "USDT na rede Tron (TRC20). Cotação travada por 10 minutos e confirmação automática." },
     ],
     paymentNote: s.paymentNote,
@@ -285,7 +300,7 @@ export function faq() {
   {
     question: "Quais formas de pagamento vocês aceitam?",
     answer:
-      `Pix, cartão de crédito${STORE.maxInstallments > 1 ? ` (em até ${STORE.maxInstallments}x sem juros)` : ""} e boleto${STORE.gateways.crypto ? ", além de cripto (USDT na rede Tron)" : ""}. No boleto, o envio começa depois da compensação, que leva até 2 dias úteis. ${STORE.paymentNote}`,
+      `Pix${STORE.gateways.crypto ? " e cripto (USDT na rede Tron, para pedidos a partir de R$ 20,00)" : ""}. Não aceitamos cartão nem boleto. ${paymentNotice()}`,
   },
   {
     question: "Posso trocar ou devolver um pedido?",

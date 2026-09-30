@@ -78,9 +78,7 @@ export function OrderSummary({
         <span className="font-bold text-[color:var(--lj-ink)]">{pending ? "Total sem frete" : "Total"}</span>
         <span className="text-right">
           <span className="lj-price block text-2xl">{formatBRL(totals.total)}</span>
-          <span className="lj-tiny lj-muted">
-            ou {totals.installments.count}x de {formatBRL(totals.installments.amount)} sem juros
-          </span>
+          <span className="lj-tiny lj-muted">à vista no Pix{STORE.gateways.crypto ? " ou cripto" : ""}</span>
         </span>
       </div>
       {children}
@@ -274,7 +272,7 @@ export function CartView() {
                 Finalizar compra <ArrowRight aria-hidden="true" />
               </Link>
               <p className="lj-tiny lj-muted inline-flex items-center justify-center gap-1.5">
-                <Lock className="size-3.5" aria-hidden="true" /> Pix, cartão{STORE.maxInstallments > 1 ? ` em até ${STORE.maxInstallments}x` : ""} ou boleto
+                <Lock className="size-3.5" aria-hidden="true" /> Pix{STORE.gateways.crypto ? " ou cripto (USDT)" : ""}, direto no site
               </p>
             </OrderSummary>
           </div>

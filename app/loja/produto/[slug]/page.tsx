@@ -15,6 +15,7 @@ import {
   productsBySlugs,
   offeredPayments,
   storageOf,
+  paymentNotice,
 } from "../../_lib/catalog";
 import { ProductRail, RecentlyViewedProducts, TrackView } from "../../_components/client-sections";
 import { BuyBox, BuyTogether, ProductGallery } from "../../_components/product-detail";
@@ -173,7 +174,7 @@ export default async function ProdutoPage({ params }: Props) {
                 </p>
               </Accordion>
               <Accordion title="Pagamento">
-                <p>{STORE.paymentNote}</p>
+                <p>{paymentNotice()}</p>
                 <ul className="list-disc pl-5">
                   {offeredPayments().map((p) => (
                     <li key={p.id}>

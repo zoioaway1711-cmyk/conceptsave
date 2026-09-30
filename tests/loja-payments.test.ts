@@ -131,7 +131,7 @@ afterEach(() => {
 
 const kit = getProduct("kit-aplicacao-premium")!;
 
-async function newOrder(method: "pix" | "boleto" | "crypto" = "pix", qty = 1) {
+async function newOrder(method: "pix" | "crypto" = "pix", qty = 1) {
   const r = await createOrder(db as never, {
     customer: { name: "Maria Teste Silva", email: "maria@example.com", cpf: "529.982.247-25", phone: "(11) 98765-4321" },
     address: { cep: "01310-100", street: "Avenida Paulista", number: "1000", complement: "", district: "Bela Vista", city: "São Paulo", uf: "SP" },
@@ -217,8 +217,10 @@ describe("Pix charge creation", () => {
     expect(((await view.json()) as { payment: { mode: string } }).payment.mode).toBe("manual");
   });
 
-  it("doesn't charge card/boleto orders online", async () => {
-    const { id, token } = await newOrder("boleto");
+  it("doesn't charge older card/boleto orders online", async () => {
+    const { id, token } = await newOrder();
+    // New orders can't be card/boleto any more; older ones still exist in the database.
+    db.raw.prepare("UPDATE loja_orders SET payment_method = 'boleto' WHERE id = ?").run(id);
     const r = await startCharge(id, token);
     expect(r.body.error).toBe("not_supported");
     expect(fetchMock).not.toHaveBeenCalled();
@@ -506,7 +508,7 @@ describe("admin: vendas do dia + webhooks", () => {
   it("counts today's orders, money received, products and the webhook events", async () => {
     const { salesDashboard, saoPauloDay } = await import("../lib/loja-dashboard");
     const { id, token } = await newOrder("pix", 2);
-    await newOrder("boleto");
+    await newOrder("crypto");
     await startCharge(id, token);
     await webhook.POST(signed(paidEvent(id, Math.round(kit.price * 200))));
 
@@ -514,7 +516,7 @@ describe("admin: vendas do dia + webhooks", () => {
     expect(d.isToday).toBe(true);
     expect(d.orders.n).toBe(2);
     expect(d.orders.value).toBeCloseTo(kit.price * 3);
-    expect(d.orders.byMethod.map((m) => m.method).sort()).toEqual(["boleto", "pix"]);
+    expect(d.orders.byMethod.map((m) => m.method).sort()).toEqual(["crypto", "pix"]);
     expect(d.received.n).toBe(1);
     expect(d.received.cents).toBe(Math.round(kit.price * 200));
     expect(d.received.feeCents).toBe(1195);

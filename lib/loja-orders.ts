@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { z } from "zod";
-import { STORE, getProduct, type Product } from "@/app/loja/_lib/catalog";
+import { getProduct, type Product } from "@/app/loja/_lib/catalog";
 import { PAYMENT_METHODS, digits, fieldError, type CheckoutForm, type PaymentMethod } from "@/app/loja/_lib/checkout";
 import { ALLOWED_TRANSITIONS, type OrderStatus } from "@/app/loja/_lib/order-status";
 import { computeTotals, type OrderTotals } from "@/app/loja/_lib/pricing";
@@ -140,8 +140,7 @@ export const orderCreateSchema = z.object({
   payment: z
     .object({
       method: z.enum(PAYMENT_METHODS),
-      // Upper bound is checked in createOrder against the LIVE setting — a
-      // schema-level .max(STORE.maxInstallments) would freeze at module load.
+      // Kept for older clients; new orders are always stored with 1 (no card).
       installments: z.number().int().min(1).max(12).default(1),
     })
     .strict(),
@@ -296,8 +295,10 @@ export async function createOrder(db: D1Database, rawInput: OrderCreateInput): P
   const input = normalizeInput(rawInput);
   // The shared rules' message wins when both flag a field (it says exactly what to fix).
   const fields = { ...strictFormatErrors(input), ...validateFields(input) };
-  if (input.payment.method === "cartao" && input.payment.installments > STORE.maxInstallments) {
-    fields.installments = `Parcelamento disponível em até ${STORE.maxInstallments}x.`;
+  // Only the linked APIs (Pix, crypto) take new orders. Card and boleto stay
+  // in the schema and the database only for older orders.
+  if (input.payment.method === "cartao" || input.payment.method === "boleto") {
+    fields.payment = "Aceitamos apenas Pix ou cripto (USDT). Escolha uma dessas formas de pagamento.";
   }
   // Crypto exists only as an automatic gateway: never accepted as a
   // "we'll contact you" order when the gateway is off.
@@ -339,7 +340,7 @@ export async function createOrder(db: D1Database, rawInput: OrderCreateInput): P
   const cpfDigits = digits(input.customer.cpf);
   const history: OrderHistoryEntry[] = [{ status: "received", at }];
   const address: OrderAddress = { ...input.address, cep: digits(input.address.cep) };
-  const installments = input.payment.method === "cartao" ? input.payment.installments : 1;
+  const installments = 1;
   const phone = digits(input.customer.phone);
   const addressJson = JSON.stringify(address);
   const itemsJson = JSON.stringify(items);

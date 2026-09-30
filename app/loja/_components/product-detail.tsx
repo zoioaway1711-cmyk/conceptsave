@@ -3,15 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
-import { Check, CreditCard, Info, Share2, Snowflake, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, X, ZoomIn } from "lucide-react";
+import { Check, Info, Share2, Snowflake, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, Wallet, X, ZoomIn } from "lucide-react";
 import {
-  STORE,
   formatBRL,
   installmentText,
   storageOf,
   imageSrc,
   productsBySlugs,
   offeredPayments,
+  paymentNotice,
   type Product,
 } from "../_lib/catalog";
 import { useAvailability } from "../_lib/stock";
@@ -235,9 +235,9 @@ export function BuyBox({ product }: { product: Product }) {
 
       <div className="lj-card lj-card--pad flex flex-col gap-3">
         <h2 className="lj-h3 inline-flex items-center gap-2">
-          <CreditCard className="size-5 text-[color:var(--lj-primary)]" aria-hidden="true" /> Pagamento
+          <Wallet className="size-5 text-[color:var(--lj-primary)]" aria-hidden="true" /> Pagamento
         </h2>
-        <p className="lj-tiny lj-muted -mt-1">{STORE.paymentNote}</p>
+        <p className="lj-tiny lj-muted -mt-1">{paymentNotice()}</p>
         <ul className="flex flex-col gap-2">
           {offeredPayments().map((p) => (
             <li key={p.id} className="lj-small flex justify-between gap-3">

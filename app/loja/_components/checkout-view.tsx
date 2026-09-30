@@ -322,7 +322,7 @@ export function CheckoutView() {
             city: effective.city,
             uf: effective.uf,
           },
-          payment: { method: effective.payment, installments: effective.payment === "cartao" ? installments : 1 },
+          payment: { method: effective.payment, installments: 1 },
           items: lines.map((l) => ({ slug: l.product.slug, qty: l.qty })),
           expectedTotal: totals.total,
           hp,
@@ -407,7 +407,6 @@ export function CheckoutView() {
 
   const emailSuggestion = suggestEmail(effective.email);
   const paymentLabel = STORE.payment.find((p) => p.id === effective.payment)?.label ?? "";
-  const installments = Number(effective.installments) || 1;
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8">
@@ -690,24 +689,6 @@ export function CheckoutView() {
                     <span className="lj-small lj-muted">
                       {selectable(p.id) ? p.detail : `Disponível para pedidos a partir de ${formatBRL(CRYPTO_MIN_BRL)}.`}
                     </span>
-                    {p.id === "cartao" && effective.payment === "cartao" && (
-                      <span className="mt-2 flex flex-col gap-1.5">
-                        <span className="lj-label">Parcelas</span>
-                        <select
-                          aria-label="Número de parcelas"
-                          className="lj-select"
-                          value={effective.installments}
-                          onChange={(e) => update("installments", e.target.value)}
-                        >
-                          {Array.from({ length: STORE.maxInstallments }, (_, i) => i + 1).map((n) => (
-                            <option key={n} value={n}>
-                              {n}x de {formatBRL(totals.total / n)} sem juros
-                            </option>
-                          ))}
-                        </select>
-                        <span className="lj-tiny lj-muted">Os dados do cartão nunca são pedidos neste site.</span>
-                      </span>
-                    )}
                   </span>
                 </label>
               ))}
@@ -731,7 +712,6 @@ export function CheckoutView() {
               </ReviewBlock>
               <ReviewBlock title="Pagamento" onEdit={() => setStep(2)}>
                 {paymentLabel}
-                {effective.payment === "cartao" && ` · ${installments}x de ${formatBRL(totals.total / installments)} sem juros`}
               </ReviewBlock>
               <ul className="flex flex-col gap-3">
                 {lines.map(({ product, qty }) => (

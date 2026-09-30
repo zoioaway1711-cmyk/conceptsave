@@ -73,7 +73,10 @@ describe("catalog in D1", () => {
     await loadCatalog(db as never);
     expect(getProduct("diluente-bacteriostatico")?.price).toBe(89);
     expect(STORE.delivery.window).toBe(SEED_SETTINGS.deliveryWindow);
-    expect(STORE.payment.find((p) => p.id === "cartao")?.detail).toBe("Em até 3x sem juros.");
+    // Only the linked APIs are offered: no card, no boleto, no installments.
+    const { offeredPayments } = await import("../app/loja/_lib/catalog");
+    expect(offeredPayments().map((p) => p.id)).toEqual(["pix"]);
+    expect(STORE.maxInstallments).toBe(1);
   });
 
   it("an admin price change is what the server charges on the next order", async () => {
@@ -107,23 +110,26 @@ describe("catalog in D1", () => {
     await updateSettings(db as never, { ...SEED_SETTINGS, supportEmail: "contato@example.com", maxInstallments: 6 }, "admin");
     await loadCatalog(db as never);
     expect(STORE.supportEmail).toBe("contato@example.com");
-    expect(STORE.payment.find((p) => p.id === "cartao")?.detail).toBe("Em até 6x sem juros.");
+    expect(STORE.maxInstallments).toBe(1); // the setting no longer enables card installments
   });
 
-  it("regression: card installments follow the LIVE setting (not a value frozen at module load)", async () => {
+  it("new orders only take Pix or crypto: card and boleto are refused with a clear message", async () => {
     const base = {
       customer: { name: "Maria Teste Silva", email: "m@example.com", cpf: "52998224725", phone: "11987654321" },
       address: { cep: "01310100", street: "Av", number: "1", complement: "", district: "B", city: "São Paulo", uf: "SP" },
       items: [{ slug: "kit-aplicacao-premium", qty: 1 }],
       expectedTotal: 219,
     };
-    expect((await createOrder(db as never, { ...base, payment: { method: "cartao", installments: 3 } })).ok).toBe(true);
-    const over = await createOrder(db as never, { ...base, payment: { method: "cartao", installments: 4 } });
-    expect(over.ok).toBe(false);
-    if (!over.ok && over.error.code === "invalid_fields") expect(over.error.fields.installments).toMatch(/até 3x/);
-    // The HTTP schema itself must accept 3x too (it used to reject anything > 1).
-    const { orderCreateSchema } = await import("../lib/loja-orders");
-    expect(orderCreateSchema.safeParse({ ...base, payment: { method: "cartao", installments: 3 } }).success).toBe(true);
+    for (const method of ["cartao", "boleto"] as const) {
+      const r = await createOrder(db as never, { ...base, payment: { method, installments: 3 } });
+      expect(r.ok).toBe(false);
+      if (!r.ok && r.error.code === "invalid_fields") expect(r.error.fields.payment).toMatch(/apenas Pix ou cripto/);
+    }
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM loja_orders").get()).toEqual({ n: 0 });
+    // A Pix order is stored without installments, whatever an old client sends.
+    const pix = await createOrder(db as never, { ...base, payment: { method: "pix", installments: 3 } });
+    expect(pix.ok).toBe(true);
+    expect(db.raw.prepare("SELECT installments FROM loja_orders").get()).toEqual({ installments: 1 });
   });
 
   it("regression: a missing/invalid setting falls back instead of taking the store down", async () => {

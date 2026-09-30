@@ -220,14 +220,14 @@ export function CatalogTab({ catalog, onChanged }: { catalog: CatalogSnapshot; o
 }
 
 const SETTING_FIELDS: { key: keyof StoreSettings; label: string; hint?: string; multiline?: boolean }[] = [
-  { key: "whatsappUrl", label: "WhatsApp (link)", hint: "Ex.: https://wa.me/5511999999999 — vazio esconde o botão." },
+  { key: "whatsappUrl", label: "WhatsApp (link)", hint: "Ex.: https://wa.me/5511999999999 — vazio: o botão de atendimento leva à Central de ajuda." },
   { key: "instagramUrl", label: "Instagram (link)", hint: "Ex.: https://instagram.com/saveconcept — vazio esconde." },
   { key: "supportEmail", label: "E-mail de atendimento", hint: "Aparece na Central de ajuda." },
   { key: "privacyEmail", label: "E-mail de privacidade (LGPD)", hint: "Aparece na página de Privacidade." },
   { key: "supportHours", label: "Horário de atendimento" },
   { key: "deliveryWindow", label: "Prazo médio de entrega", hint: "Ex.: 3 a 7 dias úteis" },
   { key: "deliveryDetail", label: "Detalhe da entrega", multiline: true },
-  { key: "paymentNote", label: "Aviso de pagamento", multiline: true },
+  { key: "paymentNote", label: "Aviso de pagamento", multiline: true, hint: "Só aparece na loja quando o Pix automático estiver fora do ar (sem as chaves). Com o Pix ativo, a loja mostra \"Pagamento por Pix ou cripto direto no site\"." },
   { key: "returns", label: "Política de trocas e devoluções", multiline: true },
 ];
 
@@ -271,6 +271,7 @@ export function SettingsTab({ catalog, onChanged }: { catalog: CatalogSnapshot; 
         ))}
         <div className="space-y-1">
           <Label htmlFor="s-inst">Parcelas sem juros (máximo)</Label>
+          <p className="text-xs text-muted-foreground">Sem efeito: o cartão está desativado (a loja aceita só Pix e cripto).</p>
           <Input
             id="s-inst"
             type="number"

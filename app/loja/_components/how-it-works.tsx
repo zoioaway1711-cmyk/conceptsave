@@ -1,12 +1,12 @@
-import { Coins, CreditCard, PackageCheck, QrCode, ShoppingBag, Truck } from "lucide-react";
+import { Coins, PackageCheck, QrCode, ShoppingBag, Truck } from "lucide-react";
 import { STORE } from "../_lib/catalog";
 import type { PaymentMethod } from "../_lib/checkout";
 
 /*
  * The real purchase flow, spelled out (premium DTC health brands do this
- * up front). Pix and crypto can be paid on the site itself (automatic
- * confirmation) when their gateways are on; card and boleto are still
- * arranged with the team after the order — shoppers should know which
+ * up front). Only Pix and crypto are accepted, both paid on the site itself
+ * (automatic confirmation) when their gateways are on. If the Pix keys are
+ * missing, Pix is arranged with the team, and shoppers should know that
  * before checkout, not after.
  */
 // Built per render: the delivery window and gateways come from the live settings.
@@ -17,9 +17,13 @@ const steps = (method?: PaymentMethod) => {
       ? { icon: QrCode, title: "Pague com Pix", text: "Logo após o pedido, pague pelo QR Code ou pelo Pix copia e cola. A confirmação é automática." }
       : method === "crypto"
         ? { icon: Coins, title: "Pague em USDT", text: "Logo após o pedido, envie o valor exato em USDT (rede Tron · TRC20) para o endereço indicado. A confirmação é automática." }
-        : pixAuto && !method
-          ? { icon: CreditCard, title: "Pague", text: "Pix na hora, pelo QR Code, com confirmação automática. Cartão ou boleto: nossa equipe entra em contato." }
-          : { icon: CreditCard, title: "Combine o pagamento", text: "Nossa equipe entra em contato pelo e-mail ou celular para o Pix, cartão ou boleto." };
+        : pixAuto
+          ? {
+              icon: QrCode,
+              title: "Pague no site",
+              text: `Pix na hora, pelo QR Code${STORE.gateways.crypto ? ", ou cripto (USDT na rede Tron)" : ""}, com confirmação automática.`,
+            }
+          : { icon: QrCode, title: "Combine o pagamento", text: "Nossa equipe entra em contato pelo e-mail ou celular para combinar o Pix." };
   return [
     {
       icon: ShoppingBag,

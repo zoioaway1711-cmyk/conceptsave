@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CreditCard, MessageCircle, Package, RotateCcw, ShieldCheck, Truck } from "lucide-react";
-import { STORE, faq, offeredPayments } from "../_lib/catalog";
+import { STORE, faq, offeredPayments, paymentNotice } from "../_lib/catalog";
 import { loadCatalog } from "@/lib/loja-catalog";
 import { FaqList } from "../_components/sections";
 import { Breadcrumbs, JsonLd } from "../_components/ui";
@@ -79,7 +79,7 @@ export default async function AjudaPage() {
           <p>Itens refrigerados seguem em caixa térmica com gelo reciclável. Enviamos do nosso estoque em {STORE.city}.</p>
         </Topic>
         <Topic id="pagamento" title="Pagamento">
-          <p>{STORE.paymentNote}</p>
+          <p>{paymentNotice()}</p>
           <ul className="list-disc pl-5">
             {offeredPayments().map((p) => (
               <li key={p.id}>
@@ -87,7 +87,7 @@ export default async function AjudaPage() {
               </li>
             ))}
           </ul>
-          <p>Os dados do cartão nunca são pedidos neste site.</p>
+          <p>Não aceitamos cartão nem boleto.</p>
         </Topic>
         <Topic id="trocas" title="Trocas e devoluções">
           <p>{STORE.returns}</p>
