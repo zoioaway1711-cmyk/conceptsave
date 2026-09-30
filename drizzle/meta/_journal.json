@@ -155,6 +155,13 @@
       "when": 1790810000000,
       "tag": "0021_loja_peptide_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1790820000000,
+      "tag": "0022_loja_peptide_photos_more",
+      "breakpoints": true
     }
   ]
 }

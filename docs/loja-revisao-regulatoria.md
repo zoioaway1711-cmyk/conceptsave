@@ -27,6 +27,10 @@ consumidor e o rótulo diz "USO EM PESQUISA LABORATORIAL APENAS"):
   esses sete: o texto diz só que não têm registro na ANVISA e não são vendidos pelo site, e as
   ilustrações não trazem mais a frase. BPC-157 e TB-500 mantêm a frase, porque o rótulo real diz isso.
   Os banners enviados (com promessas de efeito e "uso subcutâneo") **não** foram publicados.
+- **Fotos (migrações `0020` e `0022`):** BPC-157, TB-500, GHK-Cu, KPV, DSIP, Epitalon, Selank e Semax
+  usam a foto do responsável recortada só no frasco (sem a caixa e os painéis com promessas de
+  efeito). O rótulo aparece como é de verdade — nos seis últimos, com "uso subcutâneo", o que
+  reforça o ponto 3 da tabela abaixo para a validação jurídica. MOTS-c segue com ilustração.
 - Somente **Kit de Aplicação Premium** e **Diluente Bacteriostático** podem ser pedidos online.
 - A chave de controle é o campo `purchasable` em `app/loja/_lib/catalog.ts`.
 
