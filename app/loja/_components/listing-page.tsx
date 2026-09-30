@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { ProductImage as ProductImageData } from "../_lib/catalog";
 import { Breadcrumbs, ProductImage, type Crumb } from "./ui";
 import { ListingSkeleton, ProductListing, SearchTitle, type ListingMode } from "./product-listing";
+import { SupportBanner } from "./support-banner";
 
 /*
  * Shared PLP shell. The listing reads filters from the URL (useSearchParams),
@@ -50,6 +51,7 @@ export function ListingPage({
           </span>
         )}
       </header>
+      <SupportBanner />
       <Suspense fallback={<ListingSkeleton />}>
         <ProductListing mode={mode} />
       </Suspense>
