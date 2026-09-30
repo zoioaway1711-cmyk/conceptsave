@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PRODUCTS, applyCatalog, formatBRL, type CatalogSnapshot } from "@/app/loja/_lib/catalog";
 import { CatalogTab, SettingsTab } from "./catalog-admin";
+import { SalesDashboardTab } from "./sales-dashboard";
 import { ALLOWED_TRANSITIONS, ORDER_STATUSES, ORDER_STATUS_LABEL, type OrderStatus } from "@/app/loja/_lib/order-status";
 import { apiDelete, apiFetch, apiPatch, apiPost } from "../_lib/api";
 import { downloadCsv } from "../_lib/csv";
@@ -767,16 +768,17 @@ export function LojaAdminClient({ canOrders, canAnalytics, canCatalog }: { canOr
     </div>
   );
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Loja</h1>
         <p className="text-sm text-muted-foreground">
-          Pedidos da loja online (pagamento combinado pela equipe — não há cobrança automática), estoque e métricas anônimas.
+          Vendas do dia, pedidos (Pix e Cripto confirmados automaticamente por webhook; cartão e boleto combinados pela equipe), estoque e métricas anônimas.
         </p>
       </div>
       {canOrders && <SummaryCards />}
-      <Tabs defaultValue={canOrders ? "pedidos" : canCatalog ? "catalogo" : "metricas"}>
-        <TabsList>
+      <Tabs defaultValue={canOrders ? "vendas" : canCatalog ? "catalogo" : "metricas"}>
+        <TabsList className="h-auto flex-wrap justify-start">
+          {canOrders && <TabsTrigger value="vendas">Vendas do dia</TabsTrigger>}
           {canOrders && <TabsTrigger value="pedidos">Pedidos</TabsTrigger>}
           {canOrders && <TabsTrigger value="estoque">Estoque</TabsTrigger>}
           {canOrders && <TabsTrigger value="inscritos">Inscritos</TabsTrigger>}
@@ -784,6 +786,11 @@ export function LojaAdminClient({ canOrders, canAnalytics, canCatalog }: { canOr
           {canCatalog && <TabsTrigger value="config">Configurações</TabsTrigger>}
           {canAnalytics && <TabsTrigger value="metricas">Métricas</TabsTrigger>}
         </TabsList>
+        {canOrders && (
+          <TabsContent value="vendas" className="pt-4">
+            <SalesDashboardTab />
+          </TabsContent>
+        )}
         {canOrders && (
           <TabsContent value="pedidos" className="pt-4">
             <OrdersTab />

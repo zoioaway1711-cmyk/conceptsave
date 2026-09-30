@@ -42,8 +42,9 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
   }
 
   return (
-    <aside className="relative flex h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center gap-2.5 border-b border-sidebar-border px-5 py-4">
+    // Phones: a compact top bar with a horizontally scrolling menu; md+ keeps the fixed left sidebar.
+    <aside className="relative z-20 flex w-full shrink-0 flex-col border-b border-sidebar-border bg-sidebar text-sidebar-foreground md:h-screen md:w-64 md:border-b-0 md:border-r">
+      <div className="flex items-center gap-2.5 border-b border-sidebar-border px-4 py-3 md:px-5 md:py-4">
         <span className="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-primary/15 shadow-[0_0_20px_rgba(47,123,255,0.25)]">
           <Image src="/save-concept-favicon.png" alt="Save Concept" width={32} height={32} className="size-full object-cover" priority />
         </span>
@@ -52,7 +53,7 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
           <span className="block text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Command Center</span>
         </div>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className="flex gap-1 overflow-x-auto px-3 py-2 md:flex-1 md:flex-col md:gap-0 md:space-y-1 md:overflow-x-visible md:overflow-y-auto md:py-4">
         {items.map((item) => {
           const active = pathname === item.href || pathname?.startsWith(`${item.href}/`);
           const Icon = item.icon;
@@ -61,7 +62,7 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
               key={item.href}
               href={item.href}
               className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                "group relative flex shrink-0 items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                 active
                   ? "bg-sidebar-accent text-sidebar-foreground"
                   : "text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
@@ -79,11 +80,11 @@ export function AdminSidebar({ username, permissions }: { username: string; perm
           );
         })}
       </nav>
-      <div className="border-t border-sidebar-border px-3 py-4">
-        <div className="mb-2 truncate px-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 border-t border-sidebar-border px-3 py-2 md:block md:py-4">
+        <div className="min-w-0 flex-1 truncate px-2 text-xs text-muted-foreground md:mb-2">
           Conectado como <span className="font-medium text-sidebar-foreground">{username}</span>
         </div>
-        <Button variant="outline" size="sm" className="w-full justify-start gap-2 border-sidebar-border bg-transparent text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" onClick={() => void signOut()} disabled={signingOut}>
+        <Button variant="outline" size="sm" className="shrink-0 justify-start gap-2 border-sidebar-border md:w-full bg-transparent text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground" onClick={() => void signOut()} disabled={signingOut}>
           <LogOut className="size-4" />
           {signingOut ? "Saindo…" : "Sair"}
         </Button>

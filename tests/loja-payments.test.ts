@@ -501,3 +501,47 @@ describe("Telegram: store alerts and reports", () => {
     expect(telegramTexts().some((t) => t.startsWith("📅 Bom dia! Resumo da loja de ontem"))).toBe(true);
   });
 });
+
+describe("admin: vendas do dia + webhooks", () => {
+  it("counts today's orders, money received, products and the webhook events", async () => {
+    const { salesDashboard, saoPauloDay } = await import("../lib/loja-dashboard");
+    const { id, token } = await newOrder("pix", 2);
+    await newOrder("boleto");
+    await startCharge(id, token);
+    await webhook.POST(signed(paidEvent(id, Math.round(kit.price * 200))));
+
+    const d = await salesDashboard(db as never, null);
+    expect(d.isToday).toBe(true);
+    expect(d.orders.n).toBe(2);
+    expect(d.orders.value).toBeCloseTo(kit.price * 3);
+    expect(d.orders.byMethod.map((m) => m.method).sort()).toEqual(["boleto", "pix"]);
+    expect(d.received.n).toBe(1);
+    expect(d.received.cents).toBe(Math.round(kit.price * 200));
+    expect(d.received.feeCents).toBe(1195);
+    expect(d.products[0]).toMatchObject({ sku: kit.sku, qty: 3 });
+    expect(d.hourly.reduce((s, h) => s + h.orders, 0)).toBe(2);
+    expect(d.list.find((o) => o.id === id)?.charge?.status).toBe("paid");
+    // First name only on this screen; never e-mail or CPF.
+    expect(JSON.stringify(d)).not.toContain("maria@");
+    expect(JSON.stringify(d)).not.toContain("Silva");
+    const pix = d.webhooks.providers.find((w) => w.provider === "pix")!;
+    expect(pix).toMatchObject({ configured: true, eventsOnDay: 1, url: "https://saveconcept.com.br/api/loja/webhooks/pix" });
+    expect(d.webhooks.recent[0]).toMatchObject({ provider: "pix", event: "order.paid", providerRef: CHARGE_ID });
+    expect(d.webhooks.recent[0].number).toMatch(/.+/);
+
+    const yesterday = await salesDashboard(db as never, saoPauloDay(null, new Date(Date.now() - 86400000)).day);
+    expect(yesterday.orders.n).toBe(0);
+    expect(yesterday.isToday).toBe(false);
+  });
+
+  it("rejects invalid or future days (falls back to today)", async () => {
+    const { saoPauloDay } = await import("../lib/loja-dashboard");
+    const now = new Date("2026-09-29T15:00:00Z");
+    expect(saoPauloDay("2026-02-30", now).day).toBe("2026-09-29");
+    expect(saoPauloDay("2030-01-01", now).day).toBe("2026-09-29");
+    expect(saoPauloDay("x", now).day).toBe("2026-09-29");
+    expect(saoPauloDay("2026-09-28", now)).toMatchObject({ day: "2026-09-28", from: new Date("2026-09-28T03:00:00Z") });
+    // 01:00 in São Paulo on the 29th is still 04:00Z → day 29; 02:00Z is still the 28th.
+    expect(saoPauloDay(null, new Date("2026-09-29T02:00:00Z")).day).toBe("2026-09-28");
+  });
+});
