@@ -17,7 +17,10 @@ consumidor e o rótulo diz "USO EM PESQUISA LABORATORIAL APENAS"):
   GHK-Cu 50mg — migração `0018_loja_peptides.sql`), na categoria `frascos`: mesmo bloqueio acima,
   sem avaliações, sem "Compre junto", sem posologia/via de aplicação e com imagem marcada como
   "IMAGEM ILUSTRATIVA". Eles também não têm registro na ANVISA, então entram na mesma validação
-  jurídica dos frascos.
+  jurídica dos frascos. No mesmo dia, a migração `0019_loja_peptides_more.sql` acrescentou mais seis
+  no mesmo regime (Epitalon 50mg, Semax 10mg, Selank 10mg, KPV 10mg, MOTS-c 10mg, DSIP 5mg). Ficaram
+  de fora os ligados a GH/IGF/hormônios, os que existem como medicamento de prescrição
+  (semaglutida, tesamorelina, bremelanotida/PT-141, elamipretida/SS-31) e o Melanotan.
 - Somente **Kit de Aplicação Premium** e **Diluente Bacteriostático** podem ser pedidos online.
 - A chave de controle é o campo `purchasable` em `app/loja/_lib/catalog.ts`.
 

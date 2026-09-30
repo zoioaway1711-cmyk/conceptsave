@@ -69,11 +69,22 @@ describe("catalog in D1", () => {
     }
   });
 
-  it("migration 0018 adds display-only peptides that can never be sold", async () => {
+  it("migrations 0018/0019 add display-only peptides that can never be sold", async () => {
     const snap = await readCatalog(db as never);
+    expect(snap.products).toHaveLength(20);
     const seed = new Set(SEED_PRODUCTS.map((p) => p.slug));
     const added = snap.products.filter((p) => !seed.has(p.slug) && p.category !== "acessorios");
-    expect(added.map((p) => p.slug)).toEqual(["bpc-157-5mg", "tb-500-5mg", "ghk-cu-50mg"]);
+    expect(added.map((p) => p.slug)).toEqual([
+      "bpc-157-5mg",
+      "tb-500-5mg",
+      "ghk-cu-50mg",
+      "dsip-5mg",
+      "epitalon-50mg",
+      "kpv-10mg",
+      "mots-c-10mg",
+      "selank-10mg",
+      "semax-10mg",
+    ]);
     const { existsSync } = await import("node:fs");
     for (const p of added) {
       expect(p.category).toBe("frascos");
