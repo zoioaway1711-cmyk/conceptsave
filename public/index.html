@@ -39,7 +39,7 @@
     <link rel="stylesheet" href="./styles.css?v=25" />
     <link rel="stylesheet" href="./modern.css?v=2" />
     <script src="./theme.js?v=2"></script>
-    <link rel="stylesheet" href="./theme.css?v=59" />
+    <link rel="stylesheet" href="./theme.css?v=60" />
   </head>
   <body>
     <div class="scroll-signature" id="scroll-signature" aria-hidden="true"><i></i></div>
@@ -188,6 +188,15 @@
             <span class="visually-hidden" id="login-qr-label">Entrar com QR Code</span>
           </button>
           <div id="login-error" class="login-error" aria-live="polite"></div>
+          <section class="login-contact" data-whatsapp-contact aria-labelledby="login-contact-title" hidden>
+            <div>
+              <small data-i18n="contactKicker">FALE CONOSCO</small>
+              <strong id="login-contact-title" data-i18n="supportContactTitle">Dúvidas sobre o seu serial?</strong>
+              <p data-i18n="supportContactCopy">Fale com o atendimento pelo WhatsApp. Se você já digitou o serial, ele vai junto na mensagem.</p>
+              <small class="contact-hours" data-support-hours></small>
+            </div>
+            <a class="serial-whatsapp" data-serial-whatsapp target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.4-4.1A8 8 0 1 1 20 11.5Z"/><path d="M9 7.5c-2 3 2.5 7.5 5.5 6l.5-1.5-2-1-.8 1c-1.2-.5-2-1.3-2.5-2.5l1-.7-1-2Z"/></svg><span data-i18n="supportWhatsapp">Falar no WhatsApp</span><span class="visually-hidden" data-i18n="newTab">(abre em nova aba)</span></a>
+          </section>
         </div>
       </div>
     </section>
@@ -481,6 +490,7 @@
       </button>
       <a href="/clube-save"><span aria-hidden="true">★</span><small>Bónus</small></a>
     </nav>
+    <a class="whatsapp-fab" data-whatsapp-contact data-serial-whatsapp target="_blank" rel="noopener noreferrer" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.4-4.1A8 8 0 1 1 20 11.5Z"/><path d="M9 7.5c-2 3 2.5 7.5 5.5 6l.5-1.5-2-1-.8 1c-1.2-.5-2-1.3-2.5-2.5l1-.7-1-2Z"/></svg><span data-i18n="whatsappFab">WhatsApp</span><span class="visually-hidden" data-i18n="whatsappFabLabel">Fale conosco pelo WhatsApp (abre em nova aba)</span></a>
     <button
       class="support-fab"
       id="open-support"
@@ -551,6 +561,10 @@
         <article><span>02</span><div><strong data-i18n="supportStep2Title">Consulte o serial</strong><p data-i18n="supportStep2Copy">Digite 5, 6 ou 8 números, ou utilize a câmara para ler o QR Code.</p></div></article>
         <article><span>03</span><div><strong data-i18n="supportStep3Title">Confira o resultado</strong><p data-i18n="supportStep3Copy">Produto, dosagem, farmácia, lote e estado devem aparecer na confirmação.</p></div></article>
       </div>
+      <section class="support-contact" data-whatsapp-contact aria-labelledby="support-contact-title" hidden>
+        <div><small class="contact-kicker" data-i18n="contactKicker">FALE CONOSCO</small><strong id="support-contact-title" data-i18n="supportContactTitle">Dúvidas sobre o seu serial?</strong><p data-i18n="supportContactCopy">Fale com o atendimento pelo WhatsApp. Se você já digitou o serial, ele vai junto na mensagem.</p><small class="contact-hours" data-support-hours></small></div>
+        <a class="serial-whatsapp" data-serial-whatsapp target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.4-4.1A8 8 0 1 1 20 11.5Z"/><path d="M9 7.5c-2 3 2.5 7.5 5.5 6l.5-1.5-2-1-.8 1c-1.2-.5-2-1.3-2.5-2.5l1-.7-1-2Z"/></svg><span data-i18n="supportWhatsapp">Falar no WhatsApp</span><span class="visually-hidden" data-i18n="newTab">(abre em nova aba)</span></a>
+      </section>
       <button class="primary support-scan icon-action" id="support-open-scanner" type="button"><span class="qr-icon" aria-hidden="true"></span><span class="visually-hidden" data-i18n="supportScan">Abrir leitor de QR Code</span></button>
     </dialog>
     <aside class="consent-banner" id="consent-banner" aria-labelledby="consent-title" hidden>
@@ -570,6 +584,6 @@
     <script src="./catalog-data.js?v=23"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="./app.js?v=31"></script>
+    <script src="./app.js?v=32"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE = 'save-concept-v34';
+const CACHE = 'save-concept-v35';
 // The portal's images are the .webp copies (~200 KB in all, against ~5 MB of
 // PNG) — the same pictures, the PNGs stay in public/ for anything linking them.
 const ASSETS = ['./index.html', './styles.css', './modern.css', './theme.css', './theme.js', './app.js', './catalog-data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './save-concept-vial-signature-v1.webp', './save-concept-vial-back-v1.webp', './login-product-back-v2.webp', './save-concept-mark-v2.webp'];

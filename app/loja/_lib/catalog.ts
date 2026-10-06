@@ -179,12 +179,13 @@ export function safeExternalUrl(value: unknown, pattern: RegExp) {
 /**
  * The store WhatsApp link with a pre-filled message (wa.me and
  * api.whatsapp.com both read `text`). "" when no WhatsApp is configured.
+ * encodeURIComponent, not URLSearchParams: WhatsApp expects %20, not "+".
  */
 export function whatsappLink(message: string) {
   if (!STORE.whatsappUrl) return "";
   const url = new URL(STORE.whatsappUrl);
-  url.searchParams.set("text", message);
-  return url.href;
+  url.searchParams.delete("text");
+  return `${url.href}${url.search ? "&" : "?"}text=${encodeURIComponent(message)}`;
 }
 
 export function safeEmail(value: unknown) {

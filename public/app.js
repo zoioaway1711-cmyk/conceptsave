@@ -399,6 +399,13 @@ Object.assign(t.pt, {
   supportStep3Title: "Confira o resultado",
   supportStep3Copy: "Produto, dosagem, farmácia, lote e estado devem aparecer na confirmação.",
   supportScan: "Abrir leitor de QR Code",
+  supportContactTitle: "Dúvidas sobre o seu serial?",
+  supportContactCopy: "Fale com o atendimento pelo WhatsApp. Se você já digitou o serial, ele vai junto na mensagem.",
+  supportWhatsapp: "Falar no WhatsApp",
+  newTab: "(abre em nova aba)",
+  contactKicker: "FALE CONOSCO",
+  whatsappFab: "WhatsApp",
+  whatsappFabLabel: "Fale conosco pelo WhatsApp (abre em nova aba)",
 });
 Object.assign(t.en, {
   recent: "VERIFIED PRODUCTS",
@@ -440,6 +447,13 @@ Object.assign(t.en, {
   supportStep3Title: "Review the result",
   supportStep3Copy: "The product, dose, pharmacy, batch and status must appear in the confirmation.",
   supportScan: "Open QR Code scanner",
+  supportContactTitle: "Questions about your serial?",
+  supportContactCopy: "Talk to our support team on WhatsApp. If you already typed the serial, it goes along in the message.",
+  supportWhatsapp: "Chat on WhatsApp",
+  newTab: "(opens in a new tab)",
+  contactKicker: "CONTACT US",
+  whatsappFab: "WhatsApp",
+  whatsappFabLabel: "Contact us on WhatsApp (opens in a new tab)",
 });
 Object.assign(t.es, {
   recent: "PRODUCTOS VERIFICADOS",
@@ -483,6 +497,13 @@ Object.assign(t.es, {
   supportStep3Title: "Revisa el resultado",
   supportStep3Copy: "Producto, dosis, farmacia, lote y estado deben aparecer en la confirmación.",
   supportScan: "Abrir lector de QR",
+  supportContactTitle: "¿Dudas sobre tu serial?",
+  supportContactCopy: "Habla con atención al cliente por WhatsApp. Si ya escribiste el serial, va incluido en el mensaje.",
+  supportWhatsapp: "Hablar por WhatsApp",
+  newTab: "(se abre en una nueva pestaña)",
+  contactKicker: "CONTÁCTANOS",
+  whatsappFab: "WhatsApp",
+  whatsappFabLabel: "Contáctanos por WhatsApp (se abre en una nueva pestaña)",
 });
 // License format: PREFIX-XXXX-XXXX-XXXX-XXXX (prefix: 2-10 letters/digits,
 // identification only; each segment: 4 chars). Freshly generated serials
@@ -918,9 +939,42 @@ document
   .querySelector("#login-scanner")
   .addEventListener("click", () => openScanner("login"));
 const supportDialog = document.querySelector("#support-dialog");
-document.querySelector("#open-support")?.addEventListener("click", () =>
-  supportDialog.showModal(),
-);
+// WhatsApp for serial questions, on the login card and in the help dialog.
+// The number lives in the store settings (admin → Loja → Configurações) and
+// comes from /api/contato. No number configured → nothing is shown.
+let supportWhatsappBase = "";
+fetch("/api/contato")
+  .then((response) => (response.ok ? response.json() : {}))
+  .then((data) => {
+    const url = typeof data.whatsappUrl === "string" ? data.whatsappUrl : "";
+    if (!/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(url)) return;
+    supportWhatsappBase = url;
+    if (typeof data.supportHours === "string")
+      document.querySelectorAll("[data-support-hours]").forEach((el) => (el.textContent = data.supportHours));
+    updateSupportWhatsapp();
+    document.querySelectorAll("[data-whatsapp-contact]").forEach((el) => (el.hidden = false));
+  })
+  .catch(() => {});
+function updateSupportWhatsapp() {
+  if (!supportWhatsappBase) return;
+  // The field the customer is looking at: login while the gate is up, the verify form after.
+  const gateOpen = !document.querySelector("#login-gate")?.classList.contains("hidden");
+  const typed = gateOpen ? loginInput?.value : input?.value;
+  const serial = (typed || "").replace(/[^0-9A-Za-z-]/g, "").slice(0, 30);
+  const message = serial
+    ? `Olá! Tenho uma dúvida sobre o serial ${serial}.`
+    : "Olá! Tenho uma dúvida sobre o serial do meu produto Save Concept.";
+  // encodeURIComponent, not URLSearchParams: WhatsApp expects %20, not "+", for spaces.
+  const url = new URL(supportWhatsappBase);
+  url.searchParams.delete("text");
+  const href = `${url.href}${url.search ? "&" : "?"}text=${encodeURIComponent(message)}`;
+  document.querySelectorAll("[data-serial-whatsapp]").forEach((link) => (link.href = href));
+}
+document.querySelectorAll("[data-serial-whatsapp]").forEach((link) => link.addEventListener("click", updateSupportWhatsapp));
+document.querySelector("#open-support")?.addEventListener("click", () => {
+  updateSupportWhatsapp();
+  supportDialog.showModal();
+});
 document.querySelector("#close-support")?.addEventListener("click", () =>
   supportDialog.close(),
 );

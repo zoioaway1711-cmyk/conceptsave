@@ -603,3 +603,41 @@ body:has(.login-gate:not(.hidden)) {
   aspect-ratio: 1024 / 1536 !important;
   height: auto !important;
 }
+
+/* Help dialog: WhatsApp for serial questions (shown only when a number is configured). */
+.support-contact {display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 26px 16px;padding:14px;background:#f5f9fd;border:1px solid #e5edf5;border-radius:15px;}
+.support-contact[hidden] {display:none;}
+.support-contact strong {display:block;margin-bottom:3px;font:750 14px Manrope,sans-serif;}
+.support-contact p {margin:0;color:#60738b;font-size:14px;line-height:1.5;}
+.support-contact small {display:block;margin-top:4px;color:#60738b;font-size:12px;}
+:root :is(.support-contact,.login-contact) .serial-whatsapp {display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;min-height:44px;padding:8px 14px;border-radius:14px;font:700 13px Manrope,sans-serif;text-decoration:none;background:linear-gradient(180deg,#229b65,#137044);color:#fff;border:1px solid #50b784;box-shadow:0 4px 0 #09482c,0 9px 18px #083e352e,inset 0 1px 0 #ffffff55;transition:transform .16s ease,filter .16s ease;}
+@media(hover:hover) and (pointer:fine) {:root :is(.support-contact,.login-contact) .serial-whatsapp:hover {transform:translateY(-2px);filter:brightness(1.06);}}
+:root[data-theme="dark"] .support-contact {color:var(--ui-text);background:var(--ui-soft);border-color:var(--ui-border);}
+:root[data-theme="dark"] .support-contact :is(p,small) {color:var(--ui-muted);}
+@media(max-width:600px) {.support-contact {flex-direction:column;align-items:stretch;margin:0 18px 14px;} :root .support-contact .serial-whatsapp {width:100%;}}
+@media(prefers-reduced-motion:reduce) {:root :is(.support-contact,.login-contact) .serial-whatsapp {transition:none;transform:none!important;}}
+/* Login card: a separate "Fale conosco" block, for customers who can't log in with their serial yet. */
+.login-contact {display:grid;gap:12px;margin:18px 0 0;padding:16px;border:1px solid var(--ui-border,#e5edf5);border-radius:16px;background:var(--ui-soft,#f5f9fd);color:var(--ui-text);text-align:left;}
+.login-contact[hidden] {display:none;}
+.login-contact small {display:block;color:var(--ui-accent,#0a6fb8);font:800 10px Manrope,sans-serif;letter-spacing:.12em;}
+.login-contact strong {display:block;margin:4px 0 3px;font:750 15px Manrope,sans-serif;}
+.login-contact p {margin:0;color:var(--ui-muted,#60738b);font-size:13px;line-height:1.5;}
+.login-contact .contact-hours {margin-top:6px;color:var(--ui-muted,#60738b);font:600 12px Manrope,sans-serif;letter-spacing:0;}
+.login-contact .contact-hours:empty {display:none;}
+:root .login-contact .serial-whatsapp {width:100%;}
+.support-contact .contact-kicker {display:block;margin-bottom:4px;color:var(--sc-blue,#0a6fb8);font:800 10px Manrope,sans-serif;letter-spacing:.12em;}
+.support-contact .contact-hours:empty {display:none;}
+.serial-whatsapp svg {width:20px;height:20px;flex-shrink:0;}
+:root .serial-whatsapp:focus-visible {outline:2px solid var(--ui-accent);outline-offset:3px;}
+/* Floating WhatsApp button, right above "Ajuda"; above the login gate (z-index 100) too. */
+.whatsapp-fab {position:fixed;right:24px;bottom:144px;z-index:110;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;box-sizing:border-box;padding:8px 16px;border-radius:16px;font:700 13px Manrope,sans-serif;text-decoration:none;color:#fff;background:linear-gradient(180deg,#229b65,#137044);border:1px solid #50b784;box-shadow:0 4px 0 #09482c,0 10px 22px #083e3540,inset 0 1px 0 #ffffff55;transition:transform .16s ease,filter .16s ease;}
+.whatsapp-fab[hidden] {display:none;}
+.whatsapp-fab svg {width:22px;height:22px;flex-shrink:0;}
+.whatsapp-fab:focus-visible {outline:2px solid var(--ui-accent);outline-offset:3px;}
+@media(hover:hover) and (pointer:fine) {.whatsapp-fab:hover {transform:translateY(-2px);filter:brightness(1.06);}}
+.whatsapp-fab:active {transform:translateY(3px);box-shadow:0 1px 0 #09482c,inset 0 2px 4px #0002;}
+@media(max-width:600px) {
+ .whatsapp-fab {right:14px;bottom:calc(205px + env(safe-area-inset-bottom,0px));width:52px;min-height:50px;padding:0;border-radius:16px;}
+ .whatsapp-fab > span[data-i18n="whatsappFab"] {display:none;}
+}
+@media(prefers-reduced-motion:reduce) {.whatsapp-fab {transition:none;transform:none!important;}}
