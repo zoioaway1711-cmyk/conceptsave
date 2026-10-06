@@ -38,6 +38,7 @@
 - Use `frontend_save` para layout, responsividade, React, Tailwind, Shadcn e Framer Motion.
 - Use `backend_save` para rotas de API, autenticação, D1/Drizzle, seriais, QR Code e regras de benefícios.
 - Use `revisor_save` para inspeção final, segurança, regressões, lint e build.
+- `atendimento_save` (Codex) / `atendimento-save` (Claude Code) é o assistente de atendimento ao cliente da loja, somente leitura. A fonte das instruções fica em `docs/agentes/atendimento-loja/`; depois de editá-la, rode `node scripts/sync-agente-atendimento.mjs`.
 - O agente principal coordena os resultados e mantém a decisão final.
 - Evite dois agentes editando o mesmo arquivo simultaneamente. Faça exploração e revisão em paralelo; centralize alterações conflitantes no agente principal.
 - Para mudanças relevantes, aguarde os agentes necessários, integre os resultados e execute `npm run lint` e `npm run build`.
