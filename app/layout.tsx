@@ -2,6 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  // Social cards (og:image, twitter:image) need absolute URLs, and without a
+  // base they were printed as http://localhost:3000/... — so link previews
+  // (WhatsApp, Instagram, Facebook) showed no image. A fixed public origin,
+  // not the request's host: /loja pages are cached across every domain that
+  // proxies to this Worker (worker/index.ts), so they can't depend on it.
+  metadataBase: new URL("https://saveconcept.com.br"),
   title: "Save Concept — Verificação de Autenticidade",
   description: "Portal Save Concept para verificação de seriais, benefícios e gestão segura de perfis.",
   icons: {

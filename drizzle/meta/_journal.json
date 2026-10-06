@@ -162,6 +162,13 @@
       "when": 1790820000000,
       "tag": "0022_loja_peptide_photos_more",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790830000000,
+      "tag": "0023_loja_photos_duo_diluent_motsc",
+      "breakpoints": true
     }
   ]
 }

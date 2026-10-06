@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { ArrowRight, FileCheck, ShieldCheck, Snowflake, Truck } from "lucide-react";
 import { loadCatalog } from "@/lib/loja-catalog";
-import { PRODUCTS, STORE, freeShippingOnAllPurchasable, getProduct, purchasableProducts } from "./_lib/catalog";
+import { PRODUCTS, STORE, freeShippingOnAllPurchasable, getProduct, paymentNotice, purchasableProducts } from "./_lib/catalog";
 import { RecentlyViewedProducts } from "./_components/client-sections";
 import { ProductCard } from "./_components/product-card";
 import { HowItWorks } from "./_components/how-it-works";
 import { CategoryCards, Differentiators, FaqList, Reviews, TrustStrip } from "./_components/sections";
 import { JsonLd, ProductImage, SectionHeading } from "./_components/ui";
 
-const heroImage = { base: "/loja/frasco-assinatura", alt: "Frasco Save Concept de marca própria", width: 960, height: 1440 };
+// The store sells the 60mg vial — the old hero showed a 20mg one.
+const heroImage = { base: "/loja/tirzepatida-60mg", alt: "Frasco Save Concept Tirzepatida 60mg", width: 960, height: 1280 };
 
 export default async function LojaHomePage() {
   await loadCatalog();
@@ -150,7 +151,8 @@ export default async function LojaHomePage() {
             id="como-title"
             eyebrow="Como funciona"
             title="Do pedido à sua porta"
-            description="Sem cobrança automática no site: você faz o pedido e combinamos o pagamento com você."
+            // Same payment line as the rest of the store: automatic Pix/crypto when the gateways are on, the admin's note otherwise.
+            description={paymentNotice()}
           />
           <HowItWorks />
         </div>

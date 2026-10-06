@@ -11,6 +11,7 @@ import {
   EMPTY_CHECKOUT,
   CRYPTO_MIN_BRL,
   FIELD_LABELS,
+  STEP_FIELDS,
   UFS,
   fieldError,
   hasPersonalData,
@@ -254,6 +255,9 @@ export function CheckoutView() {
 
   async function onCepChange(raw: string) {
     const masked = maskCep(raw);
+    // The location the current street/district were filled in from (the
+    // remembered CEP — every lookup here is saved as the new one).
+    const before = saved;
     update("cep", masked);
     const d = masked.replace(/\D/g, "");
     cepRequest.current = d;
@@ -269,11 +273,15 @@ export function CheckoutView() {
       const loc = result.location;
       saveDeliveryLocation(loc);
       // Fill what the service knows, but never overwrite what was typed.
+      // A street/district that came from the previous CEP isn't "typed": it
+      // is replaced (or cleared), so one CEP's street never ends up next to
+      // another CEP's city.
+      const typed = (value: string, filled: string | undefined) => Boolean(value) && value !== filled;
       setForm((f) => ({
         ...f,
         cep: masked,
-        street: f.street || loc.street || "",
-        district: f.district || loc.district || "",
+        street: typed(f.street, before?.street) ? f.street : loc.street || "",
+        district: typed(f.district, before?.district) ? f.district : loc.district || "",
         city: loc.city || f.city,
         uf: loc.uf || f.uf,
       }));
@@ -371,7 +379,10 @@ export function CheckoutView() {
       }
       setErrors(fields);
       setSummary(invalid);
-      setStep(invalid.some((k) => ["name", "email", "cpf", "phone"].includes(k)) ? 0 : invalid.includes("installments") ? 2 : 1);
+      // The earliest step holding a flagged field; payment/installments live on "Pagamento".
+      setStep(
+        invalid.some((k) => STEP_FIELDS[0].includes(k)) ? 0 : invalid.some((k) => k !== "payment" && k !== "installments") ? 1 : 2,
+      );
       return;
     }
     if (code === "price_changed") {
@@ -678,10 +689,14 @@ export function CheckoutView() {
                 <label key={p.id} className={`lj-option${selectable(p.id) ? "" : " cursor-not-allowed opacity-60"}`}>
                   <input
                     type="radio"
+                    // The checked option (always selectable) is what the error summary focuses.
+                    id={effective.payment === p.id ? "co-payment" : undefined}
                     name="payment"
                     value={p.id}
                     checked={effective.payment === p.id}
                     disabled={!selectable(p.id)}
+                    aria-invalid={errors.payment && effective.payment === p.id ? true : undefined}
+                    aria-describedby={errors.payment ? "payment-error" : undefined}
                     onChange={() => update("payment", p.id)}
                   />
                   <span className="flex flex-1 flex-col gap-1">
@@ -692,6 +707,12 @@ export function CheckoutView() {
                   </span>
                 </label>
               ))}
+              {/* Set only by the server (e.g. crypto turned off after this page was loaded). */}
+              {errors.payment && (
+                <p id="payment-error" className="lj-field-error inline-flex items-start gap-1.5">
+                  <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden="true" /> {errors.payment}
+                </p>
+              )}
             </fieldset>
           )}
 

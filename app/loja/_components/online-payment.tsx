@@ -22,6 +22,14 @@ export type PaymentState = OrderPaymentState;
 type AutoState = Extract<PaymentState, { mode: "auto" }>;
 
 const POLL_MS = 5000;
+/**
+ * After a code/quote expires, a late payment can still settle it (Pix: up to
+ * 24 h; USDT: a 30-min grace, watched for 1 h — the same windows the server
+ * keeps watching), so the page keeps asking, more slowly, for that long after
+ * it saw the expiry.
+ */
+const LATE_POLL_MS = 30_000;
+const LATE_WINDOW_MS: Record<PaymentProvider, number> = { pix: 24 * 3600 * 1000, crypto: 3600 * 1000 };
 
 const START_ERRORS: Record<string, string> = {
   provider_unavailable: "O serviço de pagamento está instável agora. Tente de novo em alguns instantes.",
@@ -347,6 +355,18 @@ export function OnlinePayment({
     }, POLL_MS);
     return () => window.clearInterval(t);
   }, [waiting, onRefresh]);
+
+  // Expired: "if you already paid, this page updates itself" must stay true.
+  const lateWatch = status === "expired";
+  useEffect(() => {
+    if (!lateWatch) return;
+    const until = Date.now() + LATE_WINDOW_MS[state.provider];
+    const t = window.setInterval(() => {
+      if (Date.now() > until) window.clearInterval(t);
+      else if (document.visibilityState === "visible") onRefresh();
+    }, LATE_POLL_MS);
+    return () => window.clearInterval(t);
+  }, [lateWatch, state.provider, onRefresh]);
 
   if (manual) return null;
   const Icon = state.provider === "pix" ? QrCode : Coins;

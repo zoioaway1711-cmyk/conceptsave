@@ -129,10 +129,16 @@ export function OrderView({ id }: { id: string }) {
   const hydrated = useHydrated();
   const refs = useOrderRefs();
   // Captured once per mount: stripping the URL below re-renders with empty
-  // search params, and these must survive that.
+  // search params, and these must survive that. On a full page load,
+  // useSearchParams() hydrates with the params the server rendered with,
+  // and the worker strips `t`/`novo` before the cached render (so a token
+  // never lands in shared HTML) — the real address bar is the fallback.
+  // Client navigations (checkout → `?novo=1`) do carry them in `params`.
   const [fromUrl] = useState(() => {
-    const t = params.get("t") ?? "";
-    return { token: ORDER_TOKEN_RE.test(t) ? t : "", isNew: params.get("novo") === "1" };
+    const live = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
+    const t = params.get("t") ?? live?.get("t") ?? "";
+    const novo = params.get("novo") ?? live?.get("novo");
+    return { token: ORDER_TOKEN_RE.test(t) ? t : "", isNew: novo === "1" };
   });
   const isNew = fromUrl.isNew;
   const token = hydrated ? fromUrl.token || orderAccessToken(id, refs) : "";

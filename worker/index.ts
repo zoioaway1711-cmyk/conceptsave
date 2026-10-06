@@ -35,10 +35,13 @@ const CACHEABLE_PATH = /^\/loja(?:\/[^?#]*)?$/;
 // URLs from the public host, which only the per-visitor x-vf-* proxy
 // headers carry, and those are stripped before the cached render.
 const FILE_LIKE_PATH = /\/[^/]*\.[a-z0-9]+$/i;
-// Query parameters that must never become part of a cache key: the order
-// page's access token (?t=) and its one-shot "just ordered" flag. The page
-// HTML doesn't depend on them (the browser reads them), so dropping them
-// also keeps every order link on one shared cache entry.
+// Query parameters that must never reach the cached render nor its key: the
+// order page's access token (?t=) and its one-shot "just ordered" flag. The
+// page HTML doesn't depend on them (the browser reads them), so dropping them
+// also keeps every order link on one shared cache entry. Dropping them from
+// the key alone is not enough: vinext serializes the request's search params
+// into the document, so a render that saw `?t=` would hand that token to
+// whoever got the cached copy next.
 const PRIVATE_QUERY_PARAMS = ["t", "novo"];
 
 // Edge freshness: catalog/settings edits in the admin show up within
@@ -65,11 +68,16 @@ function isRouterHeader(name: string): boolean {
   return name === "rsc" || name.startsWith("next-") || name.startsWith("x-vinext-");
 }
 
+function withoutPrivateParams(url: URL): URL {
+  const clean = new URL(url);
+  for (const name of PRIVATE_QUERY_PARAMS) clean.searchParams.delete(name);
+  return clean;
+}
+
 async function cacheKey(request: Request, url: URL): Promise<string> {
   const parts: string[] = [];
   for (const [name, value] of request.headers) if (isRouterHeader(name)) parts.push(`${name}:${value}`);
-  const keyUrl = new URL(url);
-  for (const name of PRIVATE_QUERY_PARAMS) keyUrl.searchParams.delete(name);
+  const keyUrl = withoutPrivateParams(url);
   const base = keyUrl.pathname + keyUrl.search;
   if (parts.length === 0) return base;
   parts.sort();
@@ -116,8 +124,9 @@ async function serveCachedPage(request: Request, url: URL, ctx: ExecutionContext
   if (!cached) return null; // local dev / runtimes without ctx.exports: render normally
 
   // Nothing visitor-specific may reach the cached render: drop cookies,
-  // credentials and the Vercel proxy's per-visitor headers.
-  const forwarded = new Request(request);
+  // credentials, private query params and the Vercel proxy's per-visitor
+  // headers.
+  const forwarded = new Request(withoutPrivateParams(url), request);
   for (const name of ["cookie", "authorization"]) forwarded.headers.delete(name);
   for (const name of [...forwarded.headers.keys()]) if (name.startsWith("x-vf-")) forwarded.headers.delete(name);
 
@@ -126,11 +135,21 @@ async function serveCachedPage(request: Request, url: URL, ctx: ExecutionContext
   // its own CPU budget (the gateway's stays tiny), so one retry turns most
   // of those misses into a success that then fills the cache.
   const key = await cacheKey(request, url);
-  const attempt = () => cached.fetch(new Request(forwarded), { cf: { cacheKey: key } }).catch(() => null);
-  let response = await attempt();
+  const attempt = (entry: string) =>
+    cached.fetch(new Request(forwarded), { cf: { cacheKey: entry } }).catch(() => null);
+  let response = await attempt(key);
   if (!response || response.status >= 500) {
     await response?.body?.cancel();
-    response = await attempt();
+    response = await attempt(key);
+  }
+  // Seen in production (2026-10-05): /loja/carrinho answered 503 for over an
+  // hour — every render under its usual key was killed for CPU, while the
+  // same page under any other key rendered fine. A last try under a sibling
+  // key fills an entry of its own, so the page comes back from cache on the
+  // next visit instead of staying down until the next deploy.
+  if (!response || response.status >= 500) {
+    await response?.body?.cancel();
+    response = await attempt(`${key}#fallback`);
   }
   if (!response) return null; // fall back to rendering in the gateway itself
   const oldNonce = response.headers.get(NONCE_HEADER);

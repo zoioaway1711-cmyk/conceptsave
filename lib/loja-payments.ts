@@ -80,6 +80,18 @@ const SELECT_PAYMENT =
 
 /** A `creating` row older than this was abandoned mid-call (the provider call itself times out after 15 s). */
 const CREATING_STALE_MS = 2 * 60 * 1000;
+
+/**
+ * A `creating` row whose request died before recording the outcome (Worker
+ * killed, client gone, D1 error). Same cut-off for the customer's view
+ * (shown as `failed`, so they can ask for a new code) and for startPayment
+ * (which retires it before creating the new one). An unreadable age counts
+ * as abandoned, as it always did in startPayment.
+ */
+function abandonedCreating(row: Pick<PaymentRow, "status" | "createdAt">, now: number) {
+  return row.status === "creating" && !(now - Date.parse(row.createdAt) < CREATING_STALE_MS);
+}
+
 /** Minimum spacing between two provider polls of the same charge. */
 const SYNC_INTERVAL_MS = 15 * 1000;
 /**
@@ -213,8 +225,15 @@ export function publicPaymentView(row: PaymentRow, now = Date.now()): PublicPaym
   };
   const expiresAt = typeof details.expiresAt === "number" ? details.expiresAt : null;
   // A pending code past its expiry can't be paid any more: say so without
-  // waiting for the provider's `expired` event.
-  const status: PaymentStatus = row.status === "pending" && expiresAt !== null && expiresAt * 1000 <= now ? "expired" : row.status;
+  // waiting for the provider's `expired` event. An abandoned `creating` row
+  // never got a code: `failed`, so the page offers a new one instead of
+  // "generating…" forever (nothing else ever moves that row).
+  const status: PaymentStatus =
+    row.status === "pending" && expiresAt !== null && expiresAt * 1000 <= now
+      ? "expired"
+      : abandonedCreating(row, now)
+        ? "failed"
+        : row.status;
   const copyPaste = typeof details.copyPaste === "string" ? validCopyPaste(details.copyPaste) : null;
   const address = typeof details.address === "string" && TRON_ADDRESS.test(details.address) ? details.address : null;
   const amountUsdt = typeof details.amountUsdt === "string" && /^\d{1,9}(\.\d{1,6})?$/.test(details.amountUsdt) ? details.amountUsdt : null;
@@ -314,7 +333,7 @@ export async function startPayment(
   const live = payments.find((p) => p.status === "pending" || p.status === "creating");
   if (live) {
     if (live.status === "pending" && publicPaymentView(live, now).status === "pending") return { ok: true, state: await orderPaymentState(db, order) };
-    if (live.status === "creating" && now - Date.parse(live.createdAt) < CREATING_STALE_MS) return { ok: false, error: "in_progress" };
+    if (live.status === "creating" && !abandonedCreating(live, now)) return { ok: false, error: "in_progress" };
     // Lapsed: retire it. A late payment on it still arrives by provider_ref.
     await db
       .prepare("UPDATE loja_payments SET status = ?, updated_at = ? WHERE id = ? AND status = ?")

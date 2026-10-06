@@ -14,7 +14,7 @@ import {
   paymentNotice,
   type Product,
 } from "../_lib/catalog";
-import { useAvailability } from "../_lib/stock";
+import { availabilityOf, useAvailability, useStock } from "../_lib/stock";
 import { notify, useFlash } from "../_lib/feedback";
 import { addToCart } from "../_lib/store";
 import { CepLookup, DeliveryInfo } from "./delivery";
@@ -278,7 +278,10 @@ export function BuyBox({ product }: { product: Product }) {
  * visible, and nothing is added until the shopper clicks the button.
  */
 export function BuyTogether({ product }: { product: Product }) {
-  const extras = useMemo(() => productsBySlugs(product.boughtTogether).filter((p) => p.available && p.purchasable), [product]);
+  // Live stock too: an accessory sold out in controlled stock would land in
+  // the cart only to be flagged "indisponível" there.
+  const stock = useStock();
+  const extras = useMemo(() => productsBySlugs(product.boughtTogether).filter((p) => availabilityOf(p, stock).buyable), [product, stock]);
   const [selected, setSelected] = useState<string[]>(() => extras.map((p) => p.slug));
   const [added, setAdded] = useState(false);
   const main = useAvailability(product);

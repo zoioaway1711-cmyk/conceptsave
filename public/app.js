@@ -161,6 +161,11 @@ async function requireResponse(response) {
   if (!response.ok) throw new Error("Não foi possível concluir a solicitação. Verifique sua conexão e tente novamente.");
   return response.json();
 }
+// Declared up here, not with the visual effects at the bottom: loginWith()
+// reads it, and a first visit through a QR link (`?serial=`) reaches
+// loginWith() synchronously from restoreSession(), before the bottom of
+// this file has run — a `const` read that early throws.
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let records = loadRecords(),
   language = localStorage.getItem("vf-language") || "pt",
   history = safeParse(localStorage.getItem("vf-history"), []),
@@ -580,10 +585,18 @@ async function loginWith(serial, source = "manual") {
       // session that was never established in this request to begin with.
       let code = "";
       try { code = (await response.clone().json()).error; } catch {}
-      if (code === "serial_already_used") {
+      // Answers about the serial itself, not a lost session or a network
+      // problem — say what actually happened instead of requireResponse()'s
+      // generic "check your connection".
+      const refusal = {
+        serial_already_used: t[language].loginAlreadyUsed,
+        invalid_serial: t[language].loginError,
+        profile_blocked: "Este cadastro está bloqueado. Contate o suporte.",
+      }[code] || (response.status === 429 ? "Muitas tentativas seguidas. Aguarde alguns minutos e tente novamente." : "");
+      if (refusal) {
         setCoreState("error");
         window.setTimeout(() => setCoreState("idle"), 1200);
-        error.textContent = t[language].loginAlreadyUsed;
+        error.textContent = refusal;
         return false;
       }
     }
@@ -1052,14 +1065,28 @@ const serialFromUrl = new URLSearchParams(location.search).get("serial");
 async function restoreSession() {
   const storedSession = session;
   session = "";
-  if (storedSession) {
-    try {
-      const data = await requireResponse(await fetch(`/api/profiles?id=${encodeURIComponent(storedSession)}`, { cache: "no-store" }));
-      session = storedSession;
+  // The httpOnly cookie is the real credential; the stored id is only a
+  // hint. Serials are single-use, so a customer whose session is dropped
+  // here can never log in again — hence:
+  // - without a stored id (Safari clears site storage after 7 days without
+  //   a visit), the cookie alone is still asked about, quietly;
+  // - only a real 401/403 ends the session (requireResponse → lockSession).
+  //   A network error or a 5xx keeps the stored id, so the next visit
+  //   simply tries again.
+  try {
+    const response = await fetch(storedSession ? `/api/profiles?id=${encodeURIComponent(storedSession)}` : "/api/profiles", { cache: "no-store" });
+    if (storedSession || response.ok) {
+      const data = await requireResponse(response);
+      session = storedSession || data.profile.id;
+      localStorage.setItem("vf-user-session", session);
       applyRemoteProfile(data.profile);
       await refreshCatalog();
       showApp(session);
-    } catch (failure) { lockSession(failure.message); }
+    }
+  } catch {
+    if (storedSession && session === "" && localStorage.getItem("vf-user-session")) {
+      document.querySelector("#login-error").textContent = "Não foi possível abrir a sua conta agora. Verifique sua conexão e recarregue a página.";
+    }
   }
   if (serialFromUrl && validSerial(serialFromUrl)) {
     if (!session) {
@@ -1077,7 +1104,9 @@ async function restoreSession() {
     // sitting in the address bar, browser history, or a bookmark after.
     const cleanUrl = new URL(location.href);
     cleanUrl.searchParams.delete("serial");
-    history.replaceState(history.state, "", cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    // window.history explicitly: a top-level `history` (the verification
+    // list) shadows it in this script.
+    window.history.replaceState(window.history.state, "", cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
   }
 }
 void restoreSession();
@@ -1106,7 +1135,6 @@ if ("serviceWorker" in navigator)
   );
 
 // Assinatura visual: progresso, revelação, ampola 3D e resposta ao clique.
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const scrollSignature = document.querySelector("#scroll-signature i");
 const updateScrollSignature = () => {
   const available = document.documentElement.scrollHeight - innerHeight;

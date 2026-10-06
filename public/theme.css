@@ -437,6 +437,8 @@ body::after {content:'SAVE CONCEPT® · ORIGINAL';position:fixed;right:14px;bott
  :root body:has(.login-gate:not(.hidden)) .theme-toggle,:root .admin-page .theme-toggle {bottom:24px;}
  body:has(.login-gate:not(.hidden)) .contact-dock {bottom:24px;}
  .save-footer {padding-bottom:170px;}
+ /* Same for the portal's own footer: the fixed theme button (88px up, 44px tall) sat on its disclaimer line. */
+ .shell > footer {padding-bottom:80px;}
 }
 @media(prefers-reduced-motion:reduce) {
  :root :is(.primary,.contact-dock .support-fab,.contact-dock .seller-whatsapp,.theme-toggle) {transition:none;transform:none!important;}

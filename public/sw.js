@@ -1,5 +1,7 @@
-const CACHE = 'save-concept-v33';
-const ASSETS = ['./index.html', './styles.css', './modern.css', './app.js', './catalog-data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './save-concept-tirzepatide-3d.png', './save-concept-vial-signature-v1.png', './save-concept-vial-back-v1.png', './login-product-back-v2.png', './save-concept-mark-v2.png'];
+const CACHE = 'save-concept-v34';
+// The portal's images are the .webp copies (~200 KB in all, against ~5 MB of
+// PNG) — the same pictures, the PNGs stay in public/ for anything linking them.
+const ASSETS = ['./index.html', './styles.css', './modern.css', './theme.css', './theme.js', './app.js', './catalog-data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './save-concept-vial-signature-v1.webp', './save-concept-vial-back-v1.webp', './login-product-back-v2.webp', './save-concept-mark-v2.webp'];
 const assetUrls = new Set(ASSETS.map(asset => new URL(asset, self.location).href));
 
 self.addEventListener('install', event => {

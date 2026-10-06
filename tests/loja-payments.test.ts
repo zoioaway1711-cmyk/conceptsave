@@ -235,6 +235,34 @@ describe("Pix charge creation", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(db.raw.prepare("SELECT status FROM loja_payments").get()).toEqual({ status: "failed" });
   });
+
+  it("a `creating` charge abandoned mid-call is offered again after 2 min — never while it may still be in flight", async () => {
+    const { id, token } = await newOrder();
+    const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
+    // The request died between the INSERT and recording the provider's answer.
+    db.raw
+      .prepare("INSERT INTO loja_payments (id, order_id, provider, provider_ref, status, amount_cents, created_at, updated_at) VALUES ('pay_stuck', ?, 'pix', NULL, 'creating', ?, ?, ?)")
+      .run(id, Math.round(kit.price * 100), at(30_000), at(30_000));
+    const view = async () => {
+      const res = await orderRoute.GET(new Request(`https://loja.test/api/loja/orders/${id}?t=${token}`), params(id));
+      return ((await res.json()) as { payment: { current: { status: string } | null; canCreate: boolean } }).payment;
+    };
+
+    // Still within the window: the provider call may be running — no second charge.
+    expect(await view()).toMatchObject({ current: { status: "creating" }, canCreate: false });
+    expect((await startCharge(id, token)).body.error).toBe("in_progress");
+    expect(createdAmount).toBeNull();
+
+    // Past it: shown as failed with "generate a new one"; generating retires it and opens exactly one live charge.
+    db.raw.prepare("UPDATE loja_payments SET created_at = ? WHERE id = 'pay_stuck'").run(at(3 * 60_000));
+    expect(await view()).toMatchObject({ current: { status: "failed" }, canCreate: true });
+    const again = await startCharge(id, token);
+    expect(again.status).toBe(200);
+    expect(again.body.payment?.current?.status).toBe("pending");
+    expect(createdAmount).toBe(Math.round(kit.price * 100));
+    expect(db.raw.prepare("SELECT status FROM loja_payments WHERE id = 'pay_stuck'").get()).toEqual({ status: "failed" });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM loja_payments WHERE status IN ('creating', 'pending')").get()).toEqual({ n: 1 });
+  });
 });
 
 describe("POST /api/loja/webhooks/pix", () => {
