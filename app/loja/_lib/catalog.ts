@@ -176,6 +176,17 @@ export function safeExternalUrl(value: unknown, pattern: RegExp) {
   }
 }
 
+/**
+ * The store WhatsApp link with a pre-filled message (wa.me and
+ * api.whatsapp.com both read `text`). "" when no WhatsApp is configured.
+ */
+export function whatsappLink(message: string) {
+  if (!STORE.whatsappUrl) return "";
+  const url = new URL(STORE.whatsappUrl);
+  url.searchParams.set("text", message);
+  return url.href;
+}
+
 export function safeEmail(value: unknown) {
   return typeof value === "string" && value.length <= 120 && EMAIL_RE.test(value.trim()) ? value.trim() : "";
 }

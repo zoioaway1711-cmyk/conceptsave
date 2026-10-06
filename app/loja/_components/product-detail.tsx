@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
-import { Check, Info, Share2, Snowflake, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, Wallet, X, ZoomIn } from "lucide-react";
+import { Check, Headset, Info, Mail, MessageCircle, Share2, Snowflake, FileCheck, PackageCheck, ShieldCheck, ShoppingCart, Wallet, X, ZoomIn } from "lucide-react";
 import {
   formatBRL,
   installmentText,
@@ -12,6 +13,8 @@ import {
   productsBySlugs,
   offeredPayments,
   paymentNotice,
+  whatsappLink,
+  STORE,
   type Product,
 } from "../_lib/catalog";
 import { availabilityOf, useAvailability, useStock } from "../_lib/stock";
@@ -134,6 +137,52 @@ function ShareButton({ product }: { product: Product }) {
   );
 }
 
+/*
+ * "Fale conosco" on every product page: questions or support about this
+ * product. WhatsApp opens with the product already named in the message;
+ * without a WhatsApp configured it falls back to e-mail and the help page,
+ * so support is always one tap away.
+ */
+function ProductSupport({ product }: { product: Product }) {
+  const whatsapp = whatsappLink(`Olá! Tenho uma dúvida sobre o produto ${product.name} (${product.presentation}).`);
+  const email = STORE.supportEmail
+    ? `mailto:${STORE.supportEmail}?subject=${encodeURIComponent(`Dúvida sobre ${product.name}`)}`
+    : "";
+  return (
+    <section className="lj-card lj-card--pad flex flex-col gap-3" aria-labelledby="produto-suporte-title">
+      <div className="flex items-start gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--lj-primary-soft)] text-[color:var(--lj-primary)]">
+          <Headset className="size-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 id="produto-suporte-title" className="lj-h3">
+            Dúvidas sobre este produto?
+          </h2>
+          <p className="lj-tiny lj-muted mt-0.5">
+            Fale com o atendimento para tirar dúvidas ou pedir suporte{STORE.supportHours ? ` · ${STORE.supportHours}` : ""}.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        {whatsapp ? (
+          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="lj-btn lj-btn--primary flex-1">
+            <MessageCircle aria-hidden="true" /> Fale conosco<span className="lj-sr-only"> pelo WhatsApp (abre em nova aba)</span>
+          </a>
+        ) : (
+          <Link href="/loja/ajuda" className="lj-btn lj-btn--primary flex-1">
+            <MessageCircle aria-hidden="true" /> Fale conosco
+          </Link>
+        )}
+        {email && (
+          <a href={email} className="lj-btn lj-btn--secondary flex-1">
+            <Mail aria-hidden="true" /> Enviar e-mail
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function BuyBox({ product }: { product: Product }) {
   const router = useRouter();
   const [qty, setQty] = useState(1);
@@ -225,6 +274,8 @@ export function BuyBox({ product }: { product: Product }) {
           </li>
         </ul>
       </div>
+
+      <ProductSupport product={product} />
 
       <div className="lj-card lj-card--pad flex flex-col gap-4">
         <h2 className="lj-h3">Entrega</h2>

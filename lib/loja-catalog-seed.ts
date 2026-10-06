@@ -72,7 +72,7 @@ export const SEED_PRODUCTS: Product[] = [
     purchasable: false,
     coldChain: true,
     healthNotice: true,
-    image: img("/loja/retatrutida-60mg", "Frasco Save Concept Retatrutida 60mg", 960, 1283),
+    image: img("/loja/retatrutida-60mg", "Frasco Save Concept Retatrutida 60mg", 960, 1280),
     keywords: ["retatrutida", "retatrutide", "frasco", "60mg", "injetavel"],
     related: ["kit-aplicacao-premium", "diluente-bacteriostatico"],
     boughtTogether: ["kit-aplicacao-premium", "diluente-bacteriostatico"],
