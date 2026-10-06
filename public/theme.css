@@ -639,5 +639,7 @@ body:has(.login-gate:not(.hidden)) {
 @media(max-width:600px) {
  .whatsapp-fab {right:14px;bottom:calc(205px + env(safe-area-inset-bottom,0px));width:52px;min-height:50px;padding:0;border-radius:16px;}
  .whatsapp-fab > span[data-i18n="whatsappFab"] {display:none;}
+ /* Login screen: no bottom nav and no "Ajuda" there, so drop to the corner instead of over the serial field. */
+ body:has(.login-gate:not(.hidden)) .whatsapp-fab {bottom:calc(24px + env(safe-area-inset-bottom,0px));}
 }
 @media(prefers-reduced-motion:reduce) {.whatsapp-fab {transition:none;transform:none!important;}}
