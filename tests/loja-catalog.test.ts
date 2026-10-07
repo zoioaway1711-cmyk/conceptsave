@@ -36,6 +36,8 @@ const edit = (slug: string, patch: Record<string, unknown> = {}) => {
     available: p.available,
     purchasable: p.purchasable,
     coldChain: p.coldChain,
+    category: p.category,
+    image: p.image,
     ...patch,
   };
 };
@@ -123,7 +125,7 @@ describe("catalog in D1", () => {
 
   it("loadCatalog fills the registry (products + derived store settings)", async () => {
     await loadCatalog(db as never);
-    expect(getProduct("diluente-bacteriostatico")?.price).toBe(89);
+    expect(getProduct("diluente-bacteriostatico")?.price).toBe(106.8);
     expect(STORE.delivery.window).toBe(SEED_SETTINGS.deliveryWindow);
     // Only the linked APIs are offered: no card, no boleto, no installments.
     const { offeredPayments } = await import("../app/loja/_lib/catalog");
@@ -170,7 +172,7 @@ describe("catalog in D1", () => {
       customer: { name: "Maria Teste Silva", email: "m@example.com", cpf: "52998224725", phone: "11987654321" },
       address: { cep: "01310100", street: "Av", number: "1", complement: "", district: "B", city: "São Paulo", uf: "SP" },
       items: [{ slug: "kit-aplicacao-premium", qty: 1 }],
-      expectedTotal: 219,
+      expectedTotal: 262.8,
     };
     for (const method of ["cartao", "boleto"] as const) {
       const r = await createOrder(db as never, { ...base, payment: { method, installments: 3 } });

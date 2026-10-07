@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { env } from "cloudflare:workers";
 import { loadCatalog } from "@/lib/loja-catalog";
+import { productReviews } from "@/lib/loja-reviews";
 import { preload } from "react-dom";
 import Link from "next/link";
 import { ChevronDown, ChevronLeft, Info, ShieldCheck } from "lucide-react";
@@ -19,6 +21,7 @@ import {
 } from "../../_lib/catalog";
 import { ProductRail, RecentlyViewedProducts, TrackView } from "../../_components/client-sections";
 import { BuyBox, BuyTogether, ProductGallery } from "../../_components/product-detail";
+import { ReviewCard } from "../../_components/sections";
 import { Breadcrumbs, JsonLd } from "../../_components/ui";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -70,6 +73,8 @@ export default async function ProdutoPage({ params }: Props) {
   });
   const storageValue = storageOf(product);
   const storage = storageValue ? `Conservar em ${storageValue}` : null;
+  // Approved reviews only (written from delivered orders, moderated in the admin).
+  const reviews = product.reviewCount > 0 ? await productReviews((env as unknown as { DB: D1Database }).DB, product.slug, product.name, 6) : [];
 
   return (
     <>
@@ -85,6 +90,8 @@ export default async function ProdutoPage({ params }: Props) {
               sku: product.sku,
               image: imageSrc(product.image, 960),
               brand: { "@type": "Brand", name: product.brand },
+              // Only real, approved reviews feed this (lib/loja-reviews.ts).
+              ...(product.reviewCount > 0 ? { aggregateRating: { "@type": "AggregateRating", ratingValue: product.rating.toFixed(1), reviewCount: product.reviewCount, bestRating: 5, worstRating: 1 } } : {}),
               // No Offer for products that can't be bought online.
               ...(product.purchasable ? { offers: {
                 "@type": "Offer",
@@ -202,6 +209,22 @@ export default async function ProdutoPage({ params }: Props) {
             </Link>
           </div>
         </div>
+
+        {reviews.length > 0 && (
+          <section className="mt-10" aria-labelledby="avaliacoes-produto">
+            <p className="lj-eyebrow mb-2">Avaliações</p>
+            <h2 id="avaliacoes-produto" className="lj-h2 mb-4 text-[22px]">
+              O que dizem os clientes
+            </h2>
+            <ul className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {reviews.map((r) => (
+                <li key={r.id}>
+                  <ReviewCard review={r} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
 
       <ProductRail id="relacionados-title" eyebrow="Relacionados" title="Você também pode precisar" products={related} />

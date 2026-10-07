@@ -15,6 +15,8 @@ export default async function LojaHomePage() {
   await loadCatalog();
   const brandImage = (getProduct("tirzepatida-60mg") ?? PRODUCTS[0])?.image ?? heroImage;
   const freeShipping = freeShippingOnAllPurchasable();
+  // Home copy is edited in the admin (Loja → Configurações → Página inicial).
+  const home = STORE.home;
   return (
     <>
       <JsonLd
@@ -46,12 +48,9 @@ export default async function LojaHomePage() {
               <ShieldCheck aria-hidden="true" /> Loja oficial · fabricação própria desde {STORE.since}
             </span>
             <h1 id="hero-title" className="lj-h1 max-w-[16ch]">
-              Direto de quem fabrica, com autenticidade verificável
+              {home.heroTitle}
             </h1>
-            <p className="lj-lead max-w-[48ch]">
-              Formulado e envasado em {STORE.city}, enviado refrigerado e com nota fiscal. Cada unidade tem serial para
-              você conferir a origem.
-            </p>
+            <p className="lj-lead max-w-[48ch]">{home.heroLead}</p>
             <div className="flex w-full flex-col gap-3 min-[420px]:w-auto min-[420px]:flex-row">
               <Link href="/loja/produtos" className="lj-btn lj-btn--primary lj-btn--lg">
                 Ver produtos <ArrowRight aria-hidden="true" />
@@ -108,8 +107,8 @@ export default async function LojaHomePage() {
           <SectionHeading
             id="produtos-title"
             eyebrow="Catálogo"
-            title="Nossos produtos"
-            description="Catálogo enxuto de marca própria — cada item é formulado, produzido e embalado por nós."
+            title={home.catalogTitle}
+            description={home.catalogDescription}
             action={
               <Link href="/loja/produtos" className="lj-link lj-hit inline-flex items-center gap-1 text-sm">
                 Ver todos com filtros <ArrowRight className="size-4" aria-hidden="true" />
@@ -177,15 +176,11 @@ export default async function LojaHomePage() {
             <div className="flex flex-col justify-center gap-4 p-6 sm:p-10">
               <p className="lj-eyebrow">Nossa marca</p>
               <h2 id="marca-title" className="lj-h2">
-                De um forno de bancada a 50 mil frascos por ano
+                {home.brandTitle}
               </h2>
-              <p className="lj-small lj-muted">
-                Começamos em {STORE.since}, em {STORE.city}, com três formulações. Hoje testamos cada lote antes de liberar
-                o envio — o mesmo cuidado do início, em escala maior.
-              </p>
+              <p className="lj-small lj-muted whitespace-pre-line">{home.brandText}</p>
               <blockquote className="lj-small border-l-2 border-[color:var(--lj-primary)] py-1 pl-4 italic text-[color:var(--lj-ink)]">
-                “A gente não terceiriza a produção pra depois só colar etiqueta. Se sai daqui com o nome Save Concept, foi a
-                nossa equipe que formulou e envasou.”
+                “{home.brandQuote}”
                 <footer className="lj-tiny lj-muted mt-1 font-semibold not-italic">— Equipe de produção Save Concept</footer>
               </blockquote>
             </div>

@@ -3,14 +3,13 @@ import { ArrowRight, BellRing, ChevronDown, Factory, FileCheck, FlaskConical, Me
 import {
   CATEGORIES,
   DIFFERENTIATORS,
-  RATING_BREAKDOWN,
-  TESTIMONIALS,
+  STORE,
   TRUST_ITEMS,
-  averageRating,
   categoryHref,
   faq,
   productsInCategory,
-  totalReviews,
+  productHref,
+  type PublicReview,
 } from "../_lib/catalog";
 import { ProductImage, SectionHeading, StarRating } from "./ui";
 
@@ -87,46 +86,76 @@ export function Differentiators() {
   );
 }
 
+/** One approved customer review (home section and product page). */
+export function ReviewCard({ review, showProduct }: { review: PublicReview; showProduct?: boolean }) {
+  return (
+    <figure className="lj-card lj-card--pad flex h-full flex-col gap-3">
+      <Quote className="size-5 text-[color:var(--lj-primary)]" aria-hidden="true" />
+      <StarRating rating={review.rating} />
+      <blockquote className="lj-small flex-1 whitespace-pre-line text-[color:var(--lj-text)]">“{review.text}”</blockquote>
+      <figcaption>
+        <p className="text-xs font-bold text-[color:var(--lj-ink)]">
+          {review.author} · {review.city}
+        </p>
+        <p className="lj-tiny lj-muted">
+          Compra verificada · {review.month}
+          {showProduct && (
+            <>
+              {" · "}
+              <Link href={productHref(review.productSlug)} className="lj-link">
+                {review.productName}
+              </Link>
+            </>
+          )}
+        </p>
+      </figcaption>
+    </figure>
+  );
+}
+
+/*
+ * Only real reviews: written from a delivered order's page and approved in
+ * the admin (lib/loja-reviews.ts). With none approved yet, the section is
+ * not rendered at all — never a placeholder or an invented testimonial.
+ */
 export function Reviews() {
-  const AVERAGE_RATING = averageRating();
-  const TOTAL_REVIEWS = totalReviews();
+  const { breakdown, latest } = STORE.reviews;
+  // Counted from the reviews themselves, so the bars and the total always agree.
+  const total = breakdown.reduce((n, r) => n + r.count, 0);
+  if (total === 0) return null;
+  const average = Math.round((breakdown.reduce((n, r) => n + r.stars * r.count, 0) / total) * 10) / 10;
   return (
     <section className="lj-section lj-reveal lj-cv" aria-labelledby="avaliacoes-title">
       <div className="lj-container">
         <SectionHeading id="avaliacoes-title" eyebrow="Avaliações" title="O que dizem os clientes" />
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
           <div className="lj-card lj-card--pad flex flex-col gap-3">
-            <p className="lj-display text-4xl font-extrabold">{AVERAGE_RATING.toFixed(1)}</p>
-            <StarRating rating={AVERAGE_RATING} />
-            <p className="lj-small lj-muted">Média de {TOTAL_REVIEWS} avaliações de compras verificadas.</p>
+            <p className="lj-display text-4xl font-extrabold">{average.toFixed(1)}</p>
+            <StarRating rating={average} />
+            <p className="lj-small lj-muted">
+              Média de {total} {total === 1 ? "avaliação" : "avaliações"} de clientes com pedido entregue.
+            </p>
             <ul className="mt-2 flex flex-col gap-1.5" aria-label="Distribuição das notas">
-              {RATING_BREAKDOWN.map((row) => (
-                <li key={row.stars} className="lj-tiny flex items-center gap-2">
-                  <span className="w-16 shrink-0 whitespace-nowrap font-semibold text-[color:var(--lj-ink)]">
-                    {row.stars} {row.stars === 1 ? "estrela" : "estrelas"}
-                  </span>
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--lj-soft)]">
-                    <span className="block h-full rounded-full bg-[color:var(--lj-star)]" style={{ width: `${row.pct}%` }} />
-                  </span>
-                  <span className="lj-muted w-8 shrink-0 text-right">{row.pct}%</span>
-                </li>
-              ))}
+              {breakdown.map((row) => {
+                const pct = total ? Math.round((row.count / total) * 100) : 0;
+                return (
+                  <li key={row.stars} className="lj-tiny flex items-center gap-2">
+                    <span className="w-16 shrink-0 whitespace-nowrap font-semibold text-[color:var(--lj-ink)]">
+                      {row.stars} {row.stars === 1 ? "estrela" : "estrelas"}
+                    </span>
+                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--lj-soft)]">
+                      <span className="block h-full rounded-full bg-[color:var(--lj-star)]" style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="lj-muted w-8 shrink-0 text-right">{row.count}</span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
           <ul className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {TESTIMONIALS.map((t) => (
-              <li key={t.name}>
-                <figure className="lj-card lj-card--pad flex h-full flex-col gap-3">
-                  <Quote className="size-5 text-[color:var(--lj-primary)]" aria-hidden="true" />
-                  <StarRating rating={t.rating} />
-                  <blockquote className="lj-small flex-1 text-[color:var(--lj-text)]">“{t.text}”</blockquote>
-                  <figcaption>
-                    <p className="text-xs font-bold text-[color:var(--lj-ink)]">
-                      {t.name} · {t.location}
-                    </p>
-                    <p className="lj-tiny lj-muted">{t.meta}</p>
-                  </figcaption>
-                </figure>
+            {latest.slice(0, 6).map((r) => (
+              <li key={r.id}>
+                <ReviewCard review={r} showProduct />
               </li>
             ))}
           </ul>

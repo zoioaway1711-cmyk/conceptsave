@@ -304,6 +304,8 @@ describe("regulated categories", () => {
     available: p.available,
     purchasable: p.purchasable,
     coldChain: p.coldChain,
+    category: p.category,
+    image: p.image,
     ...patch,
   });
 
@@ -394,7 +396,7 @@ describe("catalog admin body limits", () => {
       productRoute.PUT(new Request(`${ORIGIN}/api/admin/loja/catalog/products/${kit.slug}`, { method: "PUT", headers, body }), { params: Promise.resolve({ slug: kit.slug }) });
     expect((await put(JSON.stringify({ padding: "x".repeat(20_000) }))).status).toBe(400);
     const p = SEED_PRODUCTS.find((x) => x.slug === kit.slug)!;
-    const valid = { name: p.name, presentation: p.presentation, summary: p.summary, description: p.description, price: p.price, oldPrice: p.oldPrice ?? null, badge: p.badge ?? null, specs: p.specs, freeShipping: p.freeShipping, available: p.available, purchasable: p.purchasable, coldChain: p.coldChain };
+    const valid = { name: p.name, presentation: p.presentation, summary: p.summary, description: p.description, price: p.price, oldPrice: p.oldPrice ?? null, badge: p.badge ?? null, specs: p.specs, freeShipping: p.freeShipping, available: p.available, purchasable: p.purchasable, coldChain: p.coldChain, category: p.category, image: p.image };
     expect((await put(JSON.stringify({ ...valid, sku: "hijack" }))).status).toBe(422);
     expect((await put(JSON.stringify({ ...valid, description: `Linha 1${BEL}\n\n\n\nLinha 2` }))).status).toBe(200);
     expect(db.raw.prepare("SELECT description FROM loja_products WHERE slug = ?").get(kit.slug)).toEqual({ description: "Linha 1\n\nLinha 2" });

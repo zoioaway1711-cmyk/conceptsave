@@ -76,12 +76,35 @@ export type StoreSettings = {
   deliveryDetail: string;
   paymentNote: string;
   returns: string;
+  // Home page copy.
+  heroTitle: string;
+  heroLead: string;
+  catalogTitle: string;
+  catalogDescription: string;
+  brandTitle: string;
+  brandText: string;
+  brandQuote: string;
 };
+
+/** Home-page copy keys of StoreSettings (edited in the admin's "Página inicial"). */
+export const HOME_TEXT_KEYS = ["heroTitle", "heroLead", "catalogTitle", "catalogDescription", "brandTitle", "brandText", "brandQuote"] as const;
+export type HomeTexts = Pick<StoreSettings, (typeof HOME_TEXT_KEYS)[number]>;
+
+/**
+ * An approved customer review. Only ever written from the page of a
+ * DELIVERED order (lib/loja-reviews.ts) and published after moderation, so
+ * "compra verificada" is literally true. Author is what the customer chose
+ * to show (first name + initial by default), city comes from the order.
+ */
+export type PublicReview = { id: string; productSlug: string; productName: string; rating: number; text: string; author: string; city: string; month: string };
+
+/** Store-wide review data for the home section: real counts per star and the latest approved reviews. */
+export type ReviewsSummary = { breakdown: { stars: number; count: number }[]; latest: PublicReview[] };
 
 /** Which payment methods are collected automatically on the site (server secrets configured). */
 export type PaymentGateways = { pix: boolean; crypto: boolean };
 
-export type CatalogSnapshot = { version: string; products: Product[]; settings: StoreSettings; gateways?: PaymentGateways };
+export type CatalogSnapshot = { version: string; products: Product[]; settings: StoreSettings; gateways?: PaymentGateways; reviews?: ReviewsSummary };
 
 /*
  * LIVE CATALOG REGISTRY.
@@ -127,6 +150,8 @@ export const STORE = {
   /** Pix charged on the site (QR code + automatic confirmation) instead of arranged by the team. */
   gateways: { pix: false, crypto: false } as PaymentGateways,
   returns: "",
+  home: {} as HomeTexts,
+  reviews: { breakdown: [], latest: [] } as ReviewsSummary,
 };
 
 /**
@@ -220,6 +245,8 @@ export function applyCatalog(snapshot: CatalogSnapshot) {
     paymentNote: s.paymentNote,
     returns: s.returns,
     gateways: { pix: Boolean(snapshot.gateways?.pix), crypto: Boolean(snapshot.gateways?.crypto) },
+    home: Object.fromEntries(HOME_TEXT_KEYS.map((k) => [k, s[k] ?? ""])) as HomeTexts,
+    reviews: snapshot.reviews ?? { breakdown: [], latest: [] },
   });
 }
 
@@ -263,38 +290,6 @@ export const DIFFERENTIATORS = [
   { id: "rastreio", title: "Rastreio desde a expedição", text: "Código de rastreio liberado assim que o pedido sai do estoque." },
   { id: "reposicao", title: "Avisamos a reposição", text: "Produto esgotado? Você recebe e-mail assim que o lote seguinte for liberado." },
 ] as const;
-
-export const RATING_BREAKDOWN = [
-  { stars: 5, pct: 78 },
-  { stars: 4, pct: 15 },
-  { stars: 3, pct: 5 },
-  { stars: 2, pct: 1 },
-  { stars: 1, pct: 1 },
-];
-
-export const TESTIMONIALS = [
-  {
-    name: "Marina T.",
-    location: "Campinas, SP",
-    meta: "Compra verificada · ago/2025",
-    text: "Peguei o kit duo e testei a bolsa térmica com termômetro de cozinha por curiosidade — segurou a faixa direitinho até o produto chegar. Chegou dois dias antes do previsto.",
-    rating: 5,
-  },
-  {
-    name: "Rafael C.",
-    location: "Belo Horizonte, MG",
-    meta: "Compra verificada · jun/2025",
-    text: "Terceira compra. O que mais pesa pra mim é sair com nota fiscal em todo pedido, sem ter que pedir — facilita minha organização.",
-    rating: 5,
-  },
-  {
-    name: "Bianca A.",
-    location: "Recife, PE",
-    meta: "Compra verificada · set/2025",
-    text: "Produto veio certinho, só acho que o prazo pra cá no Nordeste podia ser um pouco mais curto. Fora isso, sem nenhum problema com o pedido.",
-    rating: 4,
-  },
-];
 
 /** FAQ answers that quote store policies are built from the live settings. */
 export function faq() {

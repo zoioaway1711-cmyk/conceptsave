@@ -55,13 +55,13 @@ describe("orders summary", () => {
       address: { cep: "01310100", street: "Av", number: "1", complement: "", district: "B", city: "São Paulo", uf: "SP" },
       payment: { method: "pix" as const, installments: 1 },
     };
-    const a = await createOrder(db as never, { ...base, items: [{ slug: "diluente-bacteriostatico", qty: 1 }], expectedTotal: 89 });
-    await createOrder(db as never, { ...base, items: [{ slug: "kit-aplicacao-premium", qty: 1 }], expectedTotal: 219 });
+    const a = await createOrder(db as never, { ...base, items: [{ slug: "diluente-bacteriostatico", qty: 1 }], expectedTotal: 106.8 });
+    await createOrder(db as never, { ...base, items: [{ slug: "kit-aplicacao-premium", qty: 1 }], expectedTotal: 262.8 });
     if (!a.ok) throw new Error("setup");
     await transitionOrder(db as never, a.id, "payment_approved");
     const s = await ordersSummary(db as never);
-    expect(s.awaitingPayment).toEqual({ n: 1, value: 219 });
-    expect(s.confirmed).toEqual({ n: 1, value: 89 });
+    expect(s.awaitingPayment).toEqual({ n: 1, value: 262.8 });
+    expect(s.confirmed).toEqual({ n: 1, value: 106.8 });
     expect(s.toShip.n).toBe(1);
   });
 });

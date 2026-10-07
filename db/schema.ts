@@ -496,3 +496,42 @@ export const lojaSettings = sqliteTable("loja_settings", {
   updatedAt: text("updated_at").notNull(),
   updatedBy: text("updated_by").notNull(),
 });
+
+// Customer reviews, written only from a delivered order's page and shown
+// once approved in the admin (drizzle/0026). Product rating/review_count
+// are recomputed from the approved rows.
+export const lojaReviews = sqliteTable("loja_reviews", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  productSlug: text("product_slug").notNull(),
+  rating: integer("rating").notNull(),
+  text: text("text").notNull(),
+  author: text("author").notNull(),
+  city: text("city").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").notNull(),
+  moderatedAt: text("moderated_at"),
+  moderatedBy: text("moderated_by"),
+}, (table) => ({
+  orderProductUnique: uniqueIndex("idx_loja_reviews_order_product").on(table.orderId, table.productSlug),
+  statusIdx: index("idx_loja_reviews_status").on(table.status, table.createdAt),
+  productIdx: index("idx_loja_reviews_product").on(table.productSlug, table.status),
+  ratingCheck: check("loja_reviews_rating_check", sql`${table.rating} BETWEEN 1 AND 5`),
+  statusCheck: check("loja_reviews_status_check", sql`${table.status} IN ('pending','approved','rejected')`),
+}));
+
+// Product photos uploaded in the admin, one row per size (drizzle/0026).
+export const lojaImages = sqliteTable("loja_images", {
+  id: text("id").notNull(),
+  size: integer("size").notNull(),
+  mime: text("mime").notNull(),
+  dataB64: text("data_b64").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  createdAt: text("created_at").notNull(),
+  createdBy: text("created_by").notNull(),
+}, (table) => ({
+  pk: uniqueIndex("loja_images_pk").on(table.id, table.size),
+  sizeCheck: check("loja_images_size_check", sql`${table.size} IN (480, 960)`),
+  mimeCheck: check("loja_images_mime_check", sql`${table.mime} IN ('image/webp','image/jpeg')`),
+}));

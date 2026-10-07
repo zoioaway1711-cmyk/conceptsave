@@ -11,7 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PRODUCTS, applyCatalog, formatBRL, type CatalogSnapshot } from "@/app/loja/_lib/catalog";
-import { CatalogTab, SettingsTab } from "./catalog-admin";
+import { CatalogTab, ReviewsTab, SettingsTab } from "./catalog-admin";
 import { SalesDashboardTab } from "./sales-dashboard";
 import { ALLOWED_TRANSITIONS, ORDER_STATUSES, ORDER_STATUS_LABEL, type OrderStatus } from "@/app/loja/_lib/order-status";
 import { apiDelete, apiFetch, apiPatch, apiPost } from "../_lib/api";
@@ -783,6 +783,7 @@ export function LojaAdminClient({ canOrders, canAnalytics, canCatalog }: { canOr
           {canOrders && <TabsTrigger value="estoque">Estoque</TabsTrigger>}
           {canOrders && <TabsTrigger value="inscritos">Inscritos</TabsTrigger>}
           {canCatalog && <TabsTrigger value="catalogo">Catálogo</TabsTrigger>}
+          {canCatalog && <TabsTrigger value="avaliacoes">Avaliações</TabsTrigger>}
           {canCatalog && <TabsTrigger value="config">Configurações</TabsTrigger>}
           {canAnalytics && <TabsTrigger value="metricas">Métricas</TabsTrigger>}
         </TabsList>
@@ -809,6 +810,11 @@ export function LojaAdminClient({ canOrders, canAnalytics, canCatalog }: { canOr
         {canCatalog && (
           <TabsContent value="catalogo" className="pt-4">
             {catalog ? <CatalogTab catalog={catalog} onChanged={loadCatalogData} /> : catalogPending}
+          </TabsContent>
+        )}
+        {canCatalog && (
+          <TabsContent value="avaliacoes" className="pt-4">
+            {catalog ? <ReviewsTab catalog={catalog} onChanged={loadCatalogData} /> : catalogPending}
           </TabsContent>
         )}
         {canCatalog && (

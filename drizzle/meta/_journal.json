@@ -183,6 +183,13 @@
       "when": 1790926400000,
       "tag": "0025_loja_prices_plus_20",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1790926500000,
+      "tag": "0026_loja_reviews_images",
+      "breakpoints": true
     }
   ]
 }

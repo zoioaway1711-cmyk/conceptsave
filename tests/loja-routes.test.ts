@@ -44,7 +44,7 @@ describe("public order route", () => {
       address: { cep: "01310100", street: "Av", number: "1", complement: "", district: "B", city: "São Paulo", uf: "SP" },
       payment: { method: "pix", installments: 1 },
       items: [{ slug: "diluente-bacteriostatico", qty: 1 }],
-      expectedTotal: 89,
+      expectedTotal: 106.8,
     });
     if (!r.ok) throw new Error("setup");
     const wrong = await publicOrder.GET(new Request(url(`/api/loja/orders/${r.id}?t=${"0".repeat(32)}`)), params(r.id));
@@ -59,7 +59,7 @@ describe("public order route", () => {
       address: { cep: "01310100", street: "Av", number: "1", complement: "", district: "B", city: "São Paulo", uf: "SP" },
       payment: { method: "pix", installments: 1 },
       items: [{ slug: "diluente-bacteriostatico", qty: 1 }],
-      expectedTotal: 89,
+      expectedTotal: 106.8,
     });
     if (!r.ok) throw new Error("setup");
     const token = await orderAccessToken(r.id);

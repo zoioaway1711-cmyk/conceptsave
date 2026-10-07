@@ -12,6 +12,7 @@ import { ORDER_TOKEN_RE, orderAccessToken, orderShareUrl, rememberOrderAccess, u
 import { OrderSummary, useHydrated } from "./cart-view";
 import { HowItWorks } from "./how-it-works";
 import { OnlinePayment, PaymentReceipt, type PaymentState } from "./online-payment";
+import { OrderReviews } from "./order-reviews";
 import { Breadcrumbs, ProductImage } from "./ui";
 
 export type PublicOrder = {
@@ -371,6 +372,8 @@ function OrderDetails({
               })}
             </ul>
           </section>
+
+          {order.status === "delivered" && token && <OrderReviews orderId={order.id} token={token} items={order.items} />}
 
           <div className="grid gap-6 sm:grid-cols-2">
             <section className="lj-card lj-card--pad" aria-labelledby="entrega-pedido">

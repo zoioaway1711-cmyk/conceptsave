@@ -7,6 +7,8 @@ import type { Product, ProductImage, StoreSettings } from "@/app/loja/_lib/catal
  * file is used only by tests and as documentation of the initial state —
  * never imported by browser code, so prices don't ship in the JS bundle.
  *
+ * Reflects the state after every later catalog migration (prices +20% in
+ * 0025, invented ratings zeroed in 0026).
  * Kept in sync with migration 0015's INSERTs by tests/loja-catalog.test.ts
  * ("migration 0015 seeded exactly…"), which runs the real SQL and compares.
  */
@@ -29,8 +31,8 @@ export const SEED_PRODUCTS: Product[] = [
     price: 1290,
     oldPrice: 1450,
     badge: "Mais vendido",
-    rating: 4.9,
-    reviewCount: 312,
+    rating: 0,
+    reviewCount: 0,
     specs: [
       "Concentração: 60mg / 4ml",
       "Lote atual: SC-0924B · val. 08/2027",
@@ -59,8 +61,8 @@ export const SEED_PRODUCTS: Product[] = [
       "Linha que entrou no catálogo em 2025, envasada na mesma planta e sob o mesmo controle de lote da Tirzepatida — muda o princípio ativo, não o processo.",
     price: 1390,
     badge: "Novidade",
-    rating: 4.9,
-    reviewCount: 41,
+    rating: 0,
+    reviewCount: 0,
     specs: [
       "Concentração: 60mg / 4ml",
       "Lote atual: SC-1024R · val. 10/2027",
@@ -91,8 +93,8 @@ export const SEED_PRODUCTS: Product[] = [
     oldPrice: 2680,
     units: { count: 2, label: "frasco" },
     badge: "Kit com 2 unidades",
-    rating: 4.8,
-    reviewCount: 187,
+    rating: 0,
+    reviewCount: 0,
     specs: [
       "Conteúdo: 2x frascos de 60mg / 4ml",
       "Lotes parelhos (mesma leva de produção)",
@@ -119,10 +121,10 @@ export const SEED_PRODUCTS: Product[] = [
     summary: "Seringas 31G, bolsa térmica compacta, lenços com álcool 70% e cartela de controle.",
     description:
       "Era o brinde que mandávamos nos primeiros pedidos — virou produto porque quase todo mundo pedia pra comprar avulso.",
-    price: 219,
+    price: 262.8,
     badge: "Acessório",
-    rating: 4.7,
-    reviewCount: 98,
+    rating: 0,
+    reviewCount: 0,
     specs: [
       "10 seringas 1ml com agulha 31G",
       "Bolsa térmica compacta",
@@ -154,10 +156,10 @@ export const SEED_PRODUCTS: Product[] = [
     summary: "Frasco multiperfuração de 10ml, compatível com toda a linha injetável.",
     description:
       "O mesmo diluente que vai junto quando você fecha um kit completo — vendido separado pra quem só precisa repor.",
-    price: 89,
+    price: 106.8,
     badge: "Essencial",
-    rating: 4.9,
-    reviewCount: 141,
+    rating: 0,
+    reviewCount: 0,
     specs: [
       "Composição: água para injeção com álcool benzílico 0,9%",
       "Volume: 10ml, multiperfuração",
@@ -187,4 +189,12 @@ export const SEED_SETTINGS: StoreSettings = {
   deliveryDetail: "Prazo médio, conforme o CEP. Código de rastreio enviado assim que o pedido sai do estoque.",
   paymentNote: "Não há cobrança automática no site: depois do pedido, nossa equipe entra em contato para combinar o pagamento.",
   returns: "Até 7 dias corridos após o recebimento, com lacre intacto. Reembolso na mesma forma de pagamento em até 10 dias úteis.",
+  // Home page copy (no DB row until edited in the admin: readCatalog falls back to these).
+  heroTitle: "Direto de quem fabrica, com autenticidade verificável",
+  heroLead: "Formulado e envasado em Cotia, SP, enviado refrigerado e com nota fiscal. Cada unidade tem serial para você conferir a origem.",
+  catalogTitle: "Nossos produtos",
+  catalogDescription: "Catálogo enxuto de marca própria — cada item é formulado, produzido e embalado por nós.",
+  brandTitle: "De um forno de bancada a 50 mil frascos por ano",
+  brandText: "Começamos em 2019, em Cotia, SP, com três formulações. Hoje testamos cada lote antes de liberar o envio — o mesmo cuidado do início, em escala maior.",
+  brandQuote: "A gente não terceiriza a produção pra depois só colar etiqueta. Se sai daqui com o nome Save Concept, foi a nossa equipe que formulou e envasou.",
 };

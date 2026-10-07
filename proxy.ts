@@ -194,7 +194,10 @@ export async function proxy(request: NextRequest) {
       // 500 lines stops working"). Kept as a per-path exception rather
       // than raising the global cap, since nothing else legitimately needs
       // a body this large.
-      const maxBodyBytes = request.nextUrl.pathname === "/api/admin/licenses/import" ? 2 * 1024 * 1024 : 256 * 1024;
+      // Product photo uploads (admin, RBAC-gated) carry two already-compressed
+      // images as base64: at most 2 × 300KB decoded (lib/loja-images.ts).
+      const maxBodyBytes =
+        request.nextUrl.pathname === "/api/admin/licenses/import" ? 2 * 1024 * 1024 : request.nextUrl.pathname === "/api/admin/loja/images" ? 900 * 1024 : 256 * 1024;
       const reader = request.clone().body?.getReader();
       let size = 0;
       if (reader) {
