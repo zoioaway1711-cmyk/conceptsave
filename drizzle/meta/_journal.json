@@ -176,6 +176,13 @@
       "when": 1790840000000,
       "tag": "0024_loja_photos_tirzepatida_retatrutida",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790926400000,
+      "tag": "0025_loja_prices_plus_20",
+      "breakpoints": true
     }
   ]
 }
