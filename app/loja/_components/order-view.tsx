@@ -36,7 +36,8 @@ export async function fetchOrder(
   token: string,
 ): Promise<{ state: "ok"; order: PublicOrder; payment: PaymentState } | { state: "not_found" | "error" }> {
   try {
-    const res = await fetch(`/api/loja/orders/${encodeURIComponent(id)}?t=${encodeURIComponent(token)}`, { cache: "no-store" });
+    // Token in a header, not the URL: URLs end up in server logs.
+    const res = await fetch(`/api/loja/orders/${encodeURIComponent(id)}`, { headers: { "x-order-token": token }, cache: "no-store" });
     if (res.status === 404) return { state: "not_found" };
     if (!res.ok) return { state: "error" };
     const data = (await res.json()) as { order: PublicOrder; payment?: PaymentState };

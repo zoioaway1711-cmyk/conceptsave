@@ -4,8 +4,11 @@ import { orderPaymentState } from "@/lib/loja-payments";
 import { enforceRateLimits, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 /*
- * The URL of this endpoint carries the order's capability token (?t=), and
- * the answer carries the customer's address. Stated on the response itself
+ * The order's capability token comes in the `x-order-token` header (never
+ * in the URL: request URLs end up in access/observability logs). `?t=` is
+ * still accepted only so order pages already open with the previous script
+ * keep working — remove it once those are gone. The answer carries the
+ * customer's address, so its privacy headers are stated on the response itself
  * — not left to the global API headers in proxy.ts — so it holds even if
  * that middleware's matcher or the edge gateway ever changes:
  * - never stored by any cache (browser, Vercel proxy, Cloudflare);
@@ -23,13 +26,13 @@ function withPrivateHeaders(response: Response) {
   return response;
 }
 
-/** Customer order page data. Requires the order's access token (?t=). */
+/** Customer order page data. Requires the order's access token (`x-order-token`). */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const db = (env as unknown as { DB: D1Database }).DB;
   const limit = await enforceRateLimits(db, "loja_order_read", rateLimitKey(request), [{ limit: 60, windowSeconds: 60 }]);
   if (!limit.allowed) return withPrivateHeaders(rateLimitResponse(limit));
   const { id } = await params;
-  const token = new URL(request.url).searchParams.get("t") ?? "";
+  const token = request.headers.get("x-order-token") ?? new URL(request.url).searchParams.get("t") ?? "";
   const notFound = () => Response.json({ error: "not_found" }, { status: 404, headers: PRIVATE_HEADERS });
   if (!/^ord_[0-9a-f-]{36}$/.test(id) || !/^[0-9a-f]{32}$/.test(token) || !(await verifyOrderAccessToken(id, token))) {
     // Same answer for "doesn't exist" and "wrong token": no enumeration.

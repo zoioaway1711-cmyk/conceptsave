@@ -12,7 +12,7 @@ const adminStock = await import("../app/api/admin/loja/stock/route");
 const adminMetrics = await import("../app/api/admin/loja/metrics/route");
 const publicOrder = await import("../app/api/loja/orders/[id]/route");
 const events = await import("../app/api/loja/events/route");
-const { createOrder } = await import("../lib/loja-orders");
+const { createOrder, orderAccessToken } = await import("../lib/loja-orders");
 
 let db: ReturnType<typeof createFakeD1>;
 beforeEach(() => {
@@ -51,6 +51,31 @@ describe("public order route", () => {
     expect(wrong.status).toBe(404);
     const missing = await publicOrder.GET(new Request(url(`/api/loja/orders/ord_00000000-0000-0000-0000-000000000000?t=${"0".repeat(32)}`)), params("ord_00000000-0000-0000-0000-000000000000"));
     expect(missing.status).toBe(404);
+  });
+
+  it("takes the token from the x-order-token header (kept out of the URL and its logs)", async () => {
+    const r = await createOrder(db as never, {
+      customer: { name: "Maria Teste Silva", email: "m@example.com", cpf: "52998224725", phone: "11987654321" },
+      address: { cep: "01310100", street: "Av", number: "1", complement: "", district: "B", city: "São Paulo", uf: "SP" },
+      payment: { method: "pix", installments: 1 },
+      items: [{ slug: "diluente-bacteriostatico", qty: 1 }],
+      expectedTotal: 89,
+    });
+    if (!r.ok) throw new Error("setup");
+    const token = await orderAccessToken(r.id);
+    const ok = await publicOrder.GET(new Request(url(`/api/loja/orders/${r.id}`), { headers: { "x-order-token": token } }), params(r.id));
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { order: { id: string } }).order.id).toBe(r.id);
+    const wrong = await publicOrder.GET(new Request(url(`/api/loja/orders/${r.id}`), { headers: { "x-order-token": "0".repeat(32) } }), params(r.id));
+    expect(wrong.status).toBe(404);
+    // A wrong header is never rescued by a right ?t=: the header always wins.
+    const mixed = await publicOrder.GET(new Request(url(`/api/loja/orders/${r.id}?t=${token}`), { headers: { "x-order-token": "0".repeat(32) } }), params(r.id));
+    expect(mixed.status).toBe(404);
+    // Legacy ?t= (order pages still open with the previous script) keeps working.
+    const legacy = await publicOrder.GET(new Request(url(`/api/loja/orders/${r.id}?t=${token}`)), params(r.id));
+    expect(legacy.status).toBe(200);
+    const none = await publicOrder.GET(new Request(url(`/api/loja/orders/${r.id}`)), params(r.id));
+    expect(none.status).toBe(404);
   });
 });
 
